@@ -29,7 +29,6 @@ class BoletaController extends Controller
 
         //$jsonArr = var_dump($json);
         return json_encode($json['EnvioBOLETA']['SetDTE']['Caratula']);
-
     }
 
     public function setPruebas() {
@@ -75,7 +74,7 @@ class BoletaController extends Controller
             ],
         ];
 
-        $set_pruebas = [
+        $boletas = [
             // CASO 1
             [
                 'Encabezado' => [
@@ -320,7 +319,7 @@ class BoletaController extends Controller
 
         // generar cada DTE, timbrar, firmar y agregar al sobre de EnvioBOLETA
         $EnvioDTE = new EnvioDte();
-        foreach ($set_pruebas as $documento) {
+        foreach ($boletas as $documento) {
             $DTE = new Dte($documento);
             if (!$DTE->timbrar($Folios[$DTE->getTipo()]))
                 break;
