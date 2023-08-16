@@ -1,0 +1,296 @@
+{
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "type": "object",
+    "properties": {
+        "Caratula": {
+            "type": "object",
+            "properties": {
+                "RutReceptor": {
+                    "type": "string"
+                },
+                "FchResol": {
+                    "type": "string"
+                },
+                "NroResol": {
+                    "type": "integer"
+                }
+            },
+            "required": [
+                "RutReceptor",
+                "FchResol",
+                "NroResol"
+            ]
+        },
+        "Boletas": {
+            "type": "array",
+            "items": [
+                {
+                    "type": "object",
+                    "properties": {
+                        "Encabezado": {
+                            "type": "object",
+                            "properties": {
+                                "IdDoc": {
+                                    "type": "object",
+                                    "properties": {
+                                        "TipoDTE": {
+                                            "type": "integer"
+                                        },
+                                        "Folio": {
+                                            "type": "integer"
+                                        }
+                                    },
+                                    "required": [
+                                        "TipoDTE",
+                                        "Folio"
+                                    ]
+                                },
+                                "Emisor": {
+                                    "type": "object",
+                                    "properties": {
+                                        "RUTEmisor": {
+                                            "type": "string"
+                                        },
+                                        "RznSocEmisor": {
+                                            "type": "string"
+                                        },
+                                        "GiroEmisor": {
+                                            "type": "string"
+                                        },
+                                        "Acteco": {
+                                            "type": "integer"
+                                        },
+                                        "DirOrigen": {
+                                            "type": "string"
+                                        },
+                                        "CmnaOrigen": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "RUTEmisor",
+                                        "RznSocEmisor",
+                                        "GiroEmisor",
+                                        "Acteco",
+                                        "DirOrigen",
+                                        "CmnaOrigen"
+                                    ]
+                                },
+                                "Receptor": {
+                                    "type": "object",
+                                    "properties": {
+                                        "RUTRecep": {
+                                            "type": "string"
+                                        },
+                                        "RznSocRecep": {
+                                            "type": "string"
+                                        },
+                                        "DirRecep": {
+                                            "type": "string"
+                                        },
+                                        "CmnaRecep": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "RUTRecep",
+                                        "RznSocRecep",
+                                        "DirRecep",
+                                        "CmnaRecep"
+                                    ]
+                                }
+                            },
+                            "required": [
+                                "IdDoc",
+                                "Emisor",
+                                "Receptor"
+                            ]
+                        },
+                        "Detalle": {
+                            "type": "array",
+                            "items": [
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "NmbItem": {
+                                            "type": "string"
+                                        },
+                                        "QtyItem": {
+                                            "type": "integer"
+                                        },
+                                        "PrcItem": {
+                                            "type": "integer"
+                                        }
+                                    },
+                                    "required": [
+                                        "NmbItem",
+                                        "QtyItem",
+                                        "PrcItem"
+                                    ]
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "NmbItem": {
+                                            "type": "string"
+                                        },
+                                        "QtyItem": {
+                                            "type": "integer"
+                                        },
+                                        "PrcItem": {
+                                            "type": "integer"
+                                        }
+                                    },
+                                    "required": [
+                                        "NmbItem",
+                                        "QtyItem",
+                                        "PrcItem"
+                                    ]
+                                }
+                            ]
+                        }
+                    },
+                    "required": [
+                        "Encabezado",
+                        "Detalle"
+                    ]
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "Encabezado": {
+                            "type": "object",
+                            "properties": {
+                                "IdDoc": {
+                                    "type": "object",
+                                    "properties": {
+                                        "TipoDTE": {
+                                            "type": "integer"
+                                        },
+                                        "Folio": {
+                                            "type": "integer"
+                                        }
+                                    },
+                                    "required": [
+                                        "TipoDTE",
+                                        "Folio"
+                                    ]
+                                },
+                                "Emisor": {
+                                    "type": "object",
+                                    "properties": {
+                                        "RUTEmisor": {
+                                            "type": "string"
+                                        },
+                                        "RznSocEmisor": {
+                                            "type": "string"
+                                        },
+                                        "GiroEmisor": {
+                                            "type": "string"
+                                        },
+                                        "Acteco": {
+                                            "type": "integer"
+                                        },
+                                        "DirOrigen": {
+                                            "type": "string"
+                                        },
+                                        "CmnaOrigen": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "RUTEmisor",
+                                        "RznSocEmisor",
+                                        "GiroEmisor",
+                                        "Acteco",
+                                        "DirOrigen",
+                                        "CmnaOrigen"
+                                    ]
+                                },
+                                "Receptor": {
+                                    "type": "object",
+                                    "properties": {
+                                        "RUTRecep": {
+                                            "type": "string"
+                                        },
+                                        "RznSocRecep": {
+                                            "type": "string"
+                                        },
+                                        "DirRecep": {
+                                            "type": "string"
+                                        },
+                                        "CmnaRecep": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "RUTRecep",
+                                        "RznSocRecep",
+                                        "DirRecep",
+                                        "CmnaRecep"
+                                    ]
+                                }
+                            },
+                            "required": [
+                                "IdDoc",
+                                "Emisor",
+                                "Receptor"
+                            ]
+                        },
+                        "Detalle": {
+                            "type": "array",
+                            "items": [
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "NmbItem": {
+                                            "type": "string"
+                                        },
+                                        "QtyItem": {
+                                            "type": "integer"
+                                        },
+                                        "PrcItem": {
+                                            "type": "integer"
+                                        }
+                                    },
+                                    "required": [
+                                        "NmbItem",
+                                        "QtyItem",
+                                        "PrcItem"
+                                    ]
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "NmbItem": {
+                                            "type": "string"
+                                        },
+                                        "QtyItem": {
+                                            "type": "integer"
+                                        },
+                                        "PrcItem": {
+                                            "type": "integer"
+                                        }
+                                    },
+                                    "required": [
+                                        "NmbItem",
+                                        "QtyItem",
+                                        "PrcItem"
+                                    ]
+                                }
+                            ]
+                        }
+                    },
+                    "required": [
+                        "Encabezado",
+                        "Detalle"
+                    ]
+                }
+            ]
+        }
+    },
+    "required": [
+        "Caratula",
+        "Boletas"
+    ]
+}
