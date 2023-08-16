@@ -1,0 +1,9 @@
+# ejemplos, composer, pruebas, etc (archivos generados al usar la biblioteca)
+doc/html
+doc/latex
+examples/config.php
+examples/xml
+examples/pdf
+vendor
+tests/firma.p12
+
