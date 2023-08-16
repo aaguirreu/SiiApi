@@ -11,7 +11,8 @@
         "laravel/framework": "^8.75",
         "laravel/sanctum": "^2.11",
         "laravel/tinker": "^2.5",
-        "sasco/libredte": "^21.10"
+        "sasco/libredte": "^21.10",
+      "ext-json": "*"
     },
     "require-dev": {
         "facade/ignition": "^2.5",

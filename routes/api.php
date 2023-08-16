@@ -23,9 +23,7 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 Route::get('/user/{id}', [UserController::class, 'show']);
 
 // Api/V1
-Route::group(['prefix' => 'v1', 'namespace' => 'App/Http/Controllers/Api/V1'], function () {
-    //Route::get('apicontroller', 'ApiController@index');
+Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1'], function () {
+    Route::post('apicontroller', 'ApiController@respond');
+    Route::post('envioboleta', 'BoletaController@index');
 });
-
-Route::get('envioboleta', 'BoletaController@index');
-
