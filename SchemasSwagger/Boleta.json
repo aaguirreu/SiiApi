@@ -58,7 +58,21 @@
                                             "type": "string"
                                         },
                                         "Acteco": {
-                                            "type": "integer"
+                                            "type": "array",
+                                            "items": [
+                                                {
+                                                    "type": "integer"
+                                                },
+                                                {
+                                                    "type": "integer"
+                                                },
+                                                {
+                                                    "type": "integer"
+                                                },
+                                                {
+                                                    "type": "integer"
+                                                }
+                                            ]
                                         },
                                         "DirOrigen": {
                                             "type": "string"
@@ -189,7 +203,21 @@
                                             "type": "string"
                                         },
                                         "Acteco": {
-                                            "type": "integer"
+                                            "type": "array",
+                                            "items": [
+                                                {
+                                                    "type": "integer"
+                                                },
+                                                {
+                                                    "type": "integer"
+                                                },
+                                                {
+                                                    "type": "integer"
+                                                },
+                                                {
+                                                    "type": "integer"
+                                                }
+                                            ]
                                         },
                                         "DirOrigen": {
                                             "type": "string"
@@ -240,25 +268,6 @@
                         "Detalle": {
                             "type": "array",
                             "items": [
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "NmbItem": {
-                                            "type": "string"
-                                        },
-                                        "QtyItem": {
-                                            "type": "integer"
-                                        },
-                                        "PrcItem": {
-                                            "type": "integer"
-                                        }
-                                    },
-                                    "required": [
-                                        "NmbItem",
-                                        "QtyItem",
-                                        "PrcItem"
-                                    ]
-                                },
                                 {
                                     "type": "object",
                                     "properties": {

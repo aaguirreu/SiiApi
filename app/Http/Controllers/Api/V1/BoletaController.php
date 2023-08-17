@@ -18,7 +18,7 @@ class BoletaController extends Controller
         $rbody = json_encode($request->json()->all());
 
         // Transformar a json
-        $json = json_decode($rbody, true);
+        $json = json_decode($rbody);
 
         // Schema del json
         $schemaJson = file_get_contents(base_path().'\SchemasSwagger\Boleta.json');
@@ -28,41 +28,37 @@ class BoletaController extends Controller
         $schema->in(json_decode($rbody)); // Exception: Required property missing: id at #->properties:orders->items[1]->#/definitions/order
 
         //$jsonArr = var_dump($json);
-        return json_encode($json['EnvioBOLETA']['SetDTE']['Caratula']);
+        //$this->setPruebas($json);
+        return $this->setPruebas($json);
     }
 
-    public function setPruebas() {
+    public function setPruebas($dte) {
         // primer folio a usar para envio de set de pruebas
         $folios = [
             39 => 1, // boleta electrónica
             61 => 56, // nota de crédito electrónicas
         ];
 
-// caratula para el envío de los dte
-        $caratula = [
-            //'RutEnvia' => '11222333-4', // se obtiene automáticamente de la firma
-            'RutReceptor' => '60803000-K',
-            'FchResol' => '2014-12-05',
-            'NroResol' => 0,
-        ];
+        // caratula para el envío de los dte
+        $caratula = [];
+        foreach ($dte->Caratula as $key => $value) {
+            $caratula[$key] = $value;
+        }
+        // datos del emisor
+        $Emisor = [];
+        foreach ($dte->Boletas as $boleta) {
+            $Emisor[] = $boleta->Encabezado->Emisor;
+            //$receptor[] = $boleta['Encabezado']['Receptor'];
+        }
+        return $Emisor;
 
-// datos del emisor
-        $Emisor = [
-            'RUTEmisor' => '76192083-9',
-            'RznSoc' => 'SASCO SpA', // tag verdadero es RznSocEmisor, pero se permite usar el de DTE
-            'GiroEmis' => 'Servicios integrales de informática', // tag verdadero es GiroEmisor, pero se permite usar el de DTE
-            'Acteco' => 726000, // en boleta este tag no va y se quita al normalizar (se deja para nota de crédito)
-            'DirOrigen' => 'Santiago',
-            'CmnaOrigen' => 'Santiago',
-        ];
-
-// datos el recepor
-        $Receptor = [
-            'RUTRecep' => '55666777-8',
-            'RznSocRecep' => 'Cliente S.A.',
-            'DirRecep' => 'Santiago',
-            'CmnaRecep' => 'Santiago',
-        ];
+        // datos el recepor
+        $Receptor = [];
+        foreach ($dte->Boletas as $boleta) {
+            $Receptor[] = $boleta->Encabezado->Emisor;
+            //$receptor[] = $boleta['Encabezado']['Receptor'];
+        }
+        return $Receptor;
 
 
         // Firma .p12
