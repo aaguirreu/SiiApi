@@ -64,7 +64,7 @@ class BoletaController extends Controller
         // Firma .p12
         $config = [
             'firma' => [
-                'file' => base_path().'\CertificadoPersonalCIR.pfx',
+                'file' => env("CERT_PATH", ""),
                 //'data' => '', // contenido del archivo certificado.p12
                 'pass' => env("CERT_PASS", "")
             ],
