@@ -21,7 +21,7 @@ class BoletaController extends Controller
         $json = json_decode($rbody);
 
         // Schema del json
-        $schemaJson = file_get_contents(base_path().'\SchemasSwagger\Boleta.json');
+        $schemaJson = file_get_contents(base_path().'\SchemasSwagger\SchemaBoleta.json');
 
         // Validar json
         $schema = Schema::import(json_decode($schemaJson));
@@ -39,27 +39,24 @@ class BoletaController extends Controller
             61 => 56, // nota de crédito electrónicas
         ];
 
-        // caratula para el envío de los dte
+        // Caratula para el envío de los dte
         $caratula = [];
         foreach ($dte->Caratula as $key => $value) {
             $caratula[$key] = $value;
         }
-        // datos del emisor
+
+        // Datos del emisor
         $Emisor = [];
         foreach ($dte->Boletas as $boleta) {
             $Emisor[] = $boleta->Encabezado->Emisor;
-            //$receptor[] = $boleta['Encabezado']['Receptor'];
         }
-        return $Emisor;
 
-        // datos el recepor
+        // Datos el recepor
         $Receptor = [];
         foreach ($dte->Boletas as $boleta) {
-            $Receptor[] = $boleta->Encabezado->Emisor;
-            //$receptor[] = $boleta['Encabezado']['Receptor'];
+            $Receptor[] = $boleta->Encabezado->Receptor;
         }
         return $Receptor;
-
 
         // Firma .p12
         $config = [
@@ -69,6 +66,9 @@ class BoletaController extends Controller
                 'pass' => env("CERT_PASS", "")
             ],
         ];
+
+        $dteBoletas = [];
+
 
         $boletas = [
             // CASO 1
