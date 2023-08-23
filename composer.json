@@ -13,7 +13,8 @@
         "laravel/sanctum": "^2.11",
         "laravel/tinker": "^2.5",
         "sasco/libredte": "^21.10",
-        "swaggest/json-schema": "^0.12.41"
+        "swaggest/json-schema": "^0.12.41",
+        "ext-curl": "*"
     },
     "require-dev": {
         "facade/ignition": "^2.5",

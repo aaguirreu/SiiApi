@@ -51,10 +51,10 @@
                                         "RUTEmisor": {
                                             "type": "string"
                                         },
-                                        "RznSocEmisor": {
+                                        "RznSoc": {
                                             "type": "string"
                                         },
-                                        "GiroEmisor": {
+                                        "GiroEmis": {
                                             "type": "string"
                                         },
                                         "Acteco": {
@@ -83,8 +83,8 @@
                                     },
                                     "required": [
                                         "RUTEmisor",
-                                        "RznSocEmisor",
-                                        "GiroEmisor",
+                                        "RznSoc",
+                                        "GiroEmis",
                                         "Acteco",
                                         "DirOrigen",
                                         "CmnaOrigen"
@@ -196,10 +196,10 @@
                                         "RUTEmisor": {
                                             "type": "string"
                                         },
-                                        "RznSocEmisor": {
+                                        "RznSoc": {
                                             "type": "string"
                                         },
-                                        "GiroEmisor": {
+                                        "GiroEmis": {
                                             "type": "string"
                                         },
                                         "Acteco": {
@@ -228,8 +228,8 @@
                                     },
                                     "required": [
                                         "RUTEmisor",
-                                        "RznSocEmisor",
-                                        "GiroEmisor",
+                                        "RznSoc",
+                                        "GiroEmis",
                                         "Acteco",
                                         "DirOrigen",
                                         "CmnaOrigen"
@@ -322,10 +322,10 @@
                                         "RUTEmisor": {
                                             "type": "string"
                                         },
-                                        "RznSocEmisor": {
+                                        "RznSoc": {
                                             "type": "string"
                                         },
-                                        "GiroEmisor": {
+                                        "GiroEmis": {
                                             "type": "string"
                                         },
                                         "Acteco": {
@@ -354,8 +354,8 @@
                                     },
                                     "required": [
                                         "RUTEmisor",
-                                        "RznSocEmisor",
-                                        "GiroEmisor",
+                                        "RznSoc",
+                                        "GiroEmis",
                                         "Acteco",
                                         "DirOrigen",
                                         "CmnaOrigen"
@@ -467,10 +467,10 @@
                                         "RUTEmisor": {
                                             "type": "string"
                                         },
-                                        "RznSocEmisor": {
+                                        "RznSoc": {
                                             "type": "string"
                                         },
-                                        "GiroEmisor": {
+                                        "GiroEmis": {
                                             "type": "string"
                                         },
                                         "Acteco": {
@@ -499,8 +499,8 @@
                                     },
                                     "required": [
                                         "RUTEmisor",
-                                        "RznSocEmisor",
-                                        "GiroEmisor",
+                                        "RznSoc",
+                                        "GiroEmis",
                                         "Acteco",
                                         "DirOrigen",
                                         "CmnaOrigen"
@@ -616,10 +616,10 @@
                                         "RUTEmisor": {
                                             "type": "string"
                                         },
-                                        "RznSocEmisor": {
+                                        "RznSoc": {
                                             "type": "string"
                                         },
-                                        "GiroEmisor": {
+                                        "GiroEmis": {
                                             "type": "string"
                                         },
                                         "Acteco": {
@@ -648,8 +648,8 @@
                                     },
                                     "required": [
                                         "RUTEmisor",
-                                        "RznSocEmisor",
-                                        "GiroEmisor",
+                                        "RznSoc",
+                                        "GiroEmis",
                                         "Acteco",
                                         "DirOrigen",
                                         "CmnaOrigen"
