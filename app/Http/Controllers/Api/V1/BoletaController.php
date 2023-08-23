@@ -33,6 +33,15 @@ class BoletaController extends Controller
     }
 
     public function setPruebas($dte) {
+        // Firma .p12
+        $config = [
+            'firma' => [
+                'file' => env("CERT_PATH", ""),
+                //'data' => '', // contenido del archivo certificado.p12
+                'pass' => env("CERT_PASS", "")
+            ],
+        ];
+
         // primer folio a usar para envio de set de pruebas
         $folios = [
             39 => 1, // boleta electrónica
@@ -56,21 +65,14 @@ class BoletaController extends Controller
         foreach ($dte->Boletas as $boleta) {
             $Receptor[] = $boleta->Encabezado->Receptor;
         }
-        return $Receptor;
 
-        // Firma .p12
-        $config = [
-            'firma' => [
-                'file' => env("CERT_PATH", ""),
-                //'data' => '', // contenido del archivo certificado.p12
-                'pass' => env("CERT_PASS", "")
-            ],
-        ];
-
-        $dteBoletas = [];
+        $boletas = [];
+        foreach ($dte->Boletas as $boleta) {
+            $boletas[] = $boleta->Encabezado->Receptor;
+        }
 
 
-        $boletas = [
+        $boletas2 = [
             // CASO 1
             [
                 'Encabezado' => [
