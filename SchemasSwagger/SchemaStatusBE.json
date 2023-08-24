@@ -1,0 +1,48 @@
+{
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "type": "object",
+    "properties": {
+        "RutConsultante": {
+            "type": "string"
+        },
+        "DvConsultante": {
+            "type": "string"
+        },
+        "RutCompania": {
+            "type": "string"
+        },
+        "DvCompania": {
+            "type": "string"
+        },
+        "RutReceptor": {
+            "type": "string"
+        },
+        "DvReceptor": {
+            "type": "string"
+        },
+        "TipoDte": {
+            "type": "string"
+        },
+        "FolioDte": {
+            "type": "string"
+        },
+        "FechaEmisionDte": {
+            "type": "string"
+        },
+        "MontoDte": {
+            "type": "string"
+        }
+    },
+    "required": [
+        "RutConsultante",
+        "DvConsultante",
+        "RutCompania",
+        "DvCompania",
+        "RutReceptor",
+        "DvReceptor",
+        "TipoDte",
+        "FolioDte",
+        "FechaEmisionDte",
+        "MontoDte"
+    ]
+}

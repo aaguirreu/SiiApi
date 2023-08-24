@@ -26,5 +26,7 @@ Route::get('/user/{id}', [UserController::class, 'show']);
 Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1'], function () {
     Route::post('apicontroller', 'ApiController@respond');
     Route::post('envioboleta', 'BoletaController@index');
-    Route::get('status', 'BoletaController@status');
+    Route::post('estadoDteEnviado', 'BoletaController@estadoDteEnviado');
+    Route::post('estadoDte', 'BoletaController@estadoDte');
+
 });
