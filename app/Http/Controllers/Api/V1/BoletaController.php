@@ -42,19 +42,12 @@ class BoletaController extends Controller
     }
 
     public function setPruebas($dte) {
-        // Firma .p12
-        $config = [
-            'firma' => [
-                'file' => env("CERT_PATH", ""),
-                //'data' => '', // contenido del archivo certificado.p12
-                'pass' => env("CERT_PASS", "")
-            ],
-        ];
+        // Renovar token si es necesario
+        $this->isToken();
 
         // Contador Casos (número de documentos a enviar)
         // SOLO PARA SET DE PRUEBAS
         $casos = 1;
-
 
         // Primer folio a usar para envio de set de pruebas
         $folios = [
@@ -122,10 +115,7 @@ class BoletaController extends Controller
         }
 
         // Objetos de Firma y Folios
-        $Firma = new FirmaElectronica($config['firma']);
-
-        // Renovar token si es necesario
-        $this->isToken($Firma);
+        $Firma = $this->obtenerFirma();
 
         $Folios = [];
         foreach ($folios as $tipo => $cantidad)
@@ -182,6 +172,9 @@ class BoletaController extends Controller
 
     public function estadoDteEnviado(Request $request)
     {
+        // Renovar token si es necesario
+        $this->isToken();
+
         // Leer string como json
         $rbody = json_encode($request->json()->all());
 
@@ -195,24 +188,6 @@ class BoletaController extends Controller
         //$schema = Schema::import(json_decode($schemaJson));
         //$schema->in($body);
 
-        // Firma .p12
-        $config = [
-            'firma' => [
-                'file' => env("CERT_PATH", ""),
-                //'data' => '', // contenido del archivo certificado.p12
-                'pass' => env("CERT_PASS", "")
-            ],
-        ];
-        // solicitar token
-        /*
-        $token = Autenticacion::getToken($config['firma']);
-
-        if (!$token) {
-            foreach (Log::readAll() as $error)
-                echo $error,"\n";
-            exit;
-        }*/
-        $token = 'N503ED2YIRPBA';
         // consultar estado dte
         $rut = $body->rut;
         $dv = $body->dv;
@@ -229,7 +204,7 @@ class BoletaController extends Controller
             CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
             CURLOPT_CUSTOMREQUEST => 'GET',
             CURLOPT_HTTPHEADER => array(
-                'Cookie: TOKEN='.$token,
+                'Cookie: TOKEN='.env('TOKEN'),
             ),
         ));
 
@@ -241,6 +216,9 @@ class BoletaController extends Controller
 
     public function estadoDte(Request $request)
     {
+        // Renovar token si es necesario
+        $this->isToken();
+
         // Leer string como json
         $rbody = json_encode($request->json()->all());
 
@@ -253,24 +231,6 @@ class BoletaController extends Controller
         // Validar json
         //$schema = Schema::import(json_decode($schemaJson));
         //$schema->in($body);
-
-        // Firma .p12
-        $config = [
-            'firma' => [
-                'file' => env("CERT_PATH", ""),
-                //'data' => '', // contenido del archivo certificado.p12
-                'pass' => env("CERT_PASS", "")
-            ],
-        ];
-        // solicitar token
-        /*$token = Autenticacion::getToken($config['firma']);
-
-        if (!$token) {
-            foreach (Log::readAll() as $error)
-                echo $error,"\n";
-            exit;
-        }*/
-        $token = 'T34GJ7Q96N5VN';
 
         // Consulta estado dte
         $rut = $body->rut;
@@ -297,7 +257,7 @@ class BoletaController extends Controller
             CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
             CURLOPT_CUSTOMREQUEST => 'GET',
             CURLOPT_HTTPHEADER => array(
-                'Cookie: TOKEN='.$token,
+                'Cookie: TOKEN='.env('TOKEN'),
             ),
         ));
 
@@ -343,7 +303,6 @@ class BoletaController extends Controller
 
         // crear sesión curl con sus opciones
         $curl = curl_init();
-        //$url = 'https://'.self::$config['servidor'][self::getAmbiente()].'.sii.cl/cgi_dte/UPL/DTEUpload';
         $url = 'https://pangal.sii.cl/recursos/v1/boleta.electronica.envio';
         curl_setopt($curl, CURLOPT_POST, true);
         curl_setopt($curl, CURLOPT_POSTFIELDS, $data);
@@ -365,6 +324,9 @@ class BoletaController extends Controller
     public function getToken($Firma){
         // Solicitar seed
         $seed = file_get_contents('https://apicert.sii.cl/recursos/v1/boleta.electronica.semilla');
+        $seed = simplexml_load_string($seed);
+        $seed = (string) $seed->xpath('//SII:RESP_BODY/SEMILLA')[0];
+        echo "Seed = ".$seed."\n";
 
         // Solicitar token
         $seedSigned = $Firma->signXML(
@@ -390,7 +352,6 @@ class BoletaController extends Controller
             CURLOPT_POSTFIELDS =>$seedSigned,
             CURLOPT_HTTPHEADER => array(
                 'Content-Type: application/xml',
-                'Cookie: dtCookie=v_4_srv_44_sn_994889E1E44A72865299C3986D39696C_perc_100000_ol_0_mul_1_app-3Aea7c4b59f27d43eb_0'
             ),
         ));
         $response = curl_exec($curl);
@@ -399,21 +360,39 @@ class BoletaController extends Controller
         $responseXml = simplexml_load_string($response);
 
         // Guardar Token en .env
-        putenv("TOKEN=".(string) $responseXml->xpath('//TOKEN')[0]);
+        $token = (string) $responseXml->xpath('//TOKEN')[0];
+        putenv('TOKEN='.$token);
+
         // Guardar TimeStamp para renovar token cada
-        putenv("TOKEN_TIMESTAMP=".Carbon::now()->timestamp);
+        putenv('TOKEN_TIMESTAMP='.Carbon::now()->timestamp);
     }
 
-    public function isToken($Firma){
-        if(!env('TOKEN') || !env('TOKEN_TIMESTAMP')) {
+    public function isToken(){
+        $Firma = $this->obtenerFirma();
+        if(getenv('TOKEN') === false || getenv('TOKEN_TIMESTAMP') === false) {
             $this->getToken($Firma);
+            echo "Se creó la variable token\n";
         } else {
             $now = Carbon::now()->timestamp;
             $tokenTimeStamp = env('TOKEN_TIMESTAMP');
             $diff = $now - $tokenTimeStamp;
             if($diff > 3600) {
                 $this->getToken($Firma);
+                echo "Se creó un nuevo token\n";
             }
         }
+    }
+
+
+    public function obtenerFirma() {
+        // Firma .p12
+        $config = [
+            'firma' => [
+                'file' => env("CERT_PATH", ""),
+                //'data' => '', // contenido del archivo certificado.p12
+                'pass' => env("CERT_PASS", "")
+            ],
+        ];
+        return new FirmaElectronica($config['firma']);
     }
 }
