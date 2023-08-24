@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use CURLFile;
 use Illuminate\Http\Request;
+use MongoDB\BSON\Timestamp;
 use sasco\LibreDTE\Estado;
 use sasco\LibreDTE\FirmaElectronica;
 use sasco\LibreDTE\Log;
@@ -17,6 +18,7 @@ use sasco\LibreDTE\XML;
 use SimpleXMLElement;
 use Swaggest\JsonSchema\Schema;
 use function Symfony\Component\String\b;
+use Carbon\Carbon;
 
 class BoletaController extends Controller
 {
@@ -121,6 +123,10 @@ class BoletaController extends Controller
 
         // Objetos de Firma y Folios
         $Firma = new FirmaElectronica($config['firma']);
+
+        // Renovar token si es necesario
+        $this->isToken($Firma);
+
         $Folios = [];
         foreach ($folios as $tipo => $cantidad)
         $Folios[$tipo] = new Folios(file_get_contents(env("FOLIOS_PATH", "").$tipo.'.xml'));
@@ -223,7 +229,7 @@ class BoletaController extends Controller
             CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
             CURLOPT_CUSTOMREQUEST => 'GET',
             CURLOPT_HTTPHEADER => array(
-                'Cookie: TOKEN='.$token.'\n',
+                'Cookie: TOKEN='.$token,
             ),
         ));
 
@@ -291,7 +297,7 @@ class BoletaController extends Controller
             CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
             CURLOPT_CUSTOMREQUEST => 'GET',
             CURLOPT_HTTPHEADER => array(
-                'Cookie: TOKEN='.$token.'\n',
+                'Cookie: TOKEN='.$token,
             ),
         ));
 
@@ -392,7 +398,22 @@ class BoletaController extends Controller
 
         $responseXml = simplexml_load_string($response);
 
-        // Retornar Token
-        return (string) $responseXml->xpath('//TOKEN')[0];
+        // Guardar Token en .env
+        putenv("TOKEN=".(string) $responseXml->xpath('//TOKEN')[0]);
+        // Guardar TimeStamp para renovar token cada
+        putenv("TOKEN_TIMESTAMP=".Carbon::now()->timestamp);
+    }
+
+    public function isToken($Firma){
+        if(!env('TOKEN') || !env('TOKEN_TIMESTAMP')) {
+            $this->getToken($Firma);
+        } else {
+            $now = Carbon::now()->timestamp;
+            $tokenTimeStamp = env('TOKEN_TIMESTAMP');
+            $diff = $now - $tokenTimeStamp;
+            if($diff > 3600) {
+                $this->getToken($Firma);
+            }
+        }
     }
 }
