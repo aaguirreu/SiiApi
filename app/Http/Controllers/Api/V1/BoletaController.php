@@ -44,6 +44,8 @@ class BoletaController extends Controller
     public function setPruebas($dte) {
         // Renovar token si es necesario
         $this->isToken();
+        //$token = env("TOKEN", "");
+        //echo $token."\n";
 
         // Contador Casos (número de documentos a enviar)
         // SOLO PARA SET DE PRUEBAS
@@ -138,18 +140,15 @@ class BoletaController extends Controller
         if ($EnvioDTE->schemaValidate()) {
             $EnvioDTExml = $EnvioDTE->generar();
         }
-
         // si hubo errores mostrar
         foreach (Log::readAll() as $error)
             echo $error,"\n";
 
-        //$token = 'T34GJ7Q96N5VN';
-        $token = $this->getToken($Firma);
 
         // Enviar DTE
         $RutEnvia = $Firma->getID(); // RUT autorizado para enviar DTEs
         $RutEmisor = $boletas[0]['Encabezado']['Emisor']['RUTEmisor']; // RUT del emisor del DTE
-        $response = $this->enviar($RutEnvia, $RutEmisor, $EnvioDTExml, $token);
+        $response = $this->enviar($RutEnvia, $RutEmisor, $EnvioDTExml);
         echo $response;
         /*
         // Si hubo algún error al enviar al servidor mostrar
@@ -173,7 +172,7 @@ class BoletaController extends Controller
     public function estadoDteEnviado(Request $request)
     {
         // Renovar token si es necesario
-        $this->isToken();
+        //$this->isToken();
 
         // Leer string como json
         $rbody = json_encode($request->json()->all());
@@ -204,7 +203,7 @@ class BoletaController extends Controller
             CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
             CURLOPT_CUSTOMREQUEST => 'GET',
             CURLOPT_HTTPHEADER => array(
-                'Cookie: TOKEN='.env('TOKEN'),
+                'Cookie: TOKEN='.json_decode(file_get_contents(base_path('config.json')))->token,
             ),
         ));
 
@@ -217,7 +216,7 @@ class BoletaController extends Controller
     public function estadoDte(Request $request)
     {
         // Renovar token si es necesario
-        $this->isToken();
+        //$this->isToken();
 
         // Leer string como json
         $rbody = json_encode($request->json()->all());
@@ -245,7 +244,6 @@ class BoletaController extends Controller
         $opcionales = '?rut_receptor='.$rut_receptor.'&dv_receptor='.$dv_receptor.'&monto='.$monto.'&fechaEmision='.$fechaEmision;
         $url = 'https://apicert.sii.cl/recursos/v1/boleta.electronica/'.$required.'/estado'.$opcionales;
         echo $url."\n";
-        $url = 'https://apicert.sii.cl/recursos/v1/boleta.electronica/76974300-6-39-1/estado?rut_receptor=19279633&dv_receptor=4&monto=29800&fechaEmision=2023-08-24%2017%3A14%3A08';
         $curl = curl_init();
         curl_setopt_array($curl, array(
             CURLOPT_URL => $url,
@@ -257,7 +255,7 @@ class BoletaController extends Controller
             CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
             CURLOPT_CUSTOMREQUEST => 'GET',
             CURLOPT_HTTPHEADER => array(
-                'Cookie: TOKEN='.env('TOKEN'),
+                'Cookie: TOKEN='.json_decode(file_get_contents(base_path('config.json')))->token,
             ),
         ));
 
@@ -280,8 +278,9 @@ class BoletaController extends Controller
         ];
         return $modeloBoleta;
     }
-    public static function enviar($usuario, $empresa, $dte, $token)
+    public static function enviar($usuario, $empresa, $dte)
     {
+        $token = json_decode(file_get_contents(base_path('config.json')))->token_dte;
         // definir datos que se usarán en el envío
         list($rutSender, $dvSender) = explode('-', str_replace('.', '', $usuario));
         list($rutCompany, $dvCompany) = explode('-', str_replace('.', '', $empresa));
@@ -321,16 +320,19 @@ class BoletaController extends Controller
         curl_close($curl);
         return $response;
     }
-    public function getToken($Firma){
+    public function getToken() {
         // Solicitar seed
         $seed = file_get_contents('https://apicert.sii.cl/recursos/v1/boleta.electronica.semilla');
         $seed = simplexml_load_string($seed);
         $seed = (string) $seed->xpath('//SII:RESP_BODY/SEMILLA')[0];
-        echo "Seed = ".$seed."\n";
+        //echo "Seed = ".$seed."\n";
 
-        // Solicitar token
+        // Obtener Firma
+        $Firma = $this->obtenerFirma();
+
+        // Generar xml de semilla firmada
         $seedSigned = $Firma->signXML(
-            (new XML())->generate([
+            (new XML("1.0", "UTF-8"))->generate([
                 'getToken' => [
                     'item' => [
                         'Semilla' => $seed
@@ -338,7 +340,9 @@ class BoletaController extends Controller
                 ]
             ])->saveXML()
         );
+        //echo $seedSigned."\n";
 
+        // Solicitar token con la semilla firmada
         $curl = curl_init();
         curl_setopt_array($curl, array(
             CURLOPT_URL => 'https://apicert.sii.cl/recursos/v1/boleta.electronica.token',
@@ -359,30 +363,72 @@ class BoletaController extends Controller
 
         $responseXml = simplexml_load_string($response);
 
-        // Guardar Token en .env
+        // Guardar Token con su timestamp en config.json
         $token = (string) $responseXml->xpath('//TOKEN')[0];
-        putenv('TOKEN='.$token);
-
-        // Guardar TimeStamp para renovar token cada
-        putenv('TOKEN_TIMESTAMP='.Carbon::now()->timestamp);
+        //$token = Autenticacion::getToken($this->obtenerFirma());  //CAMBIAR POR LA DE ARRIBA******
+        echo 'TOKEN='.$token."\n";
+        $config_file = json_decode(file_get_contents(base_path('config.json')));
+        $config_file->token = $token;
+        $config_file->token_timestamp = Carbon::now()->timestamp;
+        file_put_contents(base_path('config.json'), json_encode($config_file), JSON_PRETTY_PRINT);
     }
 
-    public function isToken(){
-        $Firma = $this->obtenerFirma();
-        if(getenv('TOKEN') === false || getenv('TOKEN_TIMESTAMP') === false) {
-            $this->getToken($Firma);
-            echo "Se creó la variable token\n";
-        } else {
-            $now = Carbon::now()->timestamp;
-            $tokenTimeStamp = env('TOKEN_TIMESTAMP');
-            $diff = $now - $tokenTimeStamp;
-            if($diff > 3600) {
-                $this->getToken($Firma);
-                echo "Se creó un nuevo token\n";
+    public function getTokenDte() {
+        $token = Autenticacion::getToken($this->obtenerFirma());
+        $config_file = json_decode(file_get_contents(base_path('config.json')));
+        $config_file->token_dte = $token;
+        $config_file->token_dte_timestamp = Carbon::now()->timestamp;
+        file_put_contents(base_path('config.json'), json_encode($config_file), JSON_PRETTY_PRINT);
+    }
+
+    public function isToken() {
+        if(file_exists(base_path('config.json'))) {
+            // Obtener config.json
+            $config_file = json_decode(file_get_contents(base_path('config.json')));
+
+            // Verificar token
+            if($config_file->token === '' || $config_file->token === false || $config_file->token_timestamp === false) {
+                $this->getToken();
+                echo "Se generó un nuevo token\n";
+            } else {
+                $now = Carbon::now()->timestamp;
+                $tokenTimeStamp = $config_file->token_timestamp;
+                $diff = $now - $tokenTimeStamp;
+                if($diff > $config_file->token_expiration) {
+                    $this->getToken();
+                    echo "Se generó un nuevo token\n";
+                } else {
+                    echo "El token aún es válido\n";
+                }
             }
+
+            // Verificar token_dte
+            if($config_file->token_dte === '' || $config_file->token_dte === false || $config_file->token_dte_timestamp === false) {
+                $this->getTokenDte();
+                echo "Se generó un nuevo token_dte\n";
+            } else {
+                $now = Carbon::now()->timestamp;
+                $tokenDteTimeStamp = $config_file->token_dte_timestamp;
+                $diff = $now - $tokenDteTimeStamp;
+                if ($diff > $config_file->token_dte_expiration) {
+                    $this->getTokenDte();
+                    echo "Se generó un nuevo token_dte\n";
+                } else {
+                    echo "El token_dte aún es válido\n";
+                }
+            }
+        } else {
+            file_put_contents(base_path('config.json'), json_encode([
+                'token' => '',
+                'token_timestamp' => '',
+                'token_expiration' => 3600,
+                'token_dte' => '',
+                'token_dte_timestamp' => '',
+                'token_dte_expiration' => 3600
+            ]), JSON_PRETTY_PRINT);
+            $this->getToken();
         }
     }
-
 
     public function obtenerFirma() {
         // Firma .p12
