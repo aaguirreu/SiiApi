@@ -3,8 +3,9 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-use CURLFile;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use sasco\LibreDTE\FirmaElectronica;
 use sasco\LibreDTE\Log;
 use sasco\LibreDTE\Sii\Autenticacion;
@@ -12,14 +13,8 @@ use sasco\LibreDTE\Sii\Dte;
 use sasco\LibreDTE\Sii\EnvioDte;
 use sasco\LibreDTE\Sii\Folios;
 use sasco\LibreDTE\XML;
-use Carbon\Carbon;
-use App\Models\Caf;
-use App\Models\Folio;
-use Illuminate\Support\Facades\DB;
 
-
-
-class BoletaController extends Controller
+class SetPruebaController extends Controller
 {
     public function index(Request $request) {
         // Leer string como json
