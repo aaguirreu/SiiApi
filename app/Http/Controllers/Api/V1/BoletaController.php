@@ -3,8 +3,11 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-use CURLFile;
+use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use sasco\LibreDTE\FirmaElectronica;
 use sasco\LibreDTE\Log;
 use sasco\LibreDTE\Sii\Autenticacion;
@@ -12,16 +15,16 @@ use sasco\LibreDTE\Sii\Dte;
 use sasco\LibreDTE\Sii\EnvioDte;
 use sasco\LibreDTE\Sii\Folios;
 use sasco\LibreDTE\XML;
-use Carbon\Carbon;
-use App\Models\Caf;
-use App\Models\Folio;
-use Illuminate\Support\Facades\DB;
+use SimpleXMLElement;
 
-
-
-class BoletaController extends Controller
+class SetPruebaController extends Controller
 {
+    private $timestamp;
+
     public function index(Request $request) {
+        // setear timestamp
+        $this->timestamp = Carbon::now();
+
         // Leer string como json
         $rbody = json_encode($request->json()->all());
 
@@ -45,16 +48,9 @@ class BoletaController extends Controller
 
         // Primer folio a usar para envio de set de pruebas
 
-        /* Insertar folio en la base de datos
-         * DB::table('folio')->insert([
-            'id' => 39,
-            'cant_folios' => 1,
-            'created_at' => Carbon::now(),
-            'updated_at' => Carbon::now()
-        ]);*/
-
         // Obtiene los folios con la cantidad de folios usados desde la base de datos
         $folios = $this->obtenerFolios();
+        // Variable auxiliar para guardar el folio inicial
 
         // Obtener caratula
         $caratula = $this->obtenerCaratula($dte);
@@ -77,11 +73,13 @@ class BoletaController extends Controller
         $RutEmisor = $boletas[0]['Encabezado']['Emisor']['RUTEmisor']; // RUT del emisor del DTE
         //$response = $this->enviar($RutEnvia, $RutEmisor, $EnvioDTExml);
         //echo $response;
-
     }
 
     public function estadoDteEnviado(Request $request)
     {
+        // setear timestamp
+        $this->timestamp = Carbon::now();
+
         // Renovar token si es necesario
         $this->isToken();
 
@@ -126,6 +124,9 @@ class BoletaController extends Controller
 
     public function estadoDte(Request $request)
     {
+        // setear timestamp
+        $this->timestamp = Carbon::now();
+
         // Renovar token si es necesario
         $this->isToken();
 
@@ -176,7 +177,57 @@ class BoletaController extends Controller
         echo $response;
     }
 
-    private function generarModeloBoleta($modeloBoleta, $detalles, $folio, $tipoDTE, $casos) {
+    // Subir caf a la base de datos
+
+    /**
+     * @throws \Exception
+     */
+    public function subirCaf(Request $request): JsonResponse
+    {
+        // setear timestamp
+        $this->timestamp = Carbon::now();
+
+        // Leer string como xml
+        $rbody = $request->getContent();
+        $caf = new simpleXMLElement($rbody);
+
+        // Si el caf no sigue el orden de folios correspondiente, no se sube.
+        $folio_caf = $caf->CAF->DA->TD[0];
+        $folio = DB::table('caf')->where('folio_id','=', $folio_caf)->latest()->first();
+        $folio_final = $folio->folio_final;
+
+        if ($folio_final + 1 != intval($caf->CAF->DA->RNG->D[0])) {
+            return response()->json([
+                'message' => 'El caf no sigue el orden de folios correspondiente. Folio final: '.$folio_final.', folio caf: '.$caf->CAF->DA->RNG->D[0].'. Deben ser consecutivos.'
+            ], 400);
+        }
+
+        // Nombre caf tipodte_timestamp.xml
+        $filename = $caf->CAF->DA->TD[0].'_'.$this->timestamp.'.xml';
+        $filename = str_replace(' ', 'T', $filename);
+        $filename = str_replace(':', '-', $filename);
+
+        //Guardar caf en storage
+        Storage::disk('cafs')->put($filename, $rbody);
+
+        // Guardar en base de datos
+        DB::table('caf')->insert([
+            'folio_id' => $folio_caf,
+            'folio_inicial' => $caf->CAF->DA->RNG->D[0],
+            'folio_final' => $caf->CAF->DA->RNG->H[0],
+            'xml_filename' => $filename,
+            'created_at' => $this->timestamp,
+            'updated_at' => $this->timestamp
+        ]);
+
+        // Mensaje de caf guardado
+        return response()->json([
+            'message' => 'CAF guardado correctamente'
+        ], 200);
+    }
+
+    private function generarModeloBoleta($modeloBoleta, $detalles, $folio, $tipoDTE, $casos): array
+    {
         $modeloBoleta["Encabezado"]["IdDoc"] = [
             "TipoDTE" => $tipoDTE,
             "Folio" => $folio[$tipoDTE],
@@ -189,7 +240,9 @@ class BoletaController extends Controller
         ];
         return $modeloBoleta;
     }
-    private static function enviar($usuario, $empresa, $dte)
+
+
+    private function enviar($usuario, $empresa, $dte)
     {
         $token = json_decode(file_get_contents(base_path('config.json')))->token_dte;
         // definir datos que se usarán en el envío
@@ -199,9 +252,16 @@ class BoletaController extends Controller
             $dte = '<?xml version="1.0" encoding="ISO-8859-1"?>' . "\n" . $dte;
         }
         do {
-            $file = sys_get_temp_dir() . '/dte_' . md5(microtime() . $token . $dte) . '.' . 'xml';
+            if (!file_exists(env('DTES_PATH', "")."EnvioBOLETA")) {
+                mkdir(env('DTES_PATH', "")."EnvioBOLETA", 0777, true);
+            }
+            $filename = 'EnvioBOLETA_'.$this->timestamp.'.xml';
+            $filename = str_replace(' ', 'T', $filename);
+            $filename = str_replace(':', '-', $filename);
+            $file = env('DTES_PATH', "")."EnvioBOLETA/".$filename;
         } while (file_exists($file));
-        file_put_contents($file, $dte);
+        Storage::disk('dtes')->put('envioBOLETA/'.$filename, $dte);
+        //file_put_contents($file, $dte);
         $data = [
             'rutSender' => $rutSender,
             'dvSender' => $dvSender,
@@ -280,7 +340,7 @@ class BoletaController extends Controller
         //echo 'TOKEN='.$token."\n";
         $config_file = json_decode(file_get_contents(base_path('config.json')));
         $config_file->token = $token;
-        $config_file->token_timestamp = Carbon::now()->timestamp;
+        $config_file->token_timestamp = Carbon::now()->timestamp;;
         file_put_contents(base_path('config.json'), json_encode($config_file), JSON_PRETTY_PRINT);
     }
 
@@ -288,7 +348,7 @@ class BoletaController extends Controller
         $token = Autenticacion::getToken($this->obtenerFirma());
         $config_file = json_decode(file_get_contents(base_path('config.json')));
         $config_file->token_dte = $token;
-        $config_file->token_dte_timestamp = Carbon::now()->timestamp;
+        $config_file->token_dte_timestamp = Carbon::now()->timestamp;;
         file_put_contents(base_path('config.json'), json_encode($config_file), JSON_PRETTY_PRINT);
     }
 
@@ -318,7 +378,7 @@ class BoletaController extends Controller
                 $this->getTokenDte();
                 //echo "Se generó un nuevo token_dte\n";
             } else {
-                $now = Carbon::now()->timestamp;
+                $now = Carbon::now()->timestamp;;
                 $tokenDteTimeStamp = $config_file->token_dte_timestamp;
                 $diff = $now - $tokenDteTimeStamp;
                 if ($diff > $config_file->token_dte_expiration) {
@@ -458,8 +518,10 @@ class BoletaController extends Controller
     private function obtenerFoliosCaf(array $folios)
     {
         $Folios = [];
-        foreach ($folios as $tipo => $cantidad)
-            $Folios[$tipo] = new Folios(file_get_contents(env("FOLIOS_PATH", "").$tipo.'.xml'));
+        foreach ($folios as $tipo => $cantidad) {
+            $row = DB::table('caf')->where('folio_id', '=', $tipo)->latest()->first();
+            $Folios[$tipo] = new Folios(Storage::disk('cafs')->get($row->xml_filename));
+        }
         return $Folios;
     }
 }

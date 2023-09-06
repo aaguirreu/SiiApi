@@ -25,6 +25,7 @@ Route::get('/user/{id}', [UserController::class, 'show']);
 // Api/V1
 Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1'], function () {
     Route::post('apicontroller', 'ApiController@respond');
+
     // Envio de Boletas
     Route::post('envioboleta', 'BoletaController@index');
     Route::post('estadoDteEnviado', 'BoletaController@estadoDteEnviado');
@@ -34,4 +35,5 @@ Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1'], f
     Route::post('enviosetdeprueba', 'SetPruebaController@index');
     Route::post('estadoSetEnviado', 'SetPruebaController@estadoDteEnviado');
     Route::post('estadoSet', 'SetPruebaController@estadoDte');
+    Route::post('subirCaf', 'SetPruebaController@subirCaf');
 });

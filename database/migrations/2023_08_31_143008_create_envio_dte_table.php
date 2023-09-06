@@ -17,7 +17,7 @@ class CreateEnvioDteTable extends Migration
             $table->id();
             $table->string('trackid');
             $table->string('status');
-            $table->string('xml');
+            $table->string('xml_filename');
             $table->timestamps();
         });
     }

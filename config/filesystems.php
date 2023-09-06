@@ -53,6 +53,16 @@ return [
             'use_path_style_endpoint' => env('AWS_USE_PATH_STYLE_ENDPOINT', false),
         ],
 
+        'dtes' => [
+            'driver' => 'local',
+            'root' => env('DTES_PATH'),
+        ],
+
+        'cafs' => [
+            'driver' => 'local',
+            'root' => env('CAFS_PATH'),
+        ],
+
     ],
 
     /*
