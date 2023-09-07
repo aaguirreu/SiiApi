@@ -28,9 +28,9 @@ class CreateFolioTable extends Migration
         foreach ($folios as $folio) {
             DB::table('folio')->insert([
                 'id' => $folio,
-                'cant_folios' => 1,
-                'created_at' => Carbon::now(),
-                'updated_at' => Carbon::now()
+                'cant_folios' => 0,
+                'created_at' => Carbon::now('America/Santiago'),
+                'updated_at' => Carbon::now('America/Santiago')
             ]);
         }
     }

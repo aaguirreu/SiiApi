@@ -16,7 +16,6 @@ class CreateEnvioDteTable extends Migration
         Schema::create('envio_dte', function (Blueprint $table) {
             $table->id();
             $table->string('trackid');
-            $table->string('status');
             $table->string('xml_filename');
             $table->timestamps();
         });

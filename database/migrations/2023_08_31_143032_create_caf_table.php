@@ -32,8 +32,8 @@ class CreateCafTable extends Migration
                 'folio_inicial' => 0,
                 'folio_final' => 0,
                 'xml_filename' => "",
-                'created_at' => Carbon::now(),
-                'updated_at' => Carbon::now()
+                'created_at' => Carbon::now('America/Santiago'),
+                'updated_at' => Carbon::now('America/Santiago')
             ]);
         }
     }

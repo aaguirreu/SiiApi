@@ -32,8 +32,8 @@ Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1'], f
     Route::post('estadoDte', 'BoletaController@estadoDte');
 
     // Envio de Set de Prueba
-    Route::post('enviosetdeprueba', 'SetPruebaController@index');
-    Route::post('estadoSetEnviado', 'SetPruebaController@estadoDteEnviado');
-    Route::post('estadoSet', 'SetPruebaController@estadoDte');
-    Route::post('subirCaf', 'SetPruebaController@subirCaf');
+    Route::post('setdeprueba/envios', 'SetPruebaController@index');
+    Route::post('setdeprueba/envioestado', 'SetPruebaController@estadoDteEnviado');
+    Route::post('setdeprueba/estado', 'SetPruebaController@estadoDte');
+    Route::post('subircaf', 'SetPruebaController@subirCaf');
 });

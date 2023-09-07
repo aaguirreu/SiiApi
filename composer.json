@@ -15,7 +15,8 @@
         "sasco/libredte": "^21.10",
         "swaggest/json-schema": "^0.12.41",
         "ext-curl": "*",
-        "ext-simplexml": "*"
+        "ext-simplexml": "*",
+      "ext-libxml": "*"
     },
     "require-dev": {
         "facade/ignition": "^2.5",

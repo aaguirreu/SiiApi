@@ -4,10 +4,14 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use Carbon\Carbon;
+use CURLFile;
+use Exception;
+use http\Env\Response;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use sasco\LibreDTE\Estado;
 use sasco\LibreDTE\FirmaElectronica;
 use sasco\LibreDTE\Log;
 use sasco\LibreDTE\Sii\Autenticacion;
@@ -20,10 +24,12 @@ use SimpleXMLElement;
 class SetPruebaController extends Controller
 {
     private $timestamp;
+    private static $retry = 10;
+    private static $folios = [];
 
-    public function index(Request $request) {
+    public function index(Request $request): JsonResponse {
         // setear timestamp
-        $this->timestamp = Carbon::now();
+        $this->timestamp = Carbon::now('America/Santiago');
 
         // Leer string como json
         $rbody = json_encode($request->json()->all());
@@ -39,46 +45,69 @@ class SetPruebaController extends Controller
         //$schema->in($json));
 
         //$jsonArr = var_dump($json);
-        $this->setPrueba($json);
+
+        return $this->setPrueba($json);
     }
 
-    public function setPrueba($dte) {
+    public function setPrueba($dte)
+    {
         // Renovar token si es necesario
         $this->isToken();
 
         // Primer folio a usar para envio de set de pruebas
 
+        // Comparar cantidad de folios usados con cantidad de folios disponibles
+
         // Obtiene los folios con la cantidad de folios usados desde la base de datos
-        $folios = $this->obtenerFolios();
+        $folios_inicial = $this->obtenerFolios();
+
         // Variable auxiliar para guardar el folio inicial
 
         // Obtener caratula
         $caratula = $this->obtenerCaratula($dte);
 
         // Parseo de boletas según modelo libreDTE
-        $boletas = $this->parseSetPrueba($dte, $folios);
+        $boletas = $this->parseSetPrueba($dte);
 
         // Objetos de Firma y Folios
         $Firma = $this->obtenerFirma();
 
         // Obtener folios del Caf
-        $Folios = $this->obtenerFoliosCaf($folios);
+        $Folios = $this->obtenerFoliosCaf();
 
         // generar cada DTE, timbrar, firmar y agregar al sobre de EnvioBOLETA
         $EnvioDTExml = $this->generarEnvioDteXml($boletas, $Firma, $Folios, $caratula);
-        echo $EnvioDTExml;
+        if(gettype($EnvioDTExml) == 'array') {
+            return response()->json([
+                'message' => "Error al generar el envio de DTEs",
+                'errores' => json_decode(json_encode($EnvioDTExml)),
+            ], 400);
+        }
 
-        // Enviar DTE
+        // Enviar DTE e insertar en base de datos de ser exitoso
         $RutEnvia = $Firma->getID(); // RUT autorizado para enviar DTEs
         $RutEmisor = $boletas[0]['Encabezado']['Emisor']['RUTEmisor']; // RUT del emisor del DTE
-        //$response = $this->enviar($RutEnvia, $RutEmisor, $EnvioDTExml);
-        //echo $response;
+        $response = $this->enviar($RutEnvia, $RutEmisor, $EnvioDTExml);
+
+        // Actualizar folios en la base de datos
+        $this->actualizarFolios($folios_inicial);
+        return response()->json([
+            'message' => "Set de pruebas enviado correctamente",
+            'response' => json_decode($response),
+        ], 200);
     }
 
-    public function estadoDteEnviado(Request $request)
+    public function actualizarFolios($folios_inicial) {
+        if($folios_inicial[39] != self::$folios[39])
+            DB::table('folio')->where('id', 39)->update(['cant_folios' => self::$folios[39]]);
+        if($folios_inicial[41] != self::$folios[41])
+            DB::table('folio')->where('id', 41)->update(['cant_folios' => self::$folios[41]]);
+    }
+
+    public function estadoDteEnviado(Request $request): JsonResponse
     {
         // setear timestamp
-        $this->timestamp = Carbon::now();
+        $this->timestamp = Carbon::now('America/Santiago');
 
         // Renovar token si es necesario
         $this->isToken();
@@ -119,13 +148,15 @@ class SetPruebaController extends Controller
         $response = curl_exec($curl);
 
         curl_close($curl);
-        echo $response;
+        return response()->json([
+            'response' => json_decode($response),
+        ], 200);
     }
 
-    public function estadoDte(Request $request)
+    public function estadoDte(Request $request): JsonResponse
     {
         // setear timestamp
-        $this->timestamp = Carbon::now();
+        $this->timestamp = Carbon::now('America/Santiago');
 
         // Renovar token si es necesario
         $this->isToken();
@@ -135,7 +166,6 @@ class SetPruebaController extends Controller
 
         // Transformar a json
         $body = json_decode($rbody);
-
         // Schema del json
         //$schemaJson = file_get_contents(base_path().'\SchemasSwagger\SchemaStatusBE.json');
 
@@ -155,7 +185,7 @@ class SetPruebaController extends Controller
         $required = $rut.'-'.$dv.'-'.$tipo.'-'.$folio;
         $opcionales = '?rut_receptor='.$rut_receptor.'&dv_receptor='.$dv_receptor.'&monto='.$monto.'&fechaEmision='.$fechaEmision;
         $url = 'https://apicert.sii.cl/recursos/v1/boleta.electronica/'.$required.'/estado'.$opcionales;
-        echo $url."\n";
+        //echo $url."\n";
         $curl = curl_init();
         curl_setopt_array($curl, array(
             CURLOPT_URL => $url,
@@ -174,7 +204,9 @@ class SetPruebaController extends Controller
         $response = curl_exec($curl);
 
         curl_close($curl);
-        echo $response;
+        return response()->json([
+            'response' => json_decode($response),
+        ], 200);
     }
 
     // Subir caf a la base de datos
@@ -185,7 +217,7 @@ class SetPruebaController extends Controller
     public function subirCaf(Request $request): JsonResponse
     {
         // setear timestamp
-        $this->timestamp = Carbon::now();
+        $this->timestamp = Carbon::now('America/Santiago');
 
         // Leer string como xml
         $rbody = $request->getContent();
@@ -195,7 +227,6 @@ class SetPruebaController extends Controller
         $folio_caf = $caf->CAF->DA->TD[0];
         $folio = DB::table('caf')->where('folio_id','=', $folio_caf)->latest()->first();
         $folio_final = $folio->folio_final;
-
         if ($folio_final + 1 != intval($caf->CAF->DA->RNG->D[0])) {
             return response()->json([
                 'message' => 'El caf no sigue el orden de folios correspondiente. Folio final: '.$folio_final.', folio caf: '.$caf->CAF->DA->RNG->D[0].'. Deben ser consecutivos.'
@@ -226,16 +257,16 @@ class SetPruebaController extends Controller
          ], 200);
     }
 
-    private function generarModeloBoleta($modeloBoleta, $detalles, $folio, $tipoDTE, $casos): array
+    private function generarModeloBoleta($modeloBoleta, $detalles, $tipoDTE, $casos): array
     {
         $modeloBoleta["Encabezado"]["IdDoc"] = [
             "TipoDTE" => $tipoDTE,
-            "Folio" => $folio[$tipoDTE],
+            "Folio" => ++self::$folios[$tipoDTE],
         ];
         $modeloBoleta["Detalle"] = $detalles;
         $modeloBoleta["Referencia"] = [
             'TpoDocRef' => 'SET', // 'SET' solo para set de pruebas, debe ser = $tipoDTE para dte que no son de prueba
-            'FolioRef' => $folio[$tipoDTE],
+            'FolioRef' => self::$folios[$tipoDTE],
             'RazonRef' => 'CASO-'.$casos,
         ];
         return $modeloBoleta;
@@ -261,13 +292,12 @@ class SetPruebaController extends Controller
             $file = env('DTES_PATH', "")."EnvioBOLETA/".$filename;
         } while (file_exists($file));
         Storage::disk('dtes')->put('envioBOLETA/'.$filename, $dte);
-        //file_put_contents($file, $dte);
         $data = [
             'rutSender' => $rutSender,
             'dvSender' => $dvSender,
             'rutCompany' => $rutCompany,
             'dvCompany' => $dvCompany,
-            'archivo' => new CURLFILE($file),
+            'archivo' => new CURLFile($file),
         ];
         $header = ['Cookie: TOKEN=' . $token];
 
@@ -279,18 +309,66 @@ class SetPruebaController extends Controller
         curl_setopt($curl, CURLOPT_HTTPHEADER, $header);
         curl_setopt($curl, CURLOPT_URL, $url);
         curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
-        // si no se debe verificar el SSL se asigna opción a curl, además si
-        // se está en el ambiente de producción y no se verifica SSL se
-        // generará una entrada en el log
-        // enviar XML al SII
-        $response = curl_exec($curl);
 
-        unlink($file);
+        // enviar XML al SII
+        for ($i=0; $i<self::$retry; $i++) {
+            $response = curl_exec($curl);
+            if ($response and $response!='Error 500') {
+                break;
+            }
+        }
 
         // cerrar sesión curl
         curl_close($curl);
+
+        // verificar respuesta del envío y entregar error en caso que haya uno
+        if (!$response or $response=='Error 500') {
+            if (!$response) {
+                Log::write(Estado::ENVIO_ERROR_CURL, Estado::get(Estado::ENVIO_ERROR_CURL, curl_error($curl)));
+            }
+            if ($response=='Error 500') {
+                Log::write(Estado::ENVIO_ERROR_500, Estado::get(Estado::ENVIO_ERROR_500));
+            }
+            // Borrar xml guardado anteriormente
+            Storage::disk('dtes')->delete('envioBOLETA/'.$filename);
+            return response()->json([
+                'message' => 'Error al enviar el DTE al SII',
+                'error' => $response,
+            ], 400);
+        }
+
+        // crear XML con la respuesta y retornar
+        try {
+            $json_response = json_decode($response);
+        } catch (Exception $e) {
+            Log::write(Estado::ENVIO_ERROR_XML, Estado::get(Estado::ENVIO_ERROR_XML, $e->getMessage()));
+            echo $e;
+            return false;
+        }
+        if (gettype($json_response) != 'object') {
+            echo $response;
+            Log::write(
+                Estado::ENVIO_ERROR_XML,
+                Estado::get(Estado::ENVIO_ERROR_XML, $response)
+            );
+        }
+
+        // Guardar envio dte en la base de datos
+        $this->guardarEnvioDte($json_response, $filename);
+
         return $response;
     }
+
+    private function guardarEnvioDte($response, $filename) {
+        // Insertar envio dte en la base de datos
+        DB::table('envio_dte')->insert([
+            'trackid' => $response->trackid,
+            'xml_filename' => $filename,
+            'created_at' => $this->timestamp,
+            'updated_at' => $this->timestamp
+        ]);
+    }
+
     private function getToken() {
         // Solicitar seed
         $seed = file_get_contents('https://apicert.sii.cl/recursos/v1/boleta.electronica.semilla');
@@ -340,7 +418,7 @@ class SetPruebaController extends Controller
         //echo 'TOKEN='.$token."\n";
         $config_file = json_decode(file_get_contents(base_path('config.json')));
         $config_file->token = $token;
-        $config_file->token_timestamp = Carbon::now()->timestamp;;
+        $config_file->token_timestamp = Carbon::now('America/Santiago')->timestamp;;
         file_put_contents(base_path('config.json'), json_encode($config_file), JSON_PRETTY_PRINT);
     }
 
@@ -348,7 +426,7 @@ class SetPruebaController extends Controller
         $token = Autenticacion::getToken($this->obtenerFirma());
         $config_file = json_decode(file_get_contents(base_path('config.json')));
         $config_file->token_dte = $token;
-        $config_file->token_dte_timestamp = Carbon::now()->timestamp;;
+        $config_file->token_dte_timestamp = Carbon::now('America/Santiago')->timestamp;;
         file_put_contents(base_path('config.json'), json_encode($config_file), JSON_PRETTY_PRINT);
     }
 
@@ -362,7 +440,7 @@ class SetPruebaController extends Controller
                 $this->getToken();
                 //echo "Se generó un nuevo token\n";
             } else {
-                $now = Carbon::now()->timestamp;
+                $now = Carbon::now('America/Santiago')->timestamp;
                 $tokenTimeStamp = $config_file->token_timestamp;
                 $diff = $now - $tokenTimeStamp;
                 if($diff > $config_file->token_expiration) {
@@ -378,7 +456,7 @@ class SetPruebaController extends Controller
                 $this->getTokenDte();
                 //echo "Se generó un nuevo token_dte\n";
             } else {
-                $now = Carbon::now()->timestamp;;
+                $now = Carbon::now('America/Santiago')->timestamp;;
                 $tokenDteTimeStamp = $config_file->token_dte_timestamp;
                 $diff = $now - $tokenDteTimeStamp;
                 if ($diff > $config_file->token_dte_expiration) {
@@ -412,7 +490,7 @@ class SetPruebaController extends Controller
         ];
         return new FirmaElectronica($config['firma']);
     }
-    private function parseSetPrueba($dte, $folios) {
+    private function parseSetPrueba($dte) {
         // Contador Casos (número de documentos a enviar)
         // SOLO PARA SET DE PRUEBAS
         $casos = 1;
@@ -453,30 +531,35 @@ class SetPruebaController extends Controller
             }
 
             if (!empty($detallesExentos)) {
-                $modeloBoletaExenta = $this->generarModeloBoleta($modeloBoleta, $detallesExentos, $folios, 41, $casos);
+                $modeloBoletaExenta = $this->generarModeloBoleta($modeloBoleta, $detallesExentos, 41, $casos);
                 $boletas[] = $modeloBoletaExenta;
-                $folios[41]++;
             }
 
             if (!empty($detallesAfectos)) {
-                $modeloBoletaAfecta = $this->generarModeloBoleta($modeloBoleta, $detallesAfectos, $folios, 39, $casos);
+                $modeloBoletaAfecta = $this->generarModeloBoleta($modeloBoleta, $detallesAfectos, 39, $casos);
                 $boletas[] = $modeloBoletaAfecta;
-                $folios[39]++;
             }
             $casos++;
         }
         return $boletas;
     }
     private function obtenerFolios() {
-        return [
+        self::$folios = [
             39 => DB::table('folio')->where('id',39)->value('cant_folios'), // boleta electrónica, es igual al último folio
-            41 => DB::table('folio')->where('id',39)->value('cant_folios'), // boleta afecta o exenta electrónica, es igual al último folio
+            41 => DB::table('folio')->where('id',41)->value('cant_folios'), // boleta afecta o exenta electrónica, es igual al último folio
         ];
+
+        // valor que toma folio_inicial
+        return  [
+            39 => self::$folios[39] + 1, // se le suma uno al último folio
+            41 => self::$folios[41] + 1, // se le suma uno al último folio
+        ];
+
         // Solo para set de pruebas
         /*
         return [
-            39 => 1, // boleta electrónica, es igual al último folio
-            41 => 1, // boleta afecta o exenta electrónica, es igual al último folio
+            39 => 0, // boleta electrónica, es igual al último folio
+            41 => 0, // boleta afecta o exenta electrónica, es igual al último folio
         ];
         */
     }
@@ -507,20 +590,26 @@ class SetPruebaController extends Controller
         $EnvioDTEBE->generar();
         $EnvioDTExml = new XML();
         if ($EnvioDTEBE->schemaValidate()) {
-            echo $EnvioDTExml = $EnvioDTEBE->generar();
+            $EnvioDTExml = $EnvioDTEBE->generar();
+        } else {
+            // si hubo errores mostrar
+            foreach (Log::readAll() as $error)
+                $errores[] = $error->msg;
+            return $errores;
         }
-        // si hubo errores mostrar
-        foreach (Log::readAll() as $error)
-            echo $error,"\n";
         return $EnvioDTExml;
     }
 
-    private function obtenerFoliosCaf(array $folios)
+    private function obtenerFoliosCaf()
     {
         $Folios = [];
-        foreach ($folios as $tipo => $cantidad) {
+        foreach (self::$folios as $tipo => $cantidad) {
             $row = DB::table('caf')->where('folio_id', '=', $tipo)->latest()->first();
-            $Folios[$tipo] = new Folios(Storage::disk('cafs')->get($row->xml_filename));
+            try {
+                $Folios[$tipo] = new Folios(Storage::disk('cafs')->get($row->xml_filename));
+            } catch (\Exception $e) {
+                echo $e->getMessage(). "No existe el caf para el folio " . $tipo . "\n";
+            }
         }
         return $Folios;
     }
