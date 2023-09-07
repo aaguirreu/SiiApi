@@ -15,6 +15,7 @@ use sasco\LibreDTE\Estado;
 use sasco\LibreDTE\FirmaElectronica;
 use sasco\LibreDTE\Log;
 use sasco\LibreDTE\Sii\Autenticacion;
+use sasco\LibreDTE\Sii\ConsumoFolio;
 use sasco\LibreDTE\Sii\Dte;
 use sasco\LibreDTE\Sii\EnvioDte;
 use sasco\LibreDTE\Sii\Folios;
@@ -207,6 +208,54 @@ class SetPruebaController extends Controller
         return response()->json([
             'response' => json_decode($response),
         ], 200);
+    }
+
+    public function generarRCOF(){
+        // archivos
+        $boletas = 'xml/EnvioBOLETA.xml';
+        $notas_credito = 'xml/EnvioDTE.xml';
+
+        // cargar XML boletas y notas
+        $EnvioBOLETA = new \sasco\LibreDTE\Sii\EnvioDte();
+        $EnvioBOLETA->loadXML(file_get_contents($boletas));
+        $EnvioDTE = new \sasco\LibreDTE\Sii\EnvioDte();
+        $EnvioDTE->loadXML(file_get_contents($notas_credito));
+
+        // crear objeto para consumo de folios
+        $ConsumoFolio = new ConsumoFolio();
+        $ConsumoFolio->setFirma($this->obtenerFirma());
+        $ConsumoFolio->setDocumentos([39, 41, 61]); // [39, 61] si es sólo afecto, [41, 61] si es sólo exento
+
+        // agregar detalle de boletas
+        foreach ($EnvioBOLETA->getDocumentos() as $Dte) {
+            $ConsumoFolio->agregar($Dte->getResumen());
+        }
+
+        // agregar detalle de notas de crédito
+        foreach ($EnvioDTE->getDocumentos() as $Dte) {
+            $ConsumoFolio->agregar($Dte->getResumen());
+        }
+
+        // crear carátula para el envío (se hace después de agregar los detalles ya que
+        // así se obtiene automáticamente la fecha inicial y final de los documentos)
+        $CaratulaEnvioBOLETA = $EnvioBOLETA->getCaratula();
+        $ConsumoFolio->setCaratula([
+            'RutEmisor' => $CaratulaEnvioBOLETA['RutEmisor'],
+            'FchResol' => $CaratulaEnvioBOLETA['FchResol'],
+            'NroResol' => $CaratulaEnvioBOLETA['NroResol'],
+        ]);
+
+        // generar, validar schema y mostrar XML
+        $ConsumoFolio->generar();
+        if ($ConsumoFolio->schemaValidate()) {
+            //echo $ConsumoFolio->generar();
+            $track_id = $ConsumoFolio->enviar();
+            var_dump($track_id);
+        }
+
+        // si hubo errores mostrar
+        foreach (Log::readAll() as $error)
+            echo $error,"\n";
     }
 
     // Subir caf a la base de datos
