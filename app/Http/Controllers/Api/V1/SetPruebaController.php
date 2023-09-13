@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Storage;
 use sasco\LibreDTE\Estado;
 use sasco\LibreDTE\FirmaElectronica;
 use sasco\LibreDTE\Log;
+use sasco\LibreDTE\Sii;
 use sasco\LibreDTE\Sii\Autenticacion;
 use sasco\LibreDTE\Sii\ConsumoFolio;
 use sasco\LibreDTE\Sii\Dte;
@@ -28,10 +29,7 @@ class SetPruebaController extends Controller
     private static $retry = 10;
     private static $folios = [];
 
-    public function index(Request $request): JsonResponse {
-        // setear timestamp
-        $this->timestamp = Carbon::now('America/Santiago');
-
+    public function index(Request $request) {
         // Leer string como json
         $rbody = json_encode($request->json()->all());
 
@@ -52,6 +50,9 @@ class SetPruebaController extends Controller
 
     public function setPrueba($dte)
     {
+        // setear timestamp
+        $this->timestamp = Carbon::now('America/Santiago');
+
         // Renovar token si es necesario
         $this->isToken();
 
@@ -67,14 +68,15 @@ class SetPruebaController extends Controller
         // Obtener caratula
         $caratula = $this->obtenerCaratula($dte);
 
+        // Obtener folios del Caf
+        $Folios = $this->obtenerFoliosCaf();
+
         // Parseo de boletas según modelo libreDTE
         $boletas = $this->parseSetPrueba($dte);
 
         // Objetos de Firma y Folios
         $Firma = $this->obtenerFirma();
 
-        // Obtener folios del Caf
-        $Folios = $this->obtenerFoliosCaf();
 
         // generar cada DTE, timbrar, firmar y agregar al sobre de EnvioBOLETA
         $EnvioDTExml = $this->generarEnvioDteXml($boletas, $Firma, $Folios, $caratula);
@@ -88,21 +90,38 @@ class SetPruebaController extends Controller
         // Enviar DTE e insertar en base de datos de ser exitoso
         $RutEnvia = $Firma->getID(); // RUT autorizado para enviar DTEs
         $RutEmisor = $boletas[0]['Encabezado']['Emisor']['RUTEmisor']; // RUT del emisor del DTE
-        $response = $this->enviar($RutEnvia, $RutEmisor, $EnvioDTExml);
+        $dteresponse = $this->enviar($RutEnvia, $RutEmisor, $EnvioDTExml);
+
+        // generar rcof (consumo de folios) y enviar
+        $ConsumoFolioxml = $this->generarRCOF($EnvioDTExml);
+
+        // Si hubo errores mostrarlos
+        if(gettype($ConsumoFolioxml) == 'array') {
+            return response()->json([
+                'message' => "Error al generar el envio de Rcof (Consumo de folios)",
+                'errores' => json_decode(json_encode($ConsumoFolioxml)),
+            ], 400);
+        }
+
+        // Enviar RCOF e insertar en base de datos de ser exitoso
+        $rcofreponse = $this->enviarRcof($ConsumoFolioxml);
 
         // Actualizar folios en la base de datos
         $this->actualizarFolios($folios_inicial);
         return response()->json([
-            'message' => "Set de pruebas enviado correctamente",
-            'response' => json_decode($response),
+            'message' => "Set de pruebas y rcof enviado correctamente",
+            'response' => [
+                "EnvioBoleta" => json_decode($dteresponse),
+                'EnvioRcof' => json_decode(json_encode(["trackid" => $rcofreponse]))
+            ],
         ], 200);
     }
 
     public function actualizarFolios($folios_inicial) {
-        if($folios_inicial[39] != self::$folios[39])
-            DB::table('folio')->where('id', 39)->update(['cant_folios' => self::$folios[39]]);
-        if($folios_inicial[41] != self::$folios[41])
-            DB::table('folio')->where('id', 41)->update(['cant_folios' => self::$folios[41]]);
+        if($folios_inicial[39] <= self::$folios[39])
+            DB::table('folio')->where('id', 39)->update(['cant_folios' => self::$folios[39], 'updated_at' => $this->timestamp]);
+        if($folios_inicial[41] <= self::$folios[41])
+            DB::table('folio')->where('id', 41)->update(['cant_folios' => self::$folios[41], 'updated_at' => $this->timestamp]);
     }
 
     public function estadoDteEnviado(Request $request): JsonResponse
@@ -210,60 +229,17 @@ class SetPruebaController extends Controller
         ], 200);
     }
 
-    public function generarRCOF(){
-        // archivos
-        $boletas = 'xml/EnvioBOLETA.xml';
-        $notas_credito = 'xml/EnvioDTE.xml';
-
-        // cargar XML boletas y notas
-        $EnvioBOLETA = new \sasco\LibreDTE\Sii\EnvioDte();
-        $EnvioBOLETA->loadXML(file_get_contents($boletas));
-        $EnvioDTE = new \sasco\LibreDTE\Sii\EnvioDte();
-        $EnvioDTE->loadXML(file_get_contents($notas_credito));
-
-        // crear objeto para consumo de folios
-        $ConsumoFolio = new ConsumoFolio();
-        $ConsumoFolio->setFirma($this->obtenerFirma());
-        $ConsumoFolio->setDocumentos([39, 41, 61]); // [39, 61] si es sólo afecto, [41, 61] si es sólo exento
-
-        // agregar detalle de boletas
-        foreach ($EnvioBOLETA->getDocumentos() as $Dte) {
-            $ConsumoFolio->agregar($Dte->getResumen());
-        }
-
-        // agregar detalle de notas de crédito
-        foreach ($EnvioDTE->getDocumentos() as $Dte) {
-            $ConsumoFolio->agregar($Dte->getResumen());
-        }
-
-        // crear carátula para el envío (se hace después de agregar los detalles ya que
-        // así se obtiene automáticamente la fecha inicial y final de los documentos)
-        $CaratulaEnvioBOLETA = $EnvioBOLETA->getCaratula();
-        $ConsumoFolio->setCaratula([
-            'RutEmisor' => $CaratulaEnvioBOLETA['RutEmisor'],
-            'FchResol' => $CaratulaEnvioBOLETA['FchResol'],
-            'NroResol' => $CaratulaEnvioBOLETA['NroResol'],
-        ]);
-
-        // generar, validar schema y mostrar XML
-        $ConsumoFolio->generar();
-        if ($ConsumoFolio->schemaValidate()) {
-            //echo $ConsumoFolio->generar();
-            $track_id = $ConsumoFolio->enviar();
-            var_dump($track_id);
-        }
-
-        // si hubo errores mostrar
-        foreach (Log::readAll() as $error)
-            echo $error,"\n";
+    public function subirCaf(Request $request):JsonResponse
+    {
+        return $this->uploadCaf($request);
     }
 
-    // Subir caf a la base de datos
+    public function forzarSubirCaf(Request $request): JsonResponse
+    {
+        return $this->uploadCaf($request, true);
+    }
 
-    /**
-     * @throws \Exception
-     */
-    public function subirCaf(Request $request): JsonResponse
+    public function uploadCaf($request, ?bool $force = false)
     {
         // setear timestamp
         $this->timestamp = Carbon::now('America/Santiago');
@@ -274,11 +250,16 @@ class SetPruebaController extends Controller
 
         // Si el caf no sigue el orden de folios correspondiente, no se sube.
         $folio_caf = $caf->CAF->DA->TD[0];
-        $folio = DB::table('caf')->where('folio_id','=', $folio_caf)->latest()->first();
-        $folio_final = $folio->folio_final;
+        if (!$force) {
+            $folio = DB::table('caf')->where('folio_id','=', $folio_caf)->latest()->first();
+            $folio_final = $folio->folio_final;
+        } else {
+            $folio_final = (int)$caf->CAF->DA->RNG->D[0];
+            $folio_final--;
+        }
         if ($folio_final + 1 != intval($caf->CAF->DA->RNG->D[0])) {
             return response()->json([
-                'message' => 'El caf no sigue el orden de folios correspondiente. Folio final: '.$folio_final.', folio caf: '.$caf->CAF->DA->RNG->D[0].'. Deben ser consecutivos.'
+                'message' => 'El caf no sigue el orden de folios correspondiente. Folio final: '.$folio_final.', folio caf enviado: '.$caf->CAF->DA->RNG->D[0].'. Deben ser consecutivos.'
             ], 400);
         }
 
@@ -291,19 +272,99 @@ class SetPruebaController extends Controller
         Storage::disk('cafs')->put($filename, $rbody);
 
         // Guardar en base de datos
-         DB::table('caf')->insert([
-             'folio_id' => $folio_caf,
-             'folio_inicial' => $caf->CAF->DA->RNG->D[0],
-             'folio_final' => $caf->CAF->DA->RNG->H[0],
-             'xml_filename' => $filename,
-             'created_at' => $this->timestamp,
-             'updated_at' => $this->timestamp
+        DB::table('caf')->insert([
+            'folio_id' => $folio_caf,
+            'folio_inicial' => $caf->CAF->DA->RNG->D[0],
+            'folio_final' => $caf->CAF->DA->RNG->H[0],
+            'xml_filename' => $filename,
+            'created_at' => $this->timestamp,
+            'updated_at' => $this->timestamp
         ]);
 
-         // Mensaje de caf guardado
-         return response()->json([
-             'message' => 'CAF guardado correctamente'
-         ], 200);
+        // Mensaje de caf guardado
+        return response()->json([
+            'message' => 'CAF guardado correctamente'
+        ], 200);
+    }
+
+    private function generarRCOF($boletas){
+
+        // cargar XML boletas y notas
+        $EnvioBOLETA = new EnvioDte();
+        $EnvioBOLETA->loadXML($boletas);
+
+        // crear objeto para consumo de folios
+        $ConsumoFolio = new ConsumoFolio();
+        $ConsumoFolio->setFirma($this->obtenerFirma());
+        $ConsumoFolio->setDocumentos([39, 41]); // [39, 61] si es sólo afecto, [41, 61] si es sólo exento
+
+        // agregar detalle de boletas
+        foreach ($EnvioBOLETA->getDocumentos() as $Dte) {
+            $ConsumoFolio->agregar($Dte->getResumen());
+        }
+
+        // crear carátula para el envío (se hace después de agregar los detalles ya que
+        // así se obtiene automáticamente la fecha inicial y final de los documentos)
+        $CaratulaEnvioBOLETA = $EnvioBOLETA->getCaratula();
+        $ConsumoFolio->setCaratula([
+            'RutEmisor' => $CaratulaEnvioBOLETA['RutEmisor'],
+            'FchResol' => $CaratulaEnvioBOLETA['FchResol'],
+            'NroResol' => $CaratulaEnvioBOLETA['NroResol'],
+        ]);
+
+        // generar y validar schema
+        $ConsumoFolio->generar();
+        if (!$ConsumoFolio->schemaValidate()) {
+            // si hubo errores mostrar
+            foreach (Log::readAll() as $error)
+                $errores[] = $error->msg;
+            return $errores;
+        }
+        return $ConsumoFolio;
+    }
+
+    private function enviarRcof(ConsumoFolio $ConsumoFolio) {
+
+        // Guardar xml en storage
+        $filename = 'RCOF_'.$this->timestamp.'.xml';
+        $filename = str_replace(' ', 'T', $filename);
+        $filename = str_replace(':', '-', $filename);
+        //$file = env('DTES_PATH', "")."EnvioBOLETA/".$filename;
+        Storage::disk('dtes')->put('envioRcof/'.$filename, $ConsumoFolio->generar());
+
+        // Set ambiente certificacion
+        Sii::setAmbiente(Sii::CERTIFICACION);
+
+        // Enviar rcof
+        $response = $ConsumoFolio->enviar();
+        return $response;
+    }
+
+    // Se debe enviar el xml del EnvioBoleta que se desea realizar el resumen rcof.
+    public function enviarRcofOnly(Request $request): JsonResponse
+    {
+        // setear timestamp
+        $this->timestamp = Carbon::now('America/Santiago');
+
+        // Renovar token si es necesario
+        $this->isToken();
+
+        // Obtener resumen de consumo de folios
+        $EnvioBoletaxml = $request->getContent();
+        $ConsumoFolio = $this->generarRCOF($EnvioBoletaxml);
+
+        // Enviar rcof
+        $response = $ConsumoFolio->enviar(5);
+        if($response != false) {
+            return response()->json([
+                'message' => 'RCOF enviado correctamente',
+                'trackid' => $response
+            ], 200);
+        }
+        return response()->json([
+            'message' => 'Error al enviar RCOF',
+            'response' => $response
+        ], 400);
     }
 
     private function generarModeloBoleta($modeloBoleta, $detalles, $tipoDTE, $casos): array
@@ -320,7 +381,6 @@ class SetPruebaController extends Controller
         ];
         return $modeloBoleta;
     }
-
 
     private function enviar($usuario, $empresa, $dte)
     {
@@ -386,7 +446,7 @@ class SetPruebaController extends Controller
             ], 400);
         }
 
-        // crear XML con la respuesta y retornar
+        // crear json con la respuesta y retornar
         try {
             $json_response = json_decode($response);
         } catch (Exception $e) {
@@ -472,6 +532,8 @@ class SetPruebaController extends Controller
     }
 
     private function getTokenDte() {
+        // Set ambiente certificacion
+        Sii::setAmbiente(Sii::CERTIFICACION);
         $token = Autenticacion::getToken($this->obtenerFirma());
         $config_file = json_decode(file_get_contents(base_path('config.json')));
         $config_file->token_dte = $token;
