@@ -26,6 +26,10 @@ Route::get('/user/{id}', [UserController::class, 'show']);
 Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1'], function () {
     Route::post('apicontroller', 'ApiController@respond');
 
+    // Caf
+    Route::post('subircaf', 'SetPruebaController@subirCaf');
+    Route::post('subircafforce', 'SetPruebaController@forzarSubirCaf');
+
     // Envio de Boletas
     Route::post('envioboleta', 'BoletaController@index');
     Route::post('estadoDteEnviado', 'BoletaController@estadoDteEnviado');
@@ -35,5 +39,5 @@ Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1'], f
     Route::post('setdeprueba/envios', 'SetPruebaController@index');
     Route::post('setdeprueba/envioestado', 'SetPruebaController@estadoDteEnviado');
     Route::post('setdeprueba/estado', 'SetPruebaController@estadoDte');
-    Route::post('subircaf', 'SetPruebaController@subirCaf');
+    Route::post('setdeprueba/rcof', 'SetPruebaController@enviarRcofOnly');
 });
