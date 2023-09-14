@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use Carbon\Carbon;
 use CURLFile;
 use Exception;
-use http\Env\Response;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -324,19 +323,21 @@ class SetPruebaController extends Controller
     }
 
     private function enviarRcof(ConsumoFolio $ConsumoFolio) {
-
-        // Guardar xml en storage
-        $filename = 'RCOF_'.$this->timestamp.'.xml';
-        $filename = str_replace(' ', 'T', $filename);
-        $filename = str_replace(':', '-', $filename);
-        //$file = env('DTES_PATH', "")."EnvioBOLETA/".$filename;
-        Storage::disk('dtes')->put('envioRcof/'.$filename, $ConsumoFolio->generar());
-
         // Set ambiente certificacion
         Sii::setAmbiente(Sii::CERTIFICACION);
 
         // Enviar rcof
         $response = $ConsumoFolio->enviar();
+
+        if($response != false){
+            // Guardar xml en storage
+            $filename = 'RCOF_'.$this->timestamp.'.xml';
+            $filename = str_replace(' ', 'T', $filename);
+            $filename = str_replace(':', '-', $filename);
+            //$file = env('DTES_PATH', "")."EnvioBOLETA/".$filename;
+            Storage::disk('dtes')->put('envioRcof/'.$filename, $ConsumoFolio->generar());
+        }
+
         return $response;
     }
 

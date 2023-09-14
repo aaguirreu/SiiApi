@@ -4,13 +4,10 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use Carbon\Carbon;
-use CURLFile;
-use Exception;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use sasco\LibreDTE\Estado;
 use sasco\LibreDTE\FirmaElectronica;
 use sasco\LibreDTE\Log;
 use sasco\LibreDTE\Sii;
@@ -22,21 +19,18 @@ use sasco\LibreDTE\Sii\Folios;
 use sasco\LibreDTE\XML;
 use SimpleXMLElement;
 
-class BoletaController extends Controller
+class BoletaControllerBackup extends Controller
 {
     private $timestamp;
     private static $retry = 10;
     private static $folios = [];
 
-    public function index(Request $request) {
+    public function envio(Request $request): JsonResponse {
         // Leer string como json
-        $rbody = json_encode($request->json()->all());
-
-        // Transformar a json
-        $json = json_decode($rbody);
+        $dte = json_decode(json_encode($request->json()->all()));
 
         // Schema del json
-        $schemaJson = file_get_contents(base_path().'\SchemasSwagger\SchemaBoleta.json');
+        //$schemaJson = file_get_contents(base_path().'\SchemasSwagger\SchemaBoleta.json');
 
         // Validar json
         //$schema = Schema::import(json_decode($schemaJson));
@@ -44,20 +38,11 @@ class BoletaController extends Controller
 
         //$jsonArr = var_dump($json);
 
-        return $this->setPrueba($json);
-    }
-
-    public function setPrueba($dte)
-    {
         // setear timestamp
         $this->timestamp = Carbon::now('America/Santiago');
 
         // Renovar token si es necesario
         $this->isToken();
-
-        // Primer folio a usar para envio de set de pruebas
-
-        // Comparar cantidad de folios usados con cantidad de folios disponibles
 
         // Obtiene los folios con la cantidad de folios usados desde la base de datos
         $folios_inicial = $this->obtenerFolios();
@@ -76,7 +61,6 @@ class BoletaController extends Controller
         // Objetos de Firma y Folios
         $Firma = $this->obtenerFirma();
 
-
         // generar cada DTE, timbrar, firmar y agregar al sobre de EnvioBOLETA
         $EnvioDTExml = $this->generarEnvioDteXml($boletas, $Firma, $Folios, $caratula);
         if(gettype($EnvioDTExml) == 'array') {
@@ -89,38 +73,27 @@ class BoletaController extends Controller
         // Enviar DTE e insertar en base de datos de ser exitoso
         $RutEnvia = $Firma->getID(); // RUT autorizado para enviar DTEs
         $RutEmisor = $boletas[0]['Encabezado']['Emisor']['RUTEmisor']; // RUT del emisor del DTE
-        $dteresponse = $this->enviar($RutEnvia, $RutEmisor, $EnvioDTExml);
+        $result = $this->enviar($RutEnvia, $RutEmisor, $EnvioDTExml);
 
         // generar rcof (consumo de folios) y enviar
         $ConsumoFolioxml = $this->generarRCOF($EnvioDTExml);
-
-        // Si hubo errores mostrarlos
-        if(gettype($ConsumoFolioxml) == 'array') {
-            return response()->json([
-                'message' => "Error al generar el envio de Rcof (Consumo de folios)",
-                'errores' => json_decode(json_encode($ConsumoFolioxml)),
-            ], 400);
-        }
 
         // Enviar RCOF e insertar en base de datos de ser exitoso
         $rcofreponse = $this->enviarRcof($ConsumoFolioxml);
 
         // Actualizar folios en la base de datos
         $this->actualizarFolios($folios_inicial);
-        return response()->json([
-            'message' => "Set de pruebas y rcof enviado correctamente",
-            'response' => [
-                "EnvioBoleta" => json_decode($dteresponse),
-                'EnvioRcof' => json_decode(json_encode(["trackid" => $rcofreponse]))
-            ],
-        ], 200);
-    }
 
-    public function actualizarFolios($folios_inicial) {
-        if($folios_inicial[39] <= self::$folios[39])
-            DB::table('folio')->where('id', 39)->update(['cant_folios' => self::$folios[39], 'updated_at' => $this->timestamp]);
-        if($folios_inicial[41] <= self::$folios[41])
-            DB::table('folio')->where('id', 41)->update(['cant_folios' => self::$folios[41], 'updated_at' => $this->timestamp]);
+        // Guardar dte en storage
+        $filename = 'EnvioBOLETA_'.$this->timestamp.'.xml';
+        $filename = str_replace(' ', 'T', $filename);
+        $filename = str_replace(':', '-', $filename);
+        Storage::disk('dtes')->put('envioBOLETA/'.$filename, $dte);
+
+        // Insertar envio dte en la base de datos
+        $this->insertarEnvioDte(json_decode($result->getContent())->response->TRACKID, $filename);
+
+        return $result;
     }
 
     public function estadoDteEnviado(Request $request): JsonResponse
@@ -148,28 +121,29 @@ class BoletaController extends Controller
         $rut = $body->rut;
         $dv = $body->dv;
         $trackID = $body->trackID;
-        $destino = $rut.'-'.$dv.'-'.$trackID;
-        $curl = curl_init();
-        curl_setopt_array($curl, array(
-            CURLOPT_URL => 'https://apicert.sii.cl/recursos/v1/boleta.electronica.envio/'.$destino,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_ENCODING => '',
-            CURLOPT_MAXREDIRS => 10,
-            CURLOPT_TIMEOUT => 0,
-            CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-            CURLOPT_CUSTOMREQUEST => 'GET',
-            CURLOPT_HTTPHEADER => array(
-                'Cookie: TOKEN='.json_decode(file_get_contents(base_path('config.json')))->token,
-            ),
-        ));
+        $token = json_decode(file_get_contents(base_path('config.json')))->token_dte;
 
-        $response = curl_exec($curl);
+        // Set ambiente certificacion
+        Sii::setAmbiente(Sii::CERTIFICACION);
 
-        curl_close($curl);
+        // Enviar consulta de estado
+        $estado = Sii::request('QueryEstUp', 'getEstUp', [$rut, $dv, $trackID, $token]);
+
+        // si el estado se pudo recuperar se muestra estado y glosa
+        if ($estado!==false) {
+            print_r([
+                'codigo' => (string)$estado->xpath('/SII:RESPUESTA/SII:RESP_HDR/ESTADO')[0],
+                'glosa' => (string)$estado->xpath('/SII:RESPUESTA/SII:RESP_HDR/GLOSA')[0],
+            ]);
+        }
+
+        // mostrar error si hubo
+        foreach (Log::readAll() as $error)
+            echo $error,"\n";
         return response()->json([
-            'response' => json_decode($response),
-        ], 200);
+            'message' => "Error al consultar estado de DTE",
+            'errores' => json_decode(json_encode(Log::readAll())),
+        ], 400);
     }
 
     public function estadoDte(Request $request): JsonResponse
@@ -286,6 +260,13 @@ class BoletaController extends Controller
         ], 200);
     }
 
+    public function actualizarFolios($folios_inicial) {
+        if($folios_inicial[39] <= self::$folios[39])
+            DB::table('folio')->where('id', 39)->update(['cant_folios' => self::$folios[39], 'updated_at' => $this->timestamp]);
+        if($folios_inicial[41] <= self::$folios[41])
+            DB::table('folio')->where('id', 41)->update(['cant_folios' => self::$folios[41], 'updated_at' => $this->timestamp]);
+    }
+
     private function generarRCOF($boletas){
 
         // cargar XML boletas y notas
@@ -386,94 +367,42 @@ class BoletaController extends Controller
     private function enviar($usuario, $empresa, $dte)
     {
         $token = json_decode(file_get_contents(base_path('config.json')))->token_dte;
-        // definir datos que se usarán en el envío
-        list($rutSender, $dvSender) = explode('-', str_replace('.', '', $usuario));
-        list($rutCompany, $dvCompany) = explode('-', str_replace('.', '', $empresa));
-        if (strpos($dte, '<?xml') === false) {
-            $dte = '<?xml version="1.0" encoding="ISO-8859-1"?>' . "\n" . $dte;
-        }
-        do {
-            if (!file_exists(env('DTES_PATH', "")."EnvioBOLETA")) {
-                mkdir(env('DTES_PATH', "")."EnvioBOLETA", 0777, true);
-            }
-            $filename = 'EnvioBOLETA_'.$this->timestamp.'.xml';
-            $filename = str_replace(' ', 'T', $filename);
-            $filename = str_replace(':', '-', $filename);
-            $file = env('DTES_PATH', "")."EnvioBOLETA/".$filename;
-        } while (file_exists($file));
-        Storage::disk('dtes')->put('envioBOLETA/'.$filename, $dte);
-        $data = [
-            'rutSender' => $rutSender,
-            'dvSender' => $dvSender,
-            'rutCompany' => $rutCompany,
-            'dvCompany' => $dvCompany,
-            'archivo' => new CURLFile($file),
-        ];
-        $header = ['Cookie: TOKEN=' . $token];
 
-        // crear sesión curl con sus opciones
-        $curl = curl_init();
-        $url = 'https://rahue.sii.cl/recursos/v1/boleta.electronica.envio';
-        curl_setopt($curl, CURLOPT_POST, true);
-        curl_setopt($curl, CURLOPT_POSTFIELDS, $data);
-        curl_setopt($curl, CURLOPT_HTTPHEADER, $header);
-        curl_setopt($curl, CURLOPT_URL, $url);
-        curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+        // Set ambiente certificacion
+        Sii::setAmbiente(Sii::CERTIFICACION);
 
-        // enviar XML al SII
-        for ($i=0; $i<self::$retry; $i++) {
-            $response = curl_exec($curl);
-            if ($response and $response!='Error 500') {
-                break;
-            }
-        }
+        // Enviar dte
+        $result = Sii::enviar($usuario, $empresa, $dte, $token);
 
-        // cerrar sesión curl
-        curl_close($curl);
-
-        // verificar respuesta del envío y entregar error en caso que haya uno
-        if (!$response or $response=='Error 500' or $response == 'NO ESTA AUTENTICADO') {
-            if (!$response) {
-                Log::write(Estado::ENVIO_ERROR_CURL, Estado::get(Estado::ENVIO_ERROR_CURL, curl_error($curl)));
-            }
-            if ($response=='Error 500') {
-                Log::write(Estado::ENVIO_ERROR_500, Estado::get(Estado::ENVIO_ERROR_500));
-            }
-            // Borrar xml guardado anteriormente
-            Storage::disk('dtes')->delete('envioBOLETA/'.$filename);
+        // si hubo algún error al enviar al servidor mostrar
+        if ($result===false) {
+            foreach (Log::readAll() as $error)
+                $errores[] = $error->msg;
             return response()->json([
-                'message' => 'Error al enviar el DTE al SII',
-                'error' => $response,
+                'message' => 'Error al enviar DTE',
+                'response' => json_decode(json_encode($errores))
             ], 400);
         }
 
-        // crear json con la respuesta y retornar
-        try {
-            $json_response = json_decode($response);
-        } catch (Exception $e) {
-            Log::write(Estado::ENVIO_ERROR_XML, Estado::get(Estado::ENVIO_ERROR_XML, $e->getMessage()));
-            echo $e;
-            return false;
+        // Mostrar resultado del envío
+        if ($result->STATUS!='0') {
+            foreach (Log::readAll() as $error)
+                $errores[] = $error->msg;
+            return response()->json([
+                'message' => 'Error en el envío del DTE',
+                'response' => json_decode(json_encode($errores))
+            ], 400);
         }
-        if (gettype($json_response) != 'object') {
-            echo $response;
-            Log::write(
-                Estado::ENVIO_ERROR_XML,
-                Estado::get(Estado::ENVIO_ERROR_XML, $response)
-            );
-            return false;
-        }
-
-        // Guardar envio dte en la base de datos
-        $this->guardarEnvioDte($json_response, $filename);
-
-        return $response;
+        return response()->json([
+            'message' => 'DTE enviado correctamente',
+            'response' => $result
+        ], 200);
     }
 
-    private function guardarEnvioDte($response, $filename) {
+    private function insertarEnvioDte($trackid, $filename) {
         // Insertar envio dte en la base de datos
         DB::table('envio_dte')->insert([
-            'trackid' => $response->trackid,
+            'trackid' => $trackid,
             'xml_filename' => $filename,
             'created_at' => $this->timestamp,
             'updated_at' => $this->timestamp

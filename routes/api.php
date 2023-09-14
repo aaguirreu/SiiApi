@@ -31,13 +31,13 @@ Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1'], f
     Route::post('subircafforce', 'SetPruebaController@forzarSubirCaf');
 
     // Envio de Boletas
-    Route::post('envioboleta', 'BoletaController@index');
-    Route::post('estadoDteEnviado', 'BoletaController@estadoDteEnviado');
-    Route::post('estadoDte', 'BoletaController@estadoDte');
+    Route::post('boletas/envio', 'BoletaController@index');
+    Route::post('boletas/estado.envio', 'BoletaController@estadoDteEnviado');
+    Route::post('boletas/estado.dte', 'BoletaController@estadoDte');
 
     // Envio de Set de Prueba
-    Route::post('setdeprueba/envios', 'SetPruebaController@index');
-    Route::post('setdeprueba/envioestado', 'SetPruebaController@estadoDteEnviado');
-    Route::post('setdeprueba/estado', 'SetPruebaController@estadoDte');
+    Route::post('setdeprueba/envio', 'SetPruebaController@index');
+    Route::post('setdeprueba/estado.envio', 'SetPruebaController@estadoDteEnviado');
+    Route::post('setdeprueba/estado.dte', 'SetPruebaController@estadoDte');
     Route::post('setdeprueba/rcof', 'SetPruebaController@enviarRcofOnly');
 });
