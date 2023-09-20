@@ -1,5 +1,8 @@
 Api que consume la api sii para el envío de boletas https://www4c.sii.cl/bolcoreinternetui/api/
 
+# Diagrama de la DB
+![db_model](https://github.com/aaguirreu/SiiApi/assets/64426866/ba1f5ea9-2e83-4aee-9c80-f5320e5b652b)
+
 # Cómo utilizar
 
 ### Rellenar los valores de env_example 
