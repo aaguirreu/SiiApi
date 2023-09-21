@@ -10,9 +10,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Folio extends Model
 {
     use HasFactory;
-    /*
+
     public function caf(): hasMany
     {
         return $this->hasMany(Caf::class, 'folio_id', 'id');
-    }*/
+    }
 }

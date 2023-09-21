@@ -5,17 +5,12 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
-class Caf extends Model
+class Rcof extends Model
 {
     use HasFactory;
-
     public function dte(): BelongsTo
     {
-        return $this->belongsTo(Dte::class,
-            'caf_id',
-            'id',
-        );
+        return $this->belongsTo(Dte::class, 'id', 'id');
     }
 }
