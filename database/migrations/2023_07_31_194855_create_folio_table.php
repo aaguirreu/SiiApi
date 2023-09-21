@@ -16,8 +16,7 @@ class CreateFolioTable extends Migration
     public function up()
     {
         Schema::create('folio', function (Blueprint $table) {
-
-            $table->integer('id')->unique();
+            $table->integer('id')->primary();
             $table->integer('cant_folios')->default(1);
             $table->timestamps();
         });

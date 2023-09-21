@@ -17,7 +17,7 @@ class CreateCafTable extends Migration
     {
         Schema::create('caf', function (Blueprint $table) {
             $table->id();
-            $table->integer('folio_id');
+            $table->foreignId('folio_id')->references('id')->on('folio');
             $table->integer('folio_inicial');
             $table->integer('folio_final');
             $table->string('xml_filename');

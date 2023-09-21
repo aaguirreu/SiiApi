@@ -14,8 +14,10 @@ class CreateEnviodteCafTable extends Migration
     public function up()
     {
         Schema::create('enviodte_caf', function (Blueprint $table) {
-            $table->foreignId('caf_id')->constrained('caf');
-            $table->foreignId('enviodte_id')->constrained('envio_dte');
+            $table->id();
+            $table->foreignId('enviodte_id')->references('id')->on('envio_dte');
+            $table->foreignId('caf_id')->references('id')->on('caf');
+            $table->timestamps();
         });
     }
 
