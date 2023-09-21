@@ -20,7 +20,7 @@ use sasco\LibreDTE\Sii\Folios;
 use sasco\LibreDTE\XML;
 use SimpleXMLElement;
 
-class SetPruebaBEController extends DteController
+class SetPruebaFEController extends DteController
 {
     // Número de casos, solo para set de pruebas
     private static $casos;
