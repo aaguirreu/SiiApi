@@ -27,17 +27,19 @@ Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1'], f
     Route::post('apicontroller', 'ApiController@respond');
 
     // Caf
-    Route::post('subircaf', 'SetPruebaController@subirCaf');
-    Route::post('subircafforce', 'SetPruebaController@forzarSubirCaf');
+    Route::post('subircaf', 'ApiSetPruebaBEController@subirCaf');
+    Route::post('subircafforce', 'ApiSetPruebaBEController@forzarSubirCaf');
+
+    // Rcof
+    Route::post('rcof/{dte_filename}', 'ApiSetPruebaBEController@enviarRcofOnly');
 
     // Envio de Boletas
-    Route::post('boletas/envio', 'BoletaController@index');
+    Route::post('boletas/envio', 'BoletaController@boletaElectronica');
     Route::post('boletas/estado.envio', 'BoletaController@estadoDteEnviado');
     Route::post('boletas/estado.dte', 'BoletaController@estadoDte');
 
     // Envio de Set de Prueba
-    Route::post('setdeprueba/envio', 'SetPruebaController@index');
-    Route::post('setdeprueba/estado.envio', 'SetPruebaController@estadoDteEnviado');
-    Route::post('setdeprueba/estado.dte', 'SetPruebaController@estadoDte');
-    Route::post('setdeprueba/rcof', 'SetPruebaController@enviarRcofOnly');
+    Route::post('setdeprueba/envio', 'ApiSetPruebaBEController@setPrueba');
+    Route::post('setdeprueba/estado.envio', 'ApiSetPruebaBEController@estadoDteEnviado');
+    Route::post('setdeprueba/estado.dte', 'ApiSetPruebaBEController@estadoDte');
 });
