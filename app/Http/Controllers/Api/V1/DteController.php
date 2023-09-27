@@ -149,7 +149,7 @@ class DteController extends Controller
         ];
         $modeloBoleta["Detalle"] = $detalles;
         $modeloBoleta["Referencia"] = [
-            'TpoDocRef' => 'SET', // 'SET' solo para set de pruebas, debe ser = $tipoDTE para dte que no son de prueba
+            'TpoDocRef' => $tipoDTE,
             'FolioRef' => self::$folios[$tipoDTE],
             'RazonRef' => 'LibreDTE_T'.$tipoDTE.'F'.self::$folios[$tipoDTE],
         ];
@@ -383,21 +383,21 @@ class DteController extends Controller
 
     protected function generarEnvioDteXml(array $boletas, FirmaElectronica $Firma, array $Folios, array $caratula)
     {
-        $EnvioDTEBE = new EnvioDte();
+        $EnvioDTE = new EnvioDte();
         foreach ($boletas as $documento) {
             $DTE = new Dte($documento);
             if (!$DTE->timbrar($Folios[$DTE->getTipo()]))
                 break;
             if (!$DTE->firmar($Firma))
                 break;
-            $EnvioDTEBE->agregar($DTE);
+            $EnvioDTE->agregar($DTE);
         }
-        $EnvioDTEBE->setFirma($Firma);
-        $EnvioDTEBE->setCaratula($caratula);
-        $EnvioDTEBE->generar();
+        $EnvioDTE->setFirma($Firma);
+        $EnvioDTE->setCaratula($caratula);
+        $EnvioDTE->generar();
         $EnvioDTExml = new XML();
-        if ($EnvioDTEBE->schemaValidate()) {
-            $EnvioDTExml = $EnvioDTEBE->generar();
+        if ($EnvioDTE->schemaValidate()) {
+            $EnvioDTExml = $EnvioDTE->generar();
         } else {
             // si hubo errores mostrar
             foreach (Log::readAll() as $error)

@@ -23,7 +23,7 @@ class CreateFolioTable extends Migration
 
         // Inicializar folios
         // Folio BE
-        $folios = [39, 41];
+        $folios = [39, 41, 33, 34];
         foreach ($folios as $folio) {
             DB::table('folio')->insert([
                 'id' => $folio,
