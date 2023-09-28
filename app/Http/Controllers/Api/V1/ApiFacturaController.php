@@ -6,6 +6,7 @@ use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use sasco\LibreDTE\Sii;
 
 class ApiFacturaController extends FacturaController
@@ -67,13 +68,27 @@ class ApiFacturaController extends FacturaController
 
         // generar cada DTE, timbrar, firmar y agregar al sobre de EnvioBOLETA
         $EnvioDTExml = $this->generarEnvioDteXml($boletas, $Firma, $Folios, $caratula);
-        //return $EnvioDTExml;
+        if(gettype($EnvioDTExml) == 'array'){
+            return response()->json([
+                'message' => "Error al generar el envio de DTEs",
+                'errores' => json_decode(json_encode($EnvioDTExml)),
+            ], 400);
+        }
 
         // Enviar DTE e insertar en base de datos de ser exitoso
         $RutEnvia = $Firma->getID(); // RUT autorizado para enviar DTEs
         $RutEmisor = $boletas[0]['Encabezado']['Emisor']['RUTEmisor']; // RUT del emisor del DTE
         $dteresponse = $this->enviar($RutEnvia, $RutEmisor, $EnvioDTExml);
-        return $dteresponse;
+
+        return response()->json([
+            //'message' => "Factura electronica y rcof enviado correctamente",
+            'message' => "Factura electronica enviada correctamente",
+            'response' => [
+                "EnvioFactura" => $dteresponse,
+                //'EnvioRcof' => json_decode(json_encode(["trackid" => $rcofreponse]))
+            ],
+        ], 200);
+
         /*
         if (gettype($EnvioDTExml) == 'array') {
             return response()->json([
@@ -119,6 +134,38 @@ class ApiFacturaController extends FacturaController
 
     public function estadoDteEnviado(Request $request)
     {
+        /** @var \Webklex\PHPIMAP\Client $client */
+        $client = Webklex\IMAP\Facades\Client::account('default');
+
+//Connect to the IMAP Server
+        $client->connect();
+
+//Get all Mailboxes
+        /** @var \Webklex\PHPIMAP\Support\FolderCollection $folders */
+        $folders = $client->getFolders();
+
+//Loop through every Mailbox
+        /** @var \Webklex\PHPIMAP\Folder $folder */
+        foreach($folders as $folder){
+
+            //Get all Messages of the current Mailbox $folder
+            /** @var \Webklex\PHPIMAP\Support\MessageCollection $messages */
+            $messages = $folder->messages()->all()->get();
+
+            /** @var \Webklex\PHPIMAP\Message $message */
+            foreach($messages as $message){
+                echo $message->getSubject().'<br />';
+                echo 'Attachments: '.$message->getAttachments()->count().'<br />';
+                echo $message->getHTMLBody();
+
+                //Move the current Message to 'INBOX.read'
+                if($message->move('INBOX.read') == true){
+                    echo 'Message has ben moved';
+                }else{
+                    echo 'Message could not be moved';
+                }
+            }
+        }
         // setear timestamp
         $this->timestamp = Carbon::now('America/Santiago');
 
@@ -145,7 +192,7 @@ class ApiFacturaController extends FacturaController
         $trackID = $body->trackID;
 
         // Set ambiente producción
-        Sii::setAmbiente(Sii::CERTIFICACION);
+        //Sii::setAmbiente(Sii::CERTIFICACION);
 
         $estado = Sii::request('QueryEstUp', 'getEstUp', [$rut, $dv, $trackID, $token]);
         // si el estado se pudo recuperar se muestra estado y glosa
@@ -163,7 +210,7 @@ class ApiFacturaController extends FacturaController
             echo $error,"\n";
     }
 
-    public function estadoDte(Request $request): JsonResponse
+    public function estadoDte(Request $request)
     {
         // setear timestamp
         $this->timestamp = Carbon::now('America/Santiago');
@@ -184,38 +231,36 @@ class ApiFacturaController extends FacturaController
         //$schema->in($body);
 
         // Consulta estado dte
-        $rut = $body->rut;
-        $dv = $body->dv;
-        $tipo = $body->tipo;
-        $folio = $body->folio;
-        $rut_receptor = $body->rut_receptor;
-        $dv_receptor = $body->dv_receptor;
-        $monto = $body->monto;
-        $fechaEmision = $body->fechaEmision;
-        $required = $rut . '-' . $dv . '-' . $tipo . '-' . $folio;
-        $opcionales = '?rut_receptor=' . $rut_receptor . '&dv_receptor=' . $dv_receptor . '&monto=' . $monto . '&fechaEmision=' . $fechaEmision;
-        $url = 'https://api.sii.cl/recursos/v1/boleta.electronica/' . $required . '/estado' . $opcionales;
-        //echo $url."\n";
-        $curl = curl_init();
-        curl_setopt_array($curl, array(
-            CURLOPT_URL => $url,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_ENCODING => '',
-            CURLOPT_MAXREDIRS => 10,
-            CURLOPT_TIMEOUT => 0,
-            CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-            CURLOPT_CUSTOMREQUEST => 'GET',
-            CURLOPT_HTTPHEADER => array(
-                'Cookie: TOKEN=' . json_decode(file_get_contents(base_path('config.json')))->token,
-            ),
-        ));
+        $token = json_decode(file_get_contents(base_path('config.json')))->token_dte;
 
-        $response = curl_exec($curl);
+        // consultar estado dte
+        $xml = Sii::request('QueryEstDte', 'getEstDte', [
+            'RutConsultante'    => $body->rut,
+            'DvConsultante'     => $body->dv,
+            'RutCompania'       => $body->rut,
+            'DvCompania'        => $body->dv,
+            'RutReceptor'       => $body->rut_receptor,
+            'DvReceptor'        => $body->dv_receptor,
+            'TipoDte'           => $body->tipo,
+            'FolioDte'          => $body->folio,
+            'FechaEmisionDte'   => $body->fechaEmision,
+            'MontoDte'          => $body->monto,
+            'token'             => $token,
+        ]);
 
-        curl_close($curl);
+        //return $xml->asXML();
+
+        // Convertir a array asociativo
+        $arrayData = json_decode(json_encode($xml), true);
+
+        // Respuesta como JSON
+        $json_response = json_decode(json_encode($arrayData, JSON_PRETTY_PRINT));
+
         return response()->json([
-            'response' => json_decode($response),
+            'message' => 'Estado de DTE obtenido correctamente',
+            'response' => [
+                "EstadoDte" => json_decode(json_encode($json_response), true)
+            ],
         ], 200);
     }
 

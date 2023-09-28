@@ -159,7 +159,7 @@ class DteController extends Controller
     protected function guardarEnvioDte($response, $filename) {
         // Insertar envio dte en la base de datos
         $enviodte_id = DB::table('envio_dte')->insertGetId([
-            'trackid' => $response->trackid,
+            'trackid' => $response->trackid ?? $response->TRACKID,
             'xml_filename' => $filename,
             'created_at' => $this->timestamp,
             'updated_at' => $this->timestamp

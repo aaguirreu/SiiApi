@@ -6,17 +6,17 @@
     "license": "MIT",
     "require": {
         "php": "^7.3|^8.0",
+        "ext-curl": "*",
         "ext-json": "*",
+        "ext-libxml": "*",
+        "ext-simplexml": "*",
         "fruitcake/laravel-cors": "^2.0",
         "guzzlehttp/guzzle": "^7.0.1",
         "laravel/framework": "^8.75",
         "laravel/sanctum": "^2.11",
         "laravel/tinker": "^2.5",
         "sasco/libredte": "^21.10",
-        "swaggest/json-schema": "^0.12.41",
-        "ext-curl": "*",
-        "ext-simplexml": "*",
-      "ext-libxml": "*"
+        "swaggest/json-schema": "^0.12.41"
     },
     "require-dev": {
         "facade/ignition": "^2.5",

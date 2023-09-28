@@ -15,4 +15,4 @@ yarn-error.log
 /.idea
 /.vscode
 .CertificadoPersonalCIR.pfx
-.config.json
+config.json

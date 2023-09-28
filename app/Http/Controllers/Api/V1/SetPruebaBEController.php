@@ -46,9 +46,9 @@ class SetPruebaBEController extends DteController
             $filename = 'EnvioBOLETA_'.$this->timestamp.'.xml';
             $filename = str_replace(' ', 'T', $filename);
             $filename = str_replace(':', '-', $filename);
-            $file = env('DTES_PATH', "")."EnvioBOLETA/".$filename;
+            $file = env('DTES_PATH', "")."EnvioBOLETA\\".$filename;
         } while (file_exists($file));
-        Storage::disk('dtes')->put('envioBOLETA/'.$filename, $dte);
+        Storage::disk('dtes')->put('EnvioBOLETA\\'.$filename, $dte);
         $data = [
             'rutSender' => $rutSender,
             'dvSender' => $dvSender,
@@ -87,7 +87,7 @@ class SetPruebaBEController extends DteController
                 Log::write(Estado::ENVIO_ERROR_500, Estado::get(Estado::ENVIO_ERROR_500));
             }
             // Borrar xml guardado anteriormente
-            Storage::disk('dtes')->delete('envioBOLETA/'.$filename);
+            Storage::disk('dtes')->delete('EnvioBOLETA\\'.$filename);
             return response()->json([
                 'message' => 'Error al enviar el DTE al SII',
                 'error' => $response,
@@ -129,7 +129,7 @@ class SetPruebaBEController extends DteController
             $filename = str_replace(' ', 'T', $filename);
             $filename = str_replace(':', '-', $filename);
             //$file = env('DTES_PATH', "")."EnvioBOLETA/".$filename;
-            Storage::disk('dtes')->put('EnvioRcof/'.$filename, $ConsumoFolio->generar());
+            Storage::disk('dtes')->put('EnvioRcof\\'.$filename, $ConsumoFolio->generar());
 
             $dte_id = DB::table('envio_dte')->where('xml_filename', '=', $dte_filename)->latest()->first()->id;
             // Guardar en base de datos
