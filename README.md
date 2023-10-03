@@ -22,7 +22,11 @@ Llenar los datos faltantes:
 
 - CERT_PATH= Ruta a la firma digital (archivo .pfx o .p12).
 - CERT_PASS= Contraseña de la firma
+<<<<<<< HEAD
 - CAFS_PATH= Carpeta donde se guardarán los cafs.xml
+=======
+- FOLIOS_PATH= Carpeta donde se guardarán los cafs.xml
+>>>>>>> e227e9e5a8323b9580a025da0db91a90f2a14789
 - DTES_PATH= Carpeta donde se guardarán los dte.xml
 
 Reemplazar los valores de la base de datos según corresponda:
