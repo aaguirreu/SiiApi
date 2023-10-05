@@ -10,13 +10,16 @@
         "ext-json": "*",
         "ext-libxml": "*",
         "ext-simplexml": "*",
+        "beyondcode/laravel-mailbox": "^3.1",
         "fruitcake/laravel-cors": "^2.0",
         "guzzlehttp/guzzle": "^7.0.1",
         "laravel/framework": "^8.75",
         "laravel/sanctum": "^2.11",
         "laravel/tinker": "^2.5",
+        "php-imap/php-imap": "^2.0",
         "sasco/libredte": "^21.10",
-        "swaggest/json-schema": "^0.12.41"
+        "swaggest/json-schema": "^0.12.41",
+        "webklex/laravel-imap": "*"
     },
     "require-dev": {
         "facade/ignition": "^2.5",
