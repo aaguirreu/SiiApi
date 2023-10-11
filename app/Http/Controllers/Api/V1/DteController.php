@@ -25,7 +25,8 @@ class DteController extends Controller
     protected static $folios_inicial = [];
     protected static $tipos_dte = [];
 
-    protected function actualizarFolios() {
+    protected function actualizarFolios()
+    {
         foreach (self::$tipos_dte as $tipo_dte) {
             if(self::$folios_inicial[$tipo_dte] <= self::$folios[$tipo_dte])
                 DB::table('folio')->where('id', $tipo_dte)->update(['cant_folios' => self::$folios[$tipo_dte], 'updated_at' => $this->timestamp]);
@@ -77,8 +78,8 @@ class DteController extends Controller
         ], 200);
     }
 
-    protected function generarRCOF($boletas){
-
+    protected function generarRCOF($boletas)
+    {
         // cargar XML boletas y notas
         $EnvioBOLETA = new EnvioDte();
         $EnvioBOLETA->loadXML($boletas);
@@ -232,7 +233,8 @@ class DteController extends Controller
         file_put_contents(base_path('config.json'), json_encode($config_file), JSON_PRETTY_PRINT);
     }
 
-    protected function getTokenDte() {
+    protected function getTokenDte()
+    {
         // Set ambiente producción
         Sii::setAmbiente(Sii::PRODUCCION);
         $token = Autenticacion::getToken($this->obtenerFirma());
@@ -242,7 +244,8 @@ class DteController extends Controller
         file_put_contents(base_path('config.json'), json_encode($config_file), JSON_PRETTY_PRINT);
     }
 
-    protected function isToken() {
+    protected function isToken()
+    {
         if(file_exists(base_path('config.json'))) {
             // Obtener config.json
             $config_file = json_decode(file_get_contents(base_path('config.json')));

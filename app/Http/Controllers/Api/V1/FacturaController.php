@@ -26,30 +26,6 @@ class FacturaController extends DteController
     {
         self::$tipos_dte = $tipos_dte;
     }
-    protected function enviar2($rut_envia, $rut_emisor, $dte)
-    {
-        $token = json_decode(file_get_contents(base_path('config.json')))->token_dte;
-        // enviar DTE
-        // Set ambiente producción
-        Sii::setAmbiente(Sii::CERTIFICACION);
-
-        $result = Sii::enviar($rut_envia, $rut_emisor, $dte, $token);
-
-        // si hubo algún error al enviar al servidor mostrar
-        if ($result===false) {
-            foreach (Log::readAll() as $error)
-                $errores[] = $error->msg;
-            return $errores;
-        }
-
-        // Mostrar resultado del envío
-        if ($result->STATUS!='0') {
-            foreach (Log::readAll() as $error)
-                $errores[] = $error->msg;
-            return $errores;
-        }
-        return $result->asXML();
-    }
 
     protected function enviar($usuario, $empresa, $dte)
     {
@@ -72,28 +48,37 @@ class FacturaController extends DteController
 
         // NO GUARDA LOS ARCHIVOS A PESAR DE QUE RETORNA QUE SI
         // Guardar xml en disco
+        //$dte = mb_convert_encoding($dte, "UTF-8", "auto");
+
         if(!Storage::disk('dtes')->put('EnvioFACTURA\\'.$filename, $dte)){
             return response()->json([
                 'message' => 'Error al guardar el DTE en el servidor',
             ], 400);
         }
 
+        //$file = Storage::disk('dtes')->get('EnvioFACTURA\\'.$filename);
+        //$file = mb_convert_encoding($filename, "ISO-8859-1", "auto");
+
+        //$file= 'C:\Users\aagui\Downloads\factura_ejemplo.xml';
+
         $data = [
             'rutSender' => $rutSender,
             'dvSender' => $dvSender,
             'rutCompany' => $rutCompany,
             'dvCompany' => $dvCompany,
-            'archivo' => new CURLFile($file),
+            'archivo' => new CURLFile($file, 'text/xml', $filename),
         ];
 
         $header = [
             'User-Agent: Mozilla/4.0 (compatible; PROG 1.0; Logiciel)',
-            'Cookie: TOKEN=' . $token];
+            'Cookie: TOKEN=' . $token,
+            'Content-Type: text/html; charset=ISO-8859-1',
+        ];
 
         // crear sesión curl con sus opciones
         $curl = curl_init();
-        //$url = 'https://maullin.sii.cl/cgi_dte/UPL/DTEUpload'; // certificacion
-        $url = 'https://palena.sii.cl/cgi_dte/UPL/DTEUpload'; // producción
+        $url = 'https://maullin.sii.cl/cgi_dte/UPL/DTEUpload'; // certificacion
+        //$url = 'https://palena.sii.cl/cgi_dte/UPL/DTEUpload'; // producción
         curl_setopt($curl, CURLOPT_POST, true);
         curl_setopt($curl, CURLOPT_POSTFIELDS, $data);
         curl_setopt($curl, CURLOPT_HTTPHEADER, $header);
@@ -126,6 +111,7 @@ class FacturaController extends DteController
 
         // cerrar sesión curl
         curl_close($curl);
+
         // crear XML con la respuesta y retornar
         try {
             $xml = new \SimpleXMLElement($response, LIBXML_COMPACT);
@@ -138,6 +124,7 @@ class FacturaController extends DteController
                 $xml->STATUS,
                 Estado::get($xml->STATUS).(isset($xml->DETAIL)?'. '.implode("\n", (array)$xml->DETAIL->ERROR):'')
             );
+            return false;
         }
 
          // Convertir a array asociativo
@@ -153,7 +140,8 @@ class FacturaController extends DteController
     }
 
     // Borrar cuando deje de utilizar ambiente certificacion
-    protected function getTokenDte() {
+    protected function getTokenDte()
+    {
         // Set ambiente producción
         //Sii::setAmbiente(Sii::PRODUCCION);
         $token = Autenticacion::getToken($this->obtenerFirma());
@@ -168,7 +156,8 @@ class FacturaController extends DteController
         // generar XML del DTE timbrado y firmado
         $EnvioDTE = new EnvioDte();
         foreach ($factura as $documento) {
-            $DTE = new Dte($documento);
+            //$DTE = new Dte($documento, false); // Normalizar false
+            $DTE = new Dte($documento); // Normalizar true (default)
             if (!$DTE->timbrar($Folios[$DTE->getTipo()]))
                 break;
             if (!$DTE->firmar($Firma))

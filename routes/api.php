@@ -40,8 +40,12 @@ Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1'], f
 
     // Envio de Factura
     Route::post('facturas/envio', 'ApiFacturaController@facturaElectronica');
+    Route::post('facturas/envioxml', 'ApiFacturaController@enviarXML');
     Route::post('facturas/estado.envio', 'ApiFacturaController@estadoDteEnviado');
     Route::post('facturas/estado.dte', 'ApiFacturaController@estadoDte');
+    //borrardps
+    Route::get('facturas/readlog', 'ApiFacturaController@readLog');
+    Route::get('facturas/readmail', 'ApiFacturaController@readMail');
 
     // Envio de Set de Prueba
     Route::post('setdeprueba/envio', 'ApiSetPruebaBEController@setPrueba');

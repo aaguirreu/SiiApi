@@ -2,12 +2,25 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Models\Dte;
 use Carbon\Carbon;
+use Illuminate\Contracts\Filesystem\FileNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
+use sasco\LibreDTE\Log;
 use sasco\LibreDTE\Sii;
+use sasco\LibreDTE\XML;
+use SimpleXMLElement;
+use Webklex\PHPIMAP\ClientManager;
+use Webklex\PHPIMAP\Client;
+use Webklex\PHPIMAP\Folder;
+use Webklex\PHPIMAP\Support\MessageCollection;
+use Webklex\PHPIMAP\Message;
+use Webklex\PHPIMAP\Support\AttachmentCollection;
+use Webklex\PHPIMAP\Attachment;
 
 class ApiFacturaController extends FacturaController
 {
@@ -15,6 +28,96 @@ class ApiFacturaController extends FacturaController
     {
         parent::__construct([33]);
         $this->timestamp = Carbon::now('America/Santiago');
+    }
+
+    public function readLog()
+    {
+        return "readlog";
+    }
+
+    public function readMail()
+    {
+
+        //ProcessNewMail::dispatch();
+        //return "dtemaillistener dispatched";
+
+        $cm = new ClientManager(base_path().'/config/imap.php');
+
+        //Connect to the IMAP Server
+        $client = $cm->account('default');
+
+        $client->connect();
+
+        $folder = $client->getFolderByPath('Dtes');
+
+        $query = $folder->messages();
+
+        // Obtener último mensaje, la respuesta es MessageCollection, al obtener el primero con [0] se obtiene como Message
+        $messageCollection = $query->all()->limit($limit = 1, $page = 1)->get();
+        $message = $messageCollection[0];
+
+        //return $message;
+        // Obtener header
+        //return var_dump($message->getHeader());
+
+        // Obtener body
+        //return $message->getTextBody();
+
+        // Obtener adjuntos
+        if ($message->hasAttachments()) {
+            $attachmentsInfo = [];
+
+            $attachments = $message->getAttachments();
+            foreach ($attachments as $attachment) {
+                // Obtener el contenido del adjunto
+                $content = $attachment->getContent();
+
+                // Convertir el contenido a UTF-8 (solo para mostrar por pantalla)
+                $utf8Content = mb_convert_encoding($content, 'UTF-8', 'ISO-8859-1');
+
+                $attachmentInfo = [
+                    'filename' => $attachment->getFilename(),
+                    'content' => $utf8Content,
+                ];
+
+                $attachmentsInfo[] = $attachmentInfo;
+            }
+            // Devolver la información de los adjuntos
+            return $attachmentsInfo;
+        } else {
+            return "No hay adjuntos";
+        }
+    }
+
+    public function enviarXML(Request $request)
+    {
+        // Leer xml
+        $xml = new SimpleXMLElement($request->getContent());
+        $EnvioDTE = new Sii\EnvioDte();
+        $EnvioDTE->loadXML($xml);
+        $Firma = $this->obtenerFirma();
+        $EnvioDTE->setFirma($Firma);
+        $EnvioDTExml = $EnvioDTE->generar();
+        /*
+        if ($EnvioDTE->schemaValidate()) {
+            //return $EnvioDTExml;
+        } else {
+            // si hubo errores mostrar
+            foreach (Log::readAll() as $error)
+                $errores[] = $error->msg;
+            return response()->json([
+                'message' => 'Error al validar el XML',
+                'errors' => json_decode(json_encode($errores))
+            ], 400);
+        }*/
+        return $EnvioDTExml->asXML();
+        $RutEnvia = $Firma->getID(); // RUT autorizado para enviar DTEs
+        $RutEmisor = '76974300-6'; // RUT del emisor del DTE
+        $response = $this->enviar($RutEnvia, $RutEmisor, $EnvioDTExml);
+        return response()->json([
+            'message' => 'XML enviado correctamente',
+            'response' => $response
+        ]);
     }
 
     public function facturaElectronica(Request $request)
@@ -79,6 +182,12 @@ class ApiFacturaController extends FacturaController
         $RutEnvia = $Firma->getID(); // RUT autorizado para enviar DTEs
         $RutEmisor = $boletas[0]['Encabezado']['Emisor']['RUTEmisor']; // RUT del emisor del DTE
         $dteresponse = $this->enviar($RutEnvia, $RutEmisor, $EnvioDTExml);
+        if ($dteresponse == false) {
+            return response()->json([
+                'message' => "Error al enviar el DTE",
+                'errores' => Log::read()->msg,
+            ], 400);
+        }
 
         return response()->json([
             //'message' => "Factura electronica y rcof enviado correctamente",
@@ -134,38 +243,6 @@ class ApiFacturaController extends FacturaController
 
     public function estadoDteEnviado(Request $request)
     {
-        /** @var \Webklex\PHPIMAP\Client $client */
-        $client = Webklex\IMAP\Facades\Client::account('default');
-
-//Connect to the IMAP Server
-        $client->connect();
-
-//Get all Mailboxes
-        /** @var \Webklex\PHPIMAP\Support\FolderCollection $folders */
-        $folders = $client->getFolders();
-
-//Loop through every Mailbox
-        /** @var \Webklex\PHPIMAP\Folder $folder */
-        foreach($folders as $folder){
-
-            //Get all Messages of the current Mailbox $folder
-            /** @var \Webklex\PHPIMAP\Support\MessageCollection $messages */
-            $messages = $folder->messages()->all()->get();
-
-            /** @var \Webklex\PHPIMAP\Message $message */
-            foreach($messages as $message){
-                echo $message->getSubject().'<br />';
-                echo 'Attachments: '.$message->getAttachments()->count().'<br />';
-                echo $message->getHTMLBody();
-
-                //Move the current Message to 'INBOX.read'
-                if($message->move('INBOX.read') == true){
-                    echo 'Message has ben moved';
-                }else{
-                    echo 'Message could not be moved';
-                }
-            }
-        }
         // setear timestamp
         $this->timestamp = Carbon::now('America/Santiago');
 
@@ -191,8 +268,8 @@ class ApiFacturaController extends FacturaController
         $dv = $body->dv;
         $trackID = $body->trackID;
 
-        // Set ambiente producción
-        //Sii::setAmbiente(Sii::CERTIFICACION);
+        // Set ambiente certificacón (default producción)
+        Sii::setAmbiente(Sii::CERTIFICACION);
 
         $estado = Sii::request('QueryEstUp', 'getEstUp', [$rut, $dv, $trackID, $token]);
         // si el estado se pudo recuperar se muestra estado y glosa
