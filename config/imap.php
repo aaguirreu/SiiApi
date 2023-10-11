@@ -154,7 +154,8 @@ return [
         // 'fallback_date' => "01.01.1970 00:00:00",
         'boundary' => '/boundary=(.*?(?=;)|(.*))/i',
         'message_key' => 'list',
-        'fetch_order' => 'asc',
+        //'fetch_order' => 'asc', // Obtener desde el más antiguo al más reciente
+        'fetch_order' => 'desc', // Obtener desde el más reciente al más antiguo
         'dispositions' => ['attachment', 'inline'],
         'common_folders' => [
             "root" => "INBOX",
