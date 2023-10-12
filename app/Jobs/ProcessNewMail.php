@@ -2,22 +2,16 @@
 
 namespace App\Jobs;
 
-use http\Message;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use App\Providers\NewMailEvent;
-use Webklex\PHPIMAP\ClientManager;
-use Webklex\PHPIMAP\Exceptions\AuthFailedException;
-use Webklex\PHPIMAP\Exceptions\ConnectionFailedException;
-use Webklex\PHPIMAP\Exceptions\ImapBadRequestException;
-use Webklex\PHPIMAP\Exceptions\ImapServerErrorException;
-use Webklex\PHPIMAP\Exceptions\NotSupportedCapabilityException;
-use Webklex\PHPIMAP\Exceptions\ResponseException;
-use Webklex\PHPIMAP\Exceptions\RuntimeException;
+use Illuminate\Support\Facades\Log;
+use PhpParser\Node\Expr\Print_;
+use Webklex\IMAP\Commands\ImapIdleCommand;
+use Webklex\PHPIMAP\Message;
 
 class ProcessNewMail implements ShouldQueue
 {
@@ -28,43 +22,47 @@ class ProcessNewMail implements ShouldQueue
      *
      * @return void
      */
-    public function __construct()
-    {
-    }
+    public function __construct(
+        public Message $message,
+    ) {}
 
     /**
      * Execute the job.
      *
      * @return void
      */
-    public function handle(NewMailEvent $event)
+    public function handle()
     {
-        echo "Handeling event";
+        // Obtener header
+        //return $this->message->getHeader();
 
-        $cm = new ClientManager(base_path().'/config/imap.php');
+        // Obtener body
+        //return $this->message->getTextBody();
 
-        // Conectar a la cuenta definida en .env
-        $client = $cm->account('default');
-        $client->connect();
+        // Obtener adjuntos
+        if ($this->message->hasAttachments()) {
+            $attachmentsInfo = [];
 
-        // Obtener la carpeta Dtes
-        $folder = $client->getFolderByPath('INBOX');
+            $attachments = $this->message->getAttachments();
+            foreach ($attachments as $attachment) {
+                // Obtener el contenido del adjunto
+                $content = $attachment->getContent();
 
-        // Escuchar mensajes nuevos
-        try {
-            $folder->idle(function ($message) {
-                echo "New message with the subject '" . $message->subject . "' received\n";
-            }, $timeout = 1200, $auto_reconnect = true);
-        } catch (AuthFailedException $e) {
-        } catch (ConnectionFailedException $e) {
-        } catch (ImapBadRequestException $e) {
-        } catch (ImapServerErrorException $e) {
-        } catch (NotSupportedCapabilityException $e) {
-        } catch (ResponseException $e) {
-        } catch (RuntimeException $e) {
+                // Convertir el contenido a UTF-8 (solo para mostrar por pantalla)
+                $utf8Content = mb_convert_encoding($content, 'UTF-8', 'ISO-8859-1');
+
+                $attachmentInfo = [
+                    'filename' => $attachment->getFilename(),
+                    'content' => $utf8Content,
+                ];
+
+                $attachmentsInfo[] = $attachmentInfo;
+            }
+            // Devolver la información de los adjuntos
+            return $attachmentsInfo;
+        } else {
+            Log::channel(env('LOG_CHANNEL'))->info("No hay adjuntos");
         }
 
-        //$folder->setEvent("message", "new", NewMailEvent::class);
-        //echo "Escuchando";
     }
 }
