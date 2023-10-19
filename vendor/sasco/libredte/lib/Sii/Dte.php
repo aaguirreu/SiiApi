@@ -1810,7 +1810,10 @@ class Dte
             $datos['Encabezado']['Receptor']['CmnaRecep'] = mb_substr($datos['Encabezado']['Receptor']['CmnaRecep'], 0, 20);
         }
         if (!empty($datos['Encabezado']['Emisor']['Acteco'])) {
-            if (strlen((string)$datos['Encabezado']['Emisor']['Acteco'])==5) {
+            if (is_array($datos['Encabezado']['Emisor']['Acteco'])) {
+                $datos['Encabezado']['Emisor']['Acteco'] = implode(",", $datos['Encabezado']['Emisor']['Acteco']);
+            }
+            else if (strlen((string)$datos['Encabezado']['Emisor']['Acteco'])==5) {
                 $datos['Encabezado']['Emisor']['Acteco'] = '0'.$datos['Encabezado']['Emisor']['Acteco'];
             }
         }

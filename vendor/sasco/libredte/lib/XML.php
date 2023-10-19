@@ -80,7 +80,9 @@ class XML extends \DomDocument
                         if (!is_int($keys[0])) {
                             $value = [$value];
                         }
+                        //echo var_dump($keys);
                         foreach ($value as $value2) {
+                            //echo var_dump(array_keys($value2));
                             if ($namespace) {
                                 $Node = $this->createElementNS($namespace[0], $namespace[1].':'.$key);
                             } else {
@@ -99,7 +101,15 @@ class XML extends \DomDocument
                             if ($namespace) {
                                 $Node = $this->createElementNS($namespace[0], $namespace[1].':'.$key, $this->iso2utf($this->sanitize($value)));
                             } else {
-                                $Node = $this->createElement($key, $this->iso2utf($this->sanitize($value)));
+                                if($key=='Acteco'){
+                                    $actecto = explode(',', $value);
+                                    foreach ($actecto as $val) {
+                                        $Node = $this->createElement($key, $this->iso2utf($this->sanitize($val)));
+                                        $parent->appendChild($Node);
+                                    }
+                                } else{
+                                    $Node = $this->createElement($key, $this->iso2utf($this->sanitize($value)));
+                                }
                             }
                             $parent->appendChild($Node);
                         }
