@@ -170,7 +170,7 @@ if($key=='Acteco'){
         $EnvioDTE = new EnvioDte();
         foreach ($factura as $documento) {
             //$DTE = new Dte($documento, false); // Normalizar false
-            $DTE = new Dte($documento, false); // Normalizar true (default)
+            $DTE = new Dte($documento); // Normalizar true (default)
             if (!$DTE->timbrar($Folios[$DTE->getTipo()]))
                 break;
             if (!$DTE->firmar($Firma))
