@@ -9,8 +9,10 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use PhpParser\Node\Expr\Print_;
 use Webklex\IMAP\Commands\ImapIdleCommand;
+use Webklex\IMAP\Facades\Client;
 use Webklex\PHPIMAP\Message;
 
 class ProcessNewMail implements ShouldQueue
@@ -23,7 +25,7 @@ class ProcessNewMail implements ShouldQueue
      * @return void
      */
     public function __construct(
-        public Message $message,
+        private int $uid,
     ) {}
 
     /**
@@ -33,36 +35,45 @@ class ProcessNewMail implements ShouldQueue
      */
     public function handle()
     {
-        // Obtener header
-        //return $this->message->getHeader();
-
-        // Obtener body
-        //return $this->message->getTextBody();
-
-        // Obtener adjuntos
-        if ($this->message->hasAttachments()) {
+        /*
+         * Obtener mensaje con uid
+         * @var \Webklex\PHPIMAP\Client $client
+         */
+        $client = Client::account('default');
+        $folder = $client->getFolder('INBOX');
+        $query = $folder->query();
+        $message = $query->getMessageByUid($uid = $this->uid);
+        if ($this->$message->hasAttachments()) {
             $attachmentsInfo = [];
 
-            $attachments = $this->message->getAttachments();
+            /* @var  \Webklex\PHPIMAP\Support\MessageCollection $attachments*/
+            $attachments = $this->$message->getAttachments();
             foreach ($attachments as $attachment) {
-                // Obtener el contenido del adjunto
+                /**
+                 * Obtener el contenido del adjunto
+                 *
+                 * @var \Webklex\PHPIMAP\Attachment $attachment
+                 * @var string $content
+                 */
                 $content = $attachment->getContent();
 
                 // Convertir el contenido a UTF-8 (solo para mostrar por pantalla)
                 $utf8Content = mb_convert_encoding($content, 'UTF-8', 'ISO-8859-1');
 
                 $attachmentInfo = [
-                    'filename' => $attachment->getFilename(),
+                    'filename' => $attachment->getName(),
                     'content' => $utf8Content,
                 ];
 
+                //if(str_ends_with($attachment->getName(), '.xml'))
+                Storage::disk('dtes')->put('EnvioFACTURA\\file.xml', "content");
                 $attachmentsInfo[] = $attachmentInfo;
             }
             // Devolver la información de los adjuntos
-            return $attachmentsInfo;
+            //Log::channel(env('LOG_CHANNEL'))->info(json_decode(json_encode($attachmentsInfo)));
+            echo json_encode($attachmentsInfo);
         } else {
             Log::channel(env('LOG_CHANNEL'))->info("No hay adjuntos");
         }
-
     }
 }
