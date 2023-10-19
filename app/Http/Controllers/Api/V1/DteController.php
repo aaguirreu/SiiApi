@@ -82,6 +82,7 @@ class DteController extends Controller
     {
         // cargar XML boletas y notas
         $EnvioBOLETA = new EnvioDte();
+        // podría ser un arrai de EnvioBoleta
         $EnvioBOLETA->loadXML($boletas);
 
         // crear objeto para consumo de folios
@@ -90,6 +91,7 @@ class DteController extends Controller
         $ConsumoFolio->setDocumentos([39, 41]); // [39, 61] si es sólo afecto, [41, 61] si es sólo exento
 
         // agregar detalle de boletas
+        // Se puede recorrer un array de EnvioDTE
         foreach ($EnvioBOLETA->getDocumentos() as $Dte) {
             $ConsumoFolio->agregar($Dte->getResumen());
         }
@@ -149,11 +151,11 @@ class DteController extends Controller
             "Folio" => ++self::$folios[$tipoDTE],
         ];
         $modeloBoleta["Detalle"] = $detalles;
-        $modeloBoleta["Referencia"] = [
+        /*$modeloBoleta["Referencia"] = [
             'TpoDocRef' => $tipoDTE,
             'FolioRef' => self::$folios[$tipoDTE],
             'RazonRef' => 'LibreDTE_T'.$tipoDTE.'F'.self::$folios[$tipoDTE],
-        ];
+        ];*/
         return $modeloBoleta;
     }
 
@@ -308,17 +310,19 @@ class DteController extends Controller
                 "Encabezado" => [
                     "IdDoc" => [],
                     "Emisor" => [
-                        'RUTEmisor' => $boleta->Encabezado->Emisor->RUTEmisor,
-                        'RznSoc' => $boleta->Encabezado->Emisor->RznSoc,
-                        'GiroEmis' => $boleta->Encabezado->Emisor->GiroEmis,
-                        'DirOrigen' => $boleta->Encabezado->Emisor->DirOrigen,
-                        'CmnaOrigen' => $boleta->Encabezado->Emisor->CmnaOrigen,
+                        'RUTEmisor' => $boleta->Encabezado->Emisor->RUTEmisor ?? false,
+                        'RznSoc' => $boleta->Encabezado->Emisor->RznSoc ?? false,
+                        'GiroEmis' => $boleta->Encabezado->Emisor->GiroEmis ?? false,
+                        'DirOrigen' => $boleta->Encabezado->Emisor->DirOrigen ?? false,
+                        'CmnaOrigen' => $boleta->Encabezado->Emisor->CmnaOrigen ?? false,
                     ],
                     "Receptor" => [
-                        'RUTRecep' => $boleta->Encabezado->Receptor->RUTRecep,
-                        'RznSocRecep' => $boleta->Encabezado->Receptor->RznSocRecep,
-                        'DirRecep' => $boleta->Encabezado->Receptor->DirRecep,
-                        'CmnaRecep' => $boleta->Encabezado->Receptor->CmnaRecep,
+                        'RUTRecep' => $boleta->Encabezado->Receptor->RUTRecep ?? '000-0',
+                        'RznSocRecep' => $boleta->Encabezado->Receptor->RznSocRecep ?? false,
+                        'GiroRecep' => $boleta->Encabezado->Receptor->GiroRecep ?? false,
+                        'DirRecep' => $boleta->Encabezado->Receptor->DirRecep ?? false,
+                        'CmnaRecep' => $boleta->Encabezado->Receptor->CmnaRecep ?? false,
+                        'CiudadRecep' => $boleta->Encabezado->Receptor->CiudadRecep ?? false,
                     ],
                 ],
                 "Detalle" => [],
@@ -402,6 +406,7 @@ class DteController extends Controller
         if ($EnvioDTE->schemaValidate()) {
             $EnvioDTExml = $EnvioDTE->generar();
         } else {
+            //return $EnvioDTExml = $EnvioDTE->generar();
             // si hubo errores mostrar
             foreach (Log::readAll() as $error)
                 $errores[] = $error->msg;

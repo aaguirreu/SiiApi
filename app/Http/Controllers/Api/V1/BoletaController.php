@@ -56,7 +56,8 @@ class BoletaController extends DteController
 
         // crear sesión curl con sus opciones
         $curl = curl_init();
-        $url = 'https://rahue.sii.cl/recursos/v1/boleta.electronica.envio';
+        //$url = 'https://rahue.sii.cl/recursos/v1/boleta.electronica.envio'; // producción
+        $url = 'https://pangal.sii.cl/recursos/v1/boleta.electronica.envio'; // certificación
         curl_setopt($curl, CURLOPT_POST, true);
         curl_setopt($curl, CURLOPT_POSTFIELDS, $data);
         curl_setopt($curl, CURLOPT_HTTPHEADER, $header);

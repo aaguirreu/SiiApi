@@ -124,7 +124,8 @@ class FacturaController extends DteController
                 $xml->STATUS,
                 Estado::get($xml->STATUS).(isset($xml->DETAIL)?'. '.implode("\n", (array)$xml->DETAIL->ERROR):'')
             );
-            return false;
+            $arrayData = json_decode(json_encode($xml), true);
+            return json_decode(json_encode($arrayData, JSON_PRETTY_PRINT));
         }
 
          // Convertir a array asociativo
@@ -150,14 +151,26 @@ class FacturaController extends DteController
         $config_file->token_dte_timestamp = Carbon::now('America/Santiago')->timestamp;;
         file_put_contents(base_path('config.json'), json_encode($config_file), JSON_PRETTY_PRINT);
     }
-
+/*
+// DTE.PHP
+if (is_array($datos['Encabezado']['Emisor']['Acteco'])) {
+$datos['Encabezado']['Emisor']['Acteco'] = implode(",", $datos['Encabezado']['Emisor']['Acteco']);
+}
+// XML.PHP
+if($key=='Acteco'){
+    $actecto = explode(',', $value);
+    foreach ($actecto as $val) {
+        $Node = $this->createElement($key, $this->iso2utf($this->sanitize($val)));
+        $parent->appendChild($Node);
+    }
+}*/
     protected function generarEnvioDteXml(array $factura, FirmaElectronica $Firma, array $Folios, array $caratula)
     {
         // generar XML del DTE timbrado y firmado
         $EnvioDTE = new EnvioDte();
         foreach ($factura as $documento) {
             //$DTE = new Dte($documento, false); // Normalizar false
-            $DTE = new Dte($documento); // Normalizar true (default)
+            $DTE = new Dte($documento, false); // Normalizar true (default)
             if (!$DTE->timbrar($Folios[$DTE->getTipo()]))
                 break;
             if (!$DTE->firmar($Firma))
@@ -171,6 +184,7 @@ class FacturaController extends DteController
         if ($EnvioDTE->schemaValidate()) {
             return $EnvioDTExml;
         } else {
+            return $EnvioDTExml;
             // si hubo errores mostrar
             foreach (Log::readAll() as $error)
                 $errores[] = $error->msg;
@@ -187,26 +201,26 @@ class FacturaController extends DteController
                 "Encabezado" => [
                     "IdDoc" => [],
                     "Emisor" => [
-                        'RUTEmisor' => $boleta->Encabezado->Emisor->RUTEmisor,
-                        'RznSoc' => $boleta->Encabezado->Emisor->RznSoc,
-                        'GiroEmis' => $boleta->Encabezado->Emisor->GiroEmis,
-                        'Acteco' => $boleta->Encabezado->Emisor->Acteco,
-                        'DirOrigen' => $boleta->Encabezado->Emisor->DirOrigen,
-                        'CmnaOrigen' => $boleta->Encabezado->Emisor->CmnaOrigen,
-                        'CiudadOrigen' => $boleta->Encabezado->Emisor->CiudadOrigen,
-                        'CdgVendedor' => $boleta->Encabezado->Emisor->CdgVendedor,
+                        'RUTEmisor' => $boleta->Encabezado->Emisor->RUTEmisor ?? false,
+                        'RznSoc' => $boleta->Encabezado->Emisor->RznSoc ?? false,
+                        'GiroEmis' => $boleta->Encabezado->Emisor->GiroEmis ?? false,
+                        'Acteco' => $boleta->Encabezado->Emisor->Acteco ?? false,
+                        'DirOrigen' => $boleta->Encabezado->Emisor->DirOrigen ?? false,
+                        'CmnaOrigen' => $boleta->Encabezado->Emisor->CmnaOrigen ?? false,
+                        'CiudadOrigen' => $boleta->Encabezado->Emisor->CiudadOrigen ?? false,
+                        'CdgVendedor' => $boleta->Encabezado->Emisor->CdgVendedor ?? false,
                     ],
                     "Receptor" => [
-                        'RUTRecep' => $boleta->Encabezado->Receptor->RUTRecep,
-                        'RznSocRecep' => $boleta->Encabezado->Receptor->RznSocRecep,
-                        'GiroRecep' => $boleta->Encabezado->Receptor->GiroRecep,
-                        'DirRecep' => $boleta->Encabezado->Receptor->DirRecep,
-                        'CmnaRecep' => $boleta->Encabezado->Receptor->CmnaRecep,
-                        'CiudadRecep' => $boleta->Encabezado->Receptor->CiudadRecep,
+                        'RUTRecep' => $boleta->Encabezado->Receptor->RUTRecep ?? false,
+                        'RznSocRecep' => $boleta->Encabezado->Receptor->RznSocRecep ?? false,
+                        'GiroRecep' => $boleta->Encabezado->Receptor->GiroRecep ?? false,
+                        'DirRecep' => $boleta->Encabezado->Receptor->DirRecep ?? false,
+                        'CmnaRecep' => $boleta->Encabezado->Receptor->CmnaRecep ?? false,
+                        'CiudadRecep' => $boleta->Encabezado->Receptor->CiudadRecep ?? false,
                     ],
                 ],
                 "Detalle" => [],
-                "Referencia" => [],
+                //"Referencia" => [],
             ];
 
             $detallesExentos = [];

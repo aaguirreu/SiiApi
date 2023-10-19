@@ -92,13 +92,13 @@ class ApiFacturaController extends FacturaController
     public function enviarXML(Request $request)
     {
         // Leer xml
-        $xml = new SimpleXMLElement($request->getContent());
+        //$xml = new SimpleXMLElement($request->getContent());
+        $xml = file_get_contents("Z:\SOPORTE\MANUALES\SII MANUAL DEL DESARROLLADOR EXTERNO\Firmar C#\Factura.xml");
         $EnvioDTE = new Sii\EnvioDte();
         $EnvioDTE->loadXML($xml);
         $Firma = $this->obtenerFirma();
         $EnvioDTE->setFirma($Firma);
         $EnvioDTExml = $EnvioDTE->generar();
-        /*
         if ($EnvioDTE->schemaValidate()) {
             //return $EnvioDTExml;
         } else {
@@ -109,8 +109,7 @@ class ApiFacturaController extends FacturaController
                 'message' => 'Error al validar el XML',
                 'errors' => json_decode(json_encode($errores))
             ], 400);
-        }*/
-        return $EnvioDTExml->asXML();
+        }
         $RutEnvia = $Firma->getID(); // RUT autorizado para enviar DTEs
         $RutEmisor = '76974300-6'; // RUT del emisor del DTE
         $response = $this->enviar($RutEnvia, $RutEmisor, $EnvioDTExml);

@@ -78,6 +78,7 @@ class ApiBoletaController extends BoletaController
         $RutEmisor = $boletas[0]['Encabezado']['Emisor']['RUTEmisor']; // RUT del emisor del DTE
         $dteresponse = $this->enviar($RutEnvia, $RutEmisor, $EnvioDTExml);
 
+        /*
         // generar rcof (consumo de folios) y enviar
         $ConsumoFolioxml = $this->generarRCOF($EnvioDTExml);
 
@@ -94,6 +95,7 @@ class ApiBoletaController extends BoletaController
         $filename = str_replace(' ', 'T', $filename);
         $filename = str_replace(':', '-', $filename);
         $rcofreponse = $this->enviarRcof($ConsumoFolioxml, $filename);
+        */
 
         // Actualizar folios en la base de datos
         $this->actualizarFolios();
@@ -101,7 +103,7 @@ class ApiBoletaController extends BoletaController
             'message' => "Boleta electronica y rcof enviado correctamente",
             'response' => [
                 "EnvioBoleta" => json_decode($dteresponse),
-                'EnvioRcof' => json_decode(json_encode(["trackid" => $rcofreponse]))
+                //'EnvioRcof' => json_decode(json_encode(["trackid" => $rcofreponse]))
             ],
         ], 200);
     }
