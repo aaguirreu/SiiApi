@@ -36,6 +36,6 @@ class Kernel extends ConsoleKernel
      * @var array
      */
     protected $commands = [
-        \App\Console\Commands\WorkerNewMailCommand::class,
+        \App\Console\Commands\ImapIdleCommand::class,
     ];
 }

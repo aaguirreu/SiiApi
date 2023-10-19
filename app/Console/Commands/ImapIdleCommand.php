@@ -2,8 +2,10 @@
 namespace App\Console\Commands;
 
 use App\Jobs\ProcessImapIdle;
+use Illuminate\Console\Command;
+use mysql_xdevapi\Exception;
 
-class WorkerNewMailCommand {
+class ImapIdleCommand extends Command {
 
     /**
      * The name and signature of the console command.
