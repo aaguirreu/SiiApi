@@ -25,7 +25,7 @@ class CreateCafTable extends Migration
         });
 
         // Inicializar cafs
-        $cafs = [39, 41, 33, 34];
+        $cafs = [39, 41, 33, 34, 61];
         foreach ($cafs as $caf) {
             DB::table('caf')->insert([
                 'folio_id' => $caf,

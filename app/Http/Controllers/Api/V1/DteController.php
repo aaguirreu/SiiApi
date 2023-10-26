@@ -41,17 +41,31 @@ class DteController extends Controller
 
         // Si el caf no sigue el orden de folios correspondiente, no se sube.
         $folio_caf = $caf->CAF->DA->TD[0];
-        if (!$force) {
-            $folio = DB::table('caf')->where('folio_id','=', $folio_caf)->latest()->first();
-            $folio_final = $folio->folio_final;
-        } else {
-            $folio_final = (int)$caf->CAF->DA->RNG->D[0];
-            $folio_final--;
-        }
-        if ($folio_final + 1 != intval($caf->CAF->DA->RNG->D[0])) {
-            return response()->json([
-                'message' => 'El caf no sigue el orden de folios correspondiente. Folio final: '.$folio_final.', folio caf enviado: '.$caf->CAF->DA->RNG->D[0].'. Deben ser consecutivos.'
-            ], 400);
+
+        /* Consulta si existe el folio en la base de datos
+         * Si existe, se obtiene el último folio final y se compara con el folio inicial del caf
+         * Si no existe, se guarda el caf
+         */
+        if(DB::table('caf')->where('folio_id','=', $folio_caf)->exists()){
+            if (!$force) {
+                $folio = DB::table('caf')->where('folio_id','=', $folio_caf)->latest()->first();
+                $folio_final = $folio->folio_final;
+            } else {
+                $folio_final = (int)$caf->CAF->DA->RNG->D[0];
+                $folio_final--;
+            }
+            if ($folio_final + 1 != intval($caf->CAF->DA->RNG->D[0])) {
+                return response()->json([
+                    'message' => 'El caf no sigue el orden de folios correspondiente. Folio final: '.$folio_final.', folio caf enviado: '.$caf->CAF->DA->RNG->D[0].'. Deben ser consecutivos.'
+                ], 400);
+            }
+        } else if(DB::table('folio')->where('id', '=', $folio_caf)->doesntExist()) {
+            DB::table('folio')->insert([
+                'id' => $folio_caf,
+                'folio_final' => $caf->CAF->DA->RNG->D[0],
+                'created_at' => $this->timestamp,
+                'updated_at' => $this->timestamp
+            ]);
         }
 
         // Nombre caf tipodte_timestamp.xml
@@ -146,16 +160,25 @@ class DteController extends Controller
 
     protected function generarModeloBoleta($modeloBoleta, $detalles, $tipoDTE): array
     {
+        $modeloBoleta["Encabezado"]["IdDoc"]["TipoDTE"] = $modeloBoleta["Encabezado"]["IdDoc"]["TipoDTE"] ?? $tipoDTE;
+        $modeloBoleta["Encabezado"]["IdDoc"]["Folio"] = $modeloBoleta["Encabezado"]["IdDoc"]["Folio"] ?? ++self::$folios[$tipoDTE];
+        $modeloBoleta["Detalle"] = $detalles;
+
+        /*
+        $idDoc = json_decode(json_encode($modeloBoleta["Encabezado"]["IdDoc"]));
+        $idDoc->TipoDTE = $tipoDTE;
+        $idDoc->Folio = ++self::$folios[$tipoDTE];
+        $modeloBoleta["Encabezado"]["IdDoc"] = $idDoc;
+        /*
         $modeloBoleta["Encabezado"]["IdDoc"] = [
             "TipoDTE" => $tipoDTE,
             "Folio" => ++self::$folios[$tipoDTE],
-        ];
-        $modeloBoleta["Detalle"] = $detalles;
-        /*$modeloBoleta["Referencia"] = [
-            'TpoDocRef' => $tipoDTE,
-            'FolioRef' => self::$folios[$tipoDTE],
-            'RazonRef' => 'LibreDTE_T'.$tipoDTE.'F'.self::$folios[$tipoDTE],
+            "TpoTranVenta" => 1,
+            "FchEmis" => "2023-10-25",
+            "FrmaPago"=> 2,
+            "FchVenc" => "2023-10-26"
         ];*/
+
         return $modeloBoleta;
     }
 

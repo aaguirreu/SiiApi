@@ -191,8 +191,8 @@ class ApiSetPruebaBEController extends SetPruebaBEController
         // Consulta estado dte
         $rut = $body->rut;
         $dv = $body->dv;
-        $tipo = $body->tipo;
-        $folio = $body->folio;
+        $tipo = $body->tipo ?? "39";
+        $folio = $body->folio ?? false;
         $rut_receptor = $body->rut_receptor;
         $dv_receptor = $body->dv_receptor;
         $monto = $body->monto;

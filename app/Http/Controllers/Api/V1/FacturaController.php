@@ -77,8 +77,8 @@ class FacturaController extends DteController
 
         // crear sesión curl con sus opciones
         $curl = curl_init();
-        $url = 'https://maullin.sii.cl/cgi_dte/UPL/DTEUpload'; // certificacion
-        //$url = 'https://palena.sii.cl/cgi_dte/UPL/DTEUpload'; // producción
+        //$url = 'https://maullin.sii.cl/cgi_dte/UPL/DTEUpload'; // certificacion
+        $url = 'https://palena.sii.cl/cgi_dte/UPL/DTEUpload'; // producción
         curl_setopt($curl, CURLOPT_POST, true);
         curl_setopt($curl, CURLOPT_POSTFIELDS, $data);
         curl_setopt($curl, CURLOPT_HTTPHEADER, $header);
@@ -149,28 +149,194 @@ class FacturaController extends DteController
         $config_file = json_decode(file_get_contents(base_path('config.json')));
         $config_file->token_dte = $token;
         $config_file->token_dte_timestamp = Carbon::now('America/Santiago')->timestamp;;
+        //Storage::disk('local')->put('config.json', json_encode($config_file, JSON_PRETTY_PRINT));
         file_put_contents(base_path('config.json'), json_encode($config_file), JSON_PRETTY_PRINT);
     }
-/*
-// DTE.PHP
-if (is_array($datos['Encabezado']['Emisor']['Acteco'])) {
-$datos['Encabezado']['Emisor']['Acteco'] = implode(",", $datos['Encabezado']['Emisor']['Acteco']);
-}
-// XML.PHP
-if($key=='Acteco'){
-    $actecto = explode(',', $value);
-    foreach ($actecto as $val) {
-        $Node = $this->createElement($key, $this->iso2utf($this->sanitize($val)));
-        $parent->appendChild($Node);
-    }
-}*/
+
     protected function generarEnvioDteXml(array $factura, FirmaElectronica $Firma, array $Folios, array $caratula)
     {
+        /*
+        // caratula para el envío de los dte
+        $caratula = [
+            'RutEnvia' => '8782294-K',
+            'RutReceptor' => '72095000-6',
+            'FchResol' => '2014-08-22',
+            'NroResol' => 0,
+        ];
+
+        // datos del emisor
+        $Emisor = [
+            'RUTEmisor' => '76974300-6',
+            'RznSoc' => 'Logiciel Chile S.A.',
+            'GiroEmis' => 'CONSULTORIAS, ASESORIAS, SERVICIOS DE INGENIERIA Y TELECOMUNICACIONES EXPORTACIO',
+            'Acteco' => "620100,620200,711002,474100",
+            'DirOrigen' => 'Av. Pedro de Valdivia 5841',
+            'CmnaOrigen' => 'Macul',
+        ];
+        $folio_inicial = 51;
+        $factura = [
+            // CASO 414175-1
+            [
+                'Encabezado' => [
+                    'IdDoc' => [
+                        'TipoDTE' => 33,
+                        'Folio' => $folio_inicial,
+                    ],
+                    'Emisor' => $Emisor,
+                    'Receptor' => [
+                        'RUTRecep' => '55666777-8',
+                        'RznSocRecep' => 'Empresa S.A.',
+                        'GiroRecep' => 'Servicios jurídicos',
+                        'DirRecep' => 'Santiago',
+                        'CmnaRecep' => 'Santiago',
+                    ],
+                ],
+                'Detalle' => [
+                    [
+                        'NmbItem' => 'Cajón AFECTO',
+                        'QtyItem' => 123,
+                        'PrcItem' => 923,
+                    ],
+                    [
+                        'NmbItem' => 'Relleno AFECTO',
+                        'QtyItem' => 53,
+                        'PrcItem' => 1473,
+                    ],
+                ],
+                'Referencia' => [
+                    'TpoDocRef' => 'SET',
+                    'FolioRef' => $folio_inicial,
+                    'RazonRef' => 'CASO 414175-1',
+                ],
+            ],
+            // CASO 414175-2
+            [
+                'Encabezado' => [
+                    'IdDoc' => [
+                        'TipoDTE' => 33,
+                        'Folio' => $folio_inicial+1,
+                    ],
+                    'Emisor' => $Emisor,
+                    'Receptor' => [
+                        'RUTRecep' => '55666777-8',
+                        'RznSocRecep' => 'Empresa S.A.',
+                        'GiroRecep' => 'Servicios jurídicos',
+                        'DirRecep' => 'Santiago',
+                        'CmnaRecep' => 'Santiago',
+                    ],
+                ],
+                'Detalle' => [
+                    [
+                        'NmbItem' => 'Pañuelo AFECTO',
+                        'QtyItem' => 235,
+                        'PrcItem' => 1926,
+                        'DescuentoPct' => 4,
+                    ],
+                    [
+                        'NmbItem' => 'ITEM 2 AFECTO',
+                        'QtyItem' => 161,
+                        'PrcItem' => 990,
+                        'DescuentoPct' => 5,
+                    ],
+                ],
+                'Referencia' => [
+                    'TpoDocRef' => 'SET',
+                    'FolioRef' => $folio_inicial+1,
+                    'RazonRef' => 'CASO 414175-2',
+                ],
+            ],
+            // CASO 414175-3
+            [
+                'Encabezado' => [
+                    'IdDoc' => [
+                        'TipoDTE' => 33,
+                        'Folio' => $folio_inicial+2,
+                    ],
+                    'Emisor' => $Emisor,
+                    'Receptor' => [
+                        'RUTRecep' => '55666777-8',
+                        'RznSocRecep' => 'Empresa S.A.',
+                        'GiroRecep' => 'Servicios jurídicos',
+                        'DirRecep' => 'Santiago',
+                        'CmnaRecep' => 'Santiago',
+                    ],
+                ],
+                'Detalle' => [
+                    [
+                        'NmbItem' => 'Pintura B&W AFECTO',
+                        'QtyItem' => 24,
+                        'PrcItem' => 1937,
+                    ],
+                    [
+                        'NmbItem' => 'ITEM 2 AFECTO',
+                        'QtyItem' => 149,
+                        'PrcItem' => 2975,
+                    ],
+                    [
+                        'IndExe' => 1,
+                        'NmbItem' => 'ITEM 3 SERVICIO EXENTO',
+                        'QtyItem' => 1,
+                        'PrcItem' => 34705,
+                    ],
+                ],
+                'Referencia' => [
+                    'TpoDocRef' => 'SET',
+                    'FolioRef' => $folio_inicial+2,
+                    'RazonRef' => 'CASO 414175-3',
+                ],
+            ],
+            // CASO 414175-4
+            [
+                'Encabezado' => [
+                    'IdDoc' => [
+                        'TipoDTE' => 33,
+                        'Folio' => $folio_inicial+3,
+                    ],
+                    'Emisor' => $Emisor,
+                    'Receptor' => [
+                        'RUTRecep' => '55666777-8',
+                        'RznSocRecep' => 'Empresa S.A.',
+                        'GiroRecep' => 'Servicios jurídicos',
+                        'DirRecep' => 'Santiago',
+                        'CmnaRecep' => 'Santiago',
+                    ],
+                ],
+                'Detalle' => [
+                    [
+                        'NmbItem' => 'ITEM 1 AFECTO',
+                        'QtyItem' => 81,
+                        'PrcItem' => 1672,
+                    ],
+                    [
+                        'NmbItem' => 'ITEM 2 AFECTO',
+                        'QtyItem' => 35,
+                        'PrcItem' => 1405,
+                    ],
+                    [
+                        'IndExe' => 1,
+                        'NmbItem' => 'ITEM 3 SERVICIO EXENTO',
+                        'QtyItem' => 2,
+                        'PrcItem' => 6767,
+                    ],
+                ],
+                'DscRcgGlobal' => [
+                    'TpoMov' => 'D',
+                    'TpoValor' => '%',
+                    'ValorDR' => 6,
+                ],
+                'Referencia' => [
+                    'TpoDocRef' => 'SET',
+                    'FolioRef' => $folio_inicial+3,
+                    'RazonRef' => 'CASO 414175-4',
+                ],
+            ]
+        ];*/
+
         // generar XML del DTE timbrado y firmado
         $EnvioDTE = new EnvioDte();
         foreach ($factura as $documento) {
             //$DTE = new Dte($documento, false); // Normalizar false
-            $DTE = new Dte($documento); // Normalizar true (default)
+            $DTE = new Dte($documento, true); // Normalizar true (default)
             if (!$DTE->timbrar($Folios[$DTE->getTipo()]))
                 break;
             if (!$DTE->firmar($Firma))
@@ -184,7 +350,7 @@ if($key=='Acteco'){
         if ($EnvioDTE->schemaValidate()) {
             return $EnvioDTExml;
         } else {
-            return $EnvioDTExml;
+            //return $EnvioDTExml;
             // si hubo errores mostrar
             foreach (Log::readAll() as $error)
                 $errores[] = $error->msg;
@@ -195,11 +361,14 @@ if($key=='Acteco'){
     protected function parseDte($dte): array
     {
         $boletas = [];
-        foreach ($dte->Boletas as $boleta) {
+        $dte = json_decode(json_encode($dte), true);
+
+        foreach ($dte["Boletas"] as $boleta) {
             // Modelo boleta
+            /*
             $modeloBoleta = [
                 "Encabezado" => [
-                    "IdDoc" => [],
+                    "IdDoc" => $boleta["Encabezado"]["IdDoc"] ?? [],
                     "Emisor" => [
                         'RUTEmisor' => $boleta->Encabezado->Emisor->RUTEmisor ?? false,
                         'RznSoc' => $boleta->Encabezado->Emisor->RznSoc ?? false,
@@ -221,16 +390,25 @@ if($key=='Acteco'){
                 ],
                 "Detalle" => [],
                 //"Referencia" => [],
+            ];*/
+
+            $modeloBoleta = [
+                "Encabezado" => [
+                    "IdDoc" => $boleta["Encabezado"]["IdDoc"] ?? [],
+                    "Emisor" => $boleta["Encabezado"]["Emisor"] ?? [],
+                    "Receptor" => $boleta["Encabezado"]["Receptor"] ?? [],
+                    ],
+                "Detalle" => [],
+                "Referencia" => $boleta["Referencia"] ?? false,
             ];
 
             $detallesExentos = [];
             $detallesAfectos = [];
-
-            foreach ($boleta->Detalle as $detalle) {
-                if (array_key_exists("IndExe", json_decode(json_encode($detalle), true))) {
-                    $detallesExentos[] = json_decode(json_encode($detalle), true);
+            foreach ($boleta["Detalle"] as $detalle) {
+                if (array_key_exists("IndExe", $detalle)) {
+                    $detallesExentos[] = $detalle;
                 } else {
-                    $detallesAfectos[] = json_decode(json_encode($detalle), true);
+                    $detallesAfectos[] = $detalle;
                 }
             }
 
@@ -266,7 +444,7 @@ if($key=='Acteco'){
     {
         return [
             'RutEnvia' => $dte->Caratula->RutEnvia, // se obtiene automáticamente de la firma
-            //'RutReceptor' => $dte->Caratula->RutReceptor, // se obtiene automáticamente
+            'RutReceptor' => $dte->Caratula->RutReceptor ?? false, // se obtiene automáticamente
             'FchResol' => $dte->Caratula->FchResol,
             'NroResol' => $dte->Caratula->NroResol,
         ];

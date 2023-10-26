@@ -10,8 +10,10 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
+use sasco\LibreDTE\Estado;
 use sasco\LibreDTE\Log;
 use sasco\LibreDTE\Sii;
+use sasco\LibreDTE\Sii\EnvioDte;
 use sasco\LibreDTE\XML;
 use SimpleXMLElement;
 use Webklex\PHPIMAP\ClientManager;
@@ -26,7 +28,7 @@ class ApiFacturaController extends FacturaController
 {
     public function __construct()
     {
-        parent::__construct([33]);
+        parent::__construct([33, 61]);
         $this->timestamp = Carbon::now('America/Santiago');
     }
 
@@ -157,6 +159,16 @@ class ApiFacturaController extends FacturaController
         // Parseo de boletas según modelo libreDTE
         $boletas = $this->parseDte($dte);
 
+        /*
+        return response()->json([
+            'message' => "Parseo de DTE",
+            'Factura' => json_decode(json_encode($boletas), JSON_PRETTY_PRINT)
+        ], 200);
+        */
+
+        // Respuesta como JSON
+        //return json_decode(json_encode($boletas, JSON_PRETTY_PRINT))[0];
+
         // Si hay errores en el parseo, retornarlos
         if (isset($boletas[0]['error'])) {
             return response()->json([
@@ -188,12 +200,53 @@ class ApiFacturaController extends FacturaController
             ], 400);
         }
 
+        /*
+        $factura = new EnvioDte();
+        $factura->loadXML($EnvioDTExml);
+        Sii::setAmbiente(Sii::CERTIFICACION);
+        $token = json_decode(file_get_contents(base_path('config.json')))->token_dte;
+        $result = Sii::enviar($RutEnvia, $RutEmisor, $EnvioDTExml, $token);
+        // si hubo algún error al enviar al servidor mostrar
+        $errores = [];
+        if ($result===false) {
+            foreach (Log::readAll() as $error)
+                $errores[] = $error->msg;
+        }
+
+        // Mostrar resultado del envío
+        if ($result->STATUS!='0') {
+            foreach (Log::readAll() as $error)
+                $errores[] = $error->msg;
+        }
+        // Convertir a array asociativo
+        $arrayData = json_decode(json_encode($result), true);
+
+        // Respuesta como JSON
+        $json_response = json_decode(json_encode($arrayData, JSON_PRETTY_PRINT));
+        Storage::disk('dtes')->put('EnvioFACTURA/factura_ejemplo_enviada.xml', $EnvioDTExml);
+        return response()->json([
+            'message' => "Factura electronica enviada correctamente",
+            'response' => [
+                "EnvioFactura" => $json_response,
+                "errores" => json_decode(json_encode($errores)),
+                //"result" => $json_response
+            ],
+        ], 200);
+        */
+        if($dteresponse->STATUS != '0'){
+            return response()->json([
+                'message' => "Error en la respuesta del SII al enviar factura",
+                'errores' => $dteresponse,
+            ], 400);
+        }
+
         return response()->json([
             //'message' => "Factura electronica y rcof enviado correctamente",
             'message' => "Factura electronica enviada correctamente",
             'response' => [
                 "EnvioFactura" => $dteresponse,
-                //'EnvioRcof' => json_decode(json_encode(["trackid" => $rcofreponse]))
+                //"errores" => json_decode(json_encode($errores)),
+                //"result" => $json_response
             ],
         ], 200);
 
@@ -268,11 +321,37 @@ class ApiFacturaController extends FacturaController
         $trackID = $body->trackID;
 
         // Set ambiente certificacón (default producción)
-        Sii::setAmbiente(Sii::CERTIFICACION);
+        //Sii::setAmbiente(Sii::CERTIFICACION);
 
-        $estado = Sii::request('QueryEstUp', 'getEstUp', [$rut, $dv, $trackID, $token]);
+        $xml = Sii::request('QueryEstUp', 'getEstUp', [$rut, $dv, $trackID, $token]);
         // si el estado se pudo recuperar se muestra estado y glosa
 
+        return $xml->asXML();
+        /*
+        if ($xml->STATUS!=0) {
+            Log::write(
+                $xml->STATUS,
+                Estado::get($xml->STATUS).(isset($xml->DETAIL)?'. '.implode("\n", (array)$xml->DETAIL->ERROR):'')
+            );
+            $arrayData = json_decode(json_encode($xml), true);
+            $json_response = json_decode(json_encode($arrayData, JSON_PRETTY_PRINT));
+            return response()->json([
+                'message' => "Error en la respuesta del SII al consultar estado de DTE",
+                'response' =>  $json_response,
+            ], 200);
+        }
+
+        // Convertir a array asociativo
+        $arrayData = json_decode(json_encode($xml), true);
+
+        // Respuesta como JSON
+        $json_response = json_decode(json_encode($arrayData, JSON_PRETTY_PRINT));
+
+        return response()->json([
+            'message' => "Estado de DTE consultado correctamente",
+            'response' =>  $json_response,
+        ], 200);
+        /*
         return $estado->asXML();
         if ($estado!==false) {
             print_r([
@@ -282,8 +361,9 @@ class ApiFacturaController extends FacturaController
         }
 
         // mostrar error si hubo
-        foreach (\sasco\LibreDTE\Log::readAll() as $error)
+        foreach (Log::readAll() as $error)
             echo $error,"\n";
+        */
     }
 
     public function estadoDte(Request $request)
@@ -309,6 +389,9 @@ class ApiFacturaController extends FacturaController
         // Consulta estado dte
         $token = json_decode(file_get_contents(base_path('config.json')))->token_dte;
 
+        // Set ambiente certificacón (default producción)
+        //SII::setAmbiente(SII::CERTIFICACION);
+
         // consultar estado dte
         $xml = Sii::request('QueryEstDte', 'getEstDte', [
             'RutConsultante'    => $body->rut,
@@ -323,6 +406,8 @@ class ApiFacturaController extends FacturaController
             'MontoDte'          => $body->monto,
             'token'             => $token,
         ]);
+
+        return $xml->asXML();
 
         //return $xml->asXML();
 
