@@ -155,183 +155,6 @@ class FacturaController extends DteController
 
     protected function generarEnvioDteXml(array $factura, FirmaElectronica $Firma, array $Folios, array $caratula)
     {
-        /*
-        // caratula para el envío de los dte
-        $caratula = [
-            'RutEnvia' => '8782294-K',
-            'RutReceptor' => '72095000-6',
-            'FchResol' => '2014-08-22',
-            'NroResol' => 0,
-        ];
-
-        // datos del emisor
-        $Emisor = [
-            'RUTEmisor' => '76974300-6',
-            'RznSoc' => 'Logiciel Chile S.A.',
-            'GiroEmis' => 'CONSULTORIAS, ASESORIAS, SERVICIOS DE INGENIERIA Y TELECOMUNICACIONES EXPORTACIO',
-            'Acteco' => "620100,620200,711002,474100",
-            'DirOrigen' => 'Av. Pedro de Valdivia 5841',
-            'CmnaOrigen' => 'Macul',
-        ];
-        $folio_inicial = 51;
-        $factura = [
-            // CASO 414175-1
-            [
-                'Encabezado' => [
-                    'IdDoc' => [
-                        'TipoDTE' => 33,
-                        'Folio' => $folio_inicial,
-                    ],
-                    'Emisor' => $Emisor,
-                    'Receptor' => [
-                        'RUTRecep' => '55666777-8',
-                        'RznSocRecep' => 'Empresa S.A.',
-                        'GiroRecep' => 'Servicios jurídicos',
-                        'DirRecep' => 'Santiago',
-                        'CmnaRecep' => 'Santiago',
-                    ],
-                ],
-                'Detalle' => [
-                    [
-                        'NmbItem' => 'Cajón AFECTO',
-                        'QtyItem' => 123,
-                        'PrcItem' => 923,
-                    ],
-                    [
-                        'NmbItem' => 'Relleno AFECTO',
-                        'QtyItem' => 53,
-                        'PrcItem' => 1473,
-                    ],
-                ],
-                'Referencia' => [
-                    'TpoDocRef' => 'SET',
-                    'FolioRef' => $folio_inicial,
-                    'RazonRef' => 'CASO 414175-1',
-                ],
-            ],
-            // CASO 414175-2
-            [
-                'Encabezado' => [
-                    'IdDoc' => [
-                        'TipoDTE' => 33,
-                        'Folio' => $folio_inicial+1,
-                    ],
-                    'Emisor' => $Emisor,
-                    'Receptor' => [
-                        'RUTRecep' => '55666777-8',
-                        'RznSocRecep' => 'Empresa S.A.',
-                        'GiroRecep' => 'Servicios jurídicos',
-                        'DirRecep' => 'Santiago',
-                        'CmnaRecep' => 'Santiago',
-                    ],
-                ],
-                'Detalle' => [
-                    [
-                        'NmbItem' => 'Pañuelo AFECTO',
-                        'QtyItem' => 235,
-                        'PrcItem' => 1926,
-                        'DescuentoPct' => 4,
-                    ],
-                    [
-                        'NmbItem' => 'ITEM 2 AFECTO',
-                        'QtyItem' => 161,
-                        'PrcItem' => 990,
-                        'DescuentoPct' => 5,
-                    ],
-                ],
-                'Referencia' => [
-                    'TpoDocRef' => 'SET',
-                    'FolioRef' => $folio_inicial+1,
-                    'RazonRef' => 'CASO 414175-2',
-                ],
-            ],
-            // CASO 414175-3
-            [
-                'Encabezado' => [
-                    'IdDoc' => [
-                        'TipoDTE' => 33,
-                        'Folio' => $folio_inicial+2,
-                    ],
-                    'Emisor' => $Emisor,
-                    'Receptor' => [
-                        'RUTRecep' => '55666777-8',
-                        'RznSocRecep' => 'Empresa S.A.',
-                        'GiroRecep' => 'Servicios jurídicos',
-                        'DirRecep' => 'Santiago',
-                        'CmnaRecep' => 'Santiago',
-                    ],
-                ],
-                'Detalle' => [
-                    [
-                        'NmbItem' => 'Pintura B&W AFECTO',
-                        'QtyItem' => 24,
-                        'PrcItem' => 1937,
-                    ],
-                    [
-                        'NmbItem' => 'ITEM 2 AFECTO',
-                        'QtyItem' => 149,
-                        'PrcItem' => 2975,
-                    ],
-                    [
-                        'IndExe' => 1,
-                        'NmbItem' => 'ITEM 3 SERVICIO EXENTO',
-                        'QtyItem' => 1,
-                        'PrcItem' => 34705,
-                    ],
-                ],
-                'Referencia' => [
-                    'TpoDocRef' => 'SET',
-                    'FolioRef' => $folio_inicial+2,
-                    'RazonRef' => 'CASO 414175-3',
-                ],
-            ],
-            // CASO 414175-4
-            [
-                'Encabezado' => [
-                    'IdDoc' => [
-                        'TipoDTE' => 33,
-                        'Folio' => $folio_inicial+3,
-                    ],
-                    'Emisor' => $Emisor,
-                    'Receptor' => [
-                        'RUTRecep' => '55666777-8',
-                        'RznSocRecep' => 'Empresa S.A.',
-                        'GiroRecep' => 'Servicios jurídicos',
-                        'DirRecep' => 'Santiago',
-                        'CmnaRecep' => 'Santiago',
-                    ],
-                ],
-                'Detalle' => [
-                    [
-                        'NmbItem' => 'ITEM 1 AFECTO',
-                        'QtyItem' => 81,
-                        'PrcItem' => 1672,
-                    ],
-                    [
-                        'NmbItem' => 'ITEM 2 AFECTO',
-                        'QtyItem' => 35,
-                        'PrcItem' => 1405,
-                    ],
-                    [
-                        'IndExe' => 1,
-                        'NmbItem' => 'ITEM 3 SERVICIO EXENTO',
-                        'QtyItem' => 2,
-                        'PrcItem' => 6767,
-                    ],
-                ],
-                'DscRcgGlobal' => [
-                    'TpoMov' => 'D',
-                    'TpoValor' => '%',
-                    'ValorDR' => 6,
-                ],
-                'Referencia' => [
-                    'TpoDocRef' => 'SET',
-                    'FolioRef' => $folio_inicial+3,
-                    'RazonRef' => 'CASO 414175-4',
-                ],
-            ]
-        ];*/
-
         // generar XML del DTE timbrado y firmado
         $EnvioDTE = new EnvioDte();
         foreach ($factura as $documento) {
@@ -364,44 +187,31 @@ class FacturaController extends DteController
         $dte = json_decode(json_encode($dte), true);
 
         foreach ($dte["Boletas"] as $boleta) {
-            // Modelo boleta
-            /*
-            $modeloBoleta = [
-                "Encabezado" => [
-                    "IdDoc" => $boleta["Encabezado"]["IdDoc"] ?? [],
-                    "Emisor" => [
-                        'RUTEmisor' => $boleta->Encabezado->Emisor->RUTEmisor ?? false,
-                        'RznSoc' => $boleta->Encabezado->Emisor->RznSoc ?? false,
-                        'GiroEmis' => $boleta->Encabezado->Emisor->GiroEmis ?? false,
-                        'Acteco' => $boleta->Encabezado->Emisor->Acteco ?? false,
-                        'DirOrigen' => $boleta->Encabezado->Emisor->DirOrigen ?? false,
-                        'CmnaOrigen' => $boleta->Encabezado->Emisor->CmnaOrigen ?? false,
-                        'CiudadOrigen' => $boleta->Encabezado->Emisor->CiudadOrigen ?? false,
-                        'CdgVendedor' => $boleta->Encabezado->Emisor->CdgVendedor ?? false,
-                    ],
-                    "Receptor" => [
-                        'RUTRecep' => $boleta->Encabezado->Receptor->RUTRecep ?? false,
-                        'RznSocRecep' => $boleta->Encabezado->Receptor->RznSocRecep ?? false,
-                        'GiroRecep' => $boleta->Encabezado->Receptor->GiroRecep ?? false,
-                        'DirRecep' => $boleta->Encabezado->Receptor->DirRecep ?? false,
-                        'CmnaRecep' => $boleta->Encabezado->Receptor->CmnaRecep ?? false,
-                        'CiudadRecep' => $boleta->Encabezado->Receptor->CiudadRecep ?? false,
-                    ],
-                ],
-                "Detalle" => [],
-                //"Referencia" => [],
-            ];*/
-
-            $modeloBoleta = [
+            /*$modeloBoleta = [
                 "Encabezado" => [
                     "IdDoc" => $boleta["Encabezado"]["IdDoc"] ?? [],
                     "Emisor" => $boleta["Encabezado"]["Emisor"] ?? [],
                     "Receptor" => $boleta["Encabezado"]["Receptor"] ?? [],
+                    "Totales" => $boleta["Encabezado"]["Totales"] ?? [],
                     ],
-                "Detalle" => [],
+                "Detalle" => $boleta["Detalle"] ?? [],
                 "Referencia" => $boleta["Referencia"] ?? false,
-            ];
+                "DscRcgGlobal" => $boleta["DscRcgGlobal"] ?? false,
+            ];*/
+            $modeloBoleta = $boleta;
 
+            if(!isset($modeloBoleta["Encabezado"]["IdDoc"]["TipoDTE"]))
+                return ["error" => "Debe indicar el TipoDTE"];
+
+            $tipoDte = $modeloBoleta["Encabezado"]["IdDoc"]["TipoDTE"];
+
+            if (!in_array($tipoDte, self::$tipos_dte))
+                return ["error" => "El TipoDTE no es válido. Debe ser 33, 34, 56 y/o 61"];
+
+            $modeloBoleta["Encabezado"]["IdDoc"]["Folio"] = ++self::$folios[$tipoDte];
+            $boletas[] = $modeloBoleta;
+
+            /*
             $detallesExentos = [];
             $detallesAfectos = [];
             foreach ($boleta["Detalle"] as $detalle) {
@@ -415,12 +225,10 @@ class FacturaController extends DteController
             if (!empty($detallesExentos)) {
                 $modeloBoletaExenta = $this->generarModeloBoleta($modeloBoleta, $detallesExentos, 34);
                 $boletas[] = $modeloBoletaExenta;
-            }
-
-            if (!empty($detallesAfectos)) {
+            } else if (!empty($detallesAfectos)) {
                 $modeloBoletaAfecta = $this->generarModeloBoleta($modeloBoleta, $detallesAfectos, 33);
                 $boletas[] = $modeloBoletaAfecta;
-            }
+            }*/
         }
 
         // Compara si el número de folios restante en el caf es mayor o igual al número de documentos a enviar

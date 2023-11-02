@@ -159,18 +159,11 @@ class ApiFacturaController extends FacturaController
         // Parseo de boletas según modelo libreDTE
         $boletas = $this->parseDte($dte);
 
-        /*
-        return response()->json([
-            'message' => "Parseo de DTE",
-            'Factura' => json_decode(json_encode($boletas), JSON_PRETTY_PRINT)
-        ], 200);
-        */
-
-        // Respuesta como JSON
-        //return json_decode(json_encode($boletas, JSON_PRETTY_PRINT))[0];
+        // $dte = json_decode(json_encode($dte), true);
+        // $boletas = $dte['Boletas'];
 
         // Si hay errores en el parseo, retornarlos
-        if (isset($boletas[0]['error'])) {
+        if (isset($boletas['error'])) {
             return response()->json([
                 'message' => "Error al parsear la boleta electrónica",
                 'errores' => json_decode(json_encode($boletas))

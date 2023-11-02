@@ -164,21 +164,6 @@ class DteController extends Controller
         $modeloBoleta["Encabezado"]["IdDoc"]["Folio"] = $modeloBoleta["Encabezado"]["IdDoc"]["Folio"] ?? ++self::$folios[$tipoDTE];
         $modeloBoleta["Detalle"] = $detalles;
 
-        /*
-        $idDoc = json_decode(json_encode($modeloBoleta["Encabezado"]["IdDoc"]));
-        $idDoc->TipoDTE = $tipoDTE;
-        $idDoc->Folio = ++self::$folios[$tipoDTE];
-        $modeloBoleta["Encabezado"]["IdDoc"] = $idDoc;
-        /*
-        $modeloBoleta["Encabezado"]["IdDoc"] = [
-            "TipoDTE" => $tipoDTE,
-            "Folio" => ++self::$folios[$tipoDTE],
-            "TpoTranVenta" => 1,
-            "FchEmis" => "2023-10-25",
-            "FrmaPago"=> 2,
-            "FchVenc" => "2023-10-26"
-        ];*/
-
         return $modeloBoleta;
     }
 
