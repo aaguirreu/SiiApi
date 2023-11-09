@@ -20,15 +20,6 @@ class ApiBoletaController extends BoletaController
         // Leer string como json
         $dte = json_decode(json_encode($request->json()->all()));
 
-        // Schema del json
-        $schemaJson = file_get_contents(base_path() . '\SchemasSwagger\SchemaBoleta.json');
-
-        // Validar json
-        //$schema = Schema::import(json_decode($schemaJson));
-        //$schema->in($dte));
-
-        //$jsonArr = var_dump($dte);
-
         // setear timestamp
         $this->timestamp = Carbon::now('America/Santiago');
 
@@ -44,10 +35,7 @@ class ApiBoletaController extends BoletaController
 
         // Variable auxiliar para guardar el folio inicial
 
-        // Obtener caratula
         $caratula = $this->obtenerCaratula($dte);
-
-        // Obtener folios del Caf
         $Folios = $this->obtenerFoliosCaf();
 
         // Parseo de boletas según modelo libreDTE
@@ -78,25 +66,6 @@ class ApiBoletaController extends BoletaController
         $RutEmisor = $boletas[0]['Encabezado']['Emisor']['RUTEmisor']; // RUT del emisor del DTE
         $dteresponse = $this->enviar($RutEnvia, $RutEmisor, $EnvioDTExml);
 
-        /*
-        // generar rcof (consumo de folios) y enviar
-        $ConsumoFolioxml = $this->generarRCOF($EnvioDTExml);
-
-        // Si hubo errores mostrarlos
-        if (gettype($ConsumoFolioxml) == 'array') {
-            return response()->json([
-                'message' => "Error al generar el envio de Rcof (Consumo de folios)",
-                'errores' => json_decode(json_encode($ConsumoFolioxml)),
-            ], 400);
-        }
-
-        // Enviar RCOF e insertar en base de datos de ser exitoso
-        $filename = 'EnvioBOLETA_' . $this->timestamp . '.xml';
-        $filename = str_replace(' ', 'T', $filename);
-        $filename = str_replace(':', '-', $filename);
-        $rcofreponse = $this->enviarRcof($ConsumoFolioxml, $filename);
-        */
-
         // Actualizar folios en la base de datos
         $this->actualizarFolios();
         return response()->json([
@@ -110,9 +79,6 @@ class ApiBoletaController extends BoletaController
 
     public function estadoDteEnviado(Request $request): JsonResponse
     {
-        // setear timestamp
-        $this->timestamp = Carbon::now('America/Santiago');
-
         // Renovar token si es necesario
         $this->isToken();
 
@@ -121,13 +87,6 @@ class ApiBoletaController extends BoletaController
 
         // Transformar a json
         $body = json_decode($rbody);
-
-        // Schema del json
-        //$schemaJson = file_get_contents(base_path().'\SchemasSwagger\SchemaStatusBE.json');
-
-        // Validar json
-        //$schema = Schema::import(json_decode($schemaJson));
-        //$schema->in($body);
 
         // consultar estado dte
         $rut = $body->rut;

@@ -113,4 +113,69 @@ class BoletaController extends DteController
         return $response;
     }
 
+    protected function generarRCOF($documentos)
+    {
+        // cargar XML boletas y notas
+        $EnvioBOLETA = new EnvioDte();
+        // podría ser un arrai de EnvioBoleta
+        $EnvioBOLETA->loadXML($documentos);
+
+        // crear objeto para consumo de folios
+        $ConsumoFolio = new ConsumoFolio();
+        $ConsumoFolio->setFirma($this->obtenerFirma());
+        $ConsumoFolio->setDocumentos([39, 41]); // [39, 61] si es sólo afecto, [41, 61] si es sólo exento
+
+        // agregar detalle de boletas
+        // Se puede recorrer un array de EnvioDTE
+        foreach ($EnvioBOLETA->getDocumentos() as $Dte) {
+            $ConsumoFolio->agregar($Dte->getResumen());
+        }
+
+        // crear carátula para el envío (se hace después de agregar los detalles ya que
+        // así se obtiene automáticamente la fecha inicial y final de los documentos)
+        $CaratulaEnvioBOLETA = $EnvioBOLETA->getCaratula();
+        $ConsumoFolio->setCaratula([
+            'RutEmisor' => $CaratulaEnvioBOLETA['RutEmisor'],
+            'FchResol' => $CaratulaEnvioBOLETA['FchResol'],
+            'NroResol' => $CaratulaEnvioBOLETA['NroResol'],
+        ]);
+
+        // generar y validar schema
+        $ConsumoFolio->generar();
+        if (!$ConsumoFolio->schemaValidate()) {
+            // si hubo errores mostrar
+            foreach (Log::readAll() as $error)
+                $errores[] = $error->msg;
+            return $errores;
+        }
+        return $ConsumoFolio;
+    }
+
+    protected function enviarRcof(ConsumoFolio $ConsumoFolio, $dte_filename) {
+        // Set ambiente certificacion
+        Sii::setAmbiente(Sii::PRODUCCION);
+
+        // Enviar rcof
+        $response = $ConsumoFolio->enviar(self::$retry);
+
+        if($response != false){
+            // Guardar xml en storage
+            $filename = 'RCOF_'.$this->timestamp.'.xml';
+            $filename = str_replace(' ', 'T', $filename);
+            $filename = str_replace(':', '-', $filename);
+            //$file = env('DTES_PATH', "")."EnvioBOLETA/".$filename;
+            Storage::disk('dtes')->put('EnvioRcof/'.$filename, $ConsumoFolio->generar());
+
+            $dte_id = DB::table('dte')->where('xml_filename', '=', $dte_filename)->latest()->first()->id;
+            // Guardar en base de datos
+            DB::table('resumen_ventas_diarias')->insert([
+                'id' => $dte_id,
+                'trackid' => $response,
+                'xml_filename' => $filename,
+                'created_at' => $this->timestamp,
+                'updated_at' => $this->timestamp
+            ]);
+        }
+        return $response;
+    }
 }

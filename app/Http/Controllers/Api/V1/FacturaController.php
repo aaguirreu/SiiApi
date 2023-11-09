@@ -29,7 +29,7 @@ class FacturaController extends DteController
 
     protected function enviar($usuario, $empresa, $dte)
     {
-        $token = json_decode(file_get_contents(base_path('config.json')))->token_dte;
+        $token = json_decode(file_get_contents(base_path('config.json')))->token;
         // definir datos que se usarán en el envío
         list($rutSender, $dvSender) = explode('-', str_replace('.', '', $usuario));
         list($rutCompany, $dvCompany) = explode('-', str_replace('.', '', $empresa));
@@ -77,8 +77,8 @@ class FacturaController extends DteController
 
         // crear sesión curl con sus opciones
         $curl = curl_init();
-        //$url = 'https://maullin.sii.cl/cgi_dte/UPL/DTEUpload'; // certificacion
-        $url = 'https://palena.sii.cl/cgi_dte/UPL/DTEUpload'; // producción
+        $url = 'https://maullin.sii.cl/cgi_dte/UPL/DTEUpload'; // certificacion
+        //$url = 'https://palena.sii.cl/cgi_dte/UPL/DTEUpload'; // producción
         curl_setopt($curl, CURLOPT_POST, true);
         curl_setopt($curl, CURLOPT_POSTFIELDS, $data);
         curl_setopt($curl, CURLOPT_HTTPHEADER, $header);
@@ -125,6 +125,8 @@ class FacturaController extends DteController
                 Estado::get($xml->STATUS).(isset($xml->DETAIL)?'. '.implode("\n", (array)$xml->DETAIL->ERROR):'')
             );
             $arrayData = json_decode(json_encode($xml), true);
+            // Borrar xml guardado anteriormente
+            Storage::disk('dtes')->delete('EnvioFACTURA\\'.$filename);
             return json_decode(json_encode($arrayData, JSON_PRETTY_PRINT));
         }
 
@@ -134,10 +136,7 @@ class FacturaController extends DteController
         // Respuesta como JSON
         $json_response = json_decode(json_encode($arrayData, JSON_PRETTY_PRINT));
 
-        // Guardar envio dte en la base de datos
-        $this->guardarEnvioDte($json_response, $filename);
-
-        return $json_response;
+        return [$json_response, $filename];
     }
 
     // Borrar cuando deje de utilizar ambiente certificacion
@@ -147,115 +146,59 @@ class FacturaController extends DteController
         //Sii::setAmbiente(Sii::PRODUCCION);
         $token = Autenticacion::getToken($this->obtenerFirma());
         $config_file = json_decode(file_get_contents(base_path('config.json')));
-        $config_file->token_dte = $token;
-        $config_file->token_dte_timestamp = Carbon::now('America/Santiago')->timestamp;;
+        $config_file->token = $token;
+        $config_file->token_timestamp = Carbon::now('America/Santiago')->timestamp;;
         //Storage::disk('local')->put('config.json', json_encode($config_file, JSON_PRETTY_PRINT));
         file_put_contents(base_path('config.json'), json_encode($config_file), JSON_PRETTY_PRINT);
     }
 
-    protected function generarEnvioDteXml(array $factura, FirmaElectronica $Firma, array $Folios, array $caratula)
-    {
-        // generar XML del DTE timbrado y firmado
-        $EnvioDTE = new EnvioDte();
-        foreach ($factura as $documento) {
-            //$DTE = new Dte($documento, false); // Normalizar false
-            $DTE = new Dte($documento, true); // Normalizar true (default)
-            if (!$DTE->timbrar($Folios[$DTE->getTipo()]))
-                break;
-            if (!$DTE->firmar($Firma))
-                break;
-            $EnvioDTE->agregar($DTE);
-        }
-        // generar sobre con el envío del DTE y enviar al SII
-        $EnvioDTE->setCaratula($caratula);
-        $EnvioDTE->setFirma($Firma);
-        $EnvioDTExml = $EnvioDTE->generar();
-        if ($EnvioDTE->schemaValidate()) {
-            return $EnvioDTExml;
-        } else {
-            //return $EnvioDTExml;
-            // si hubo errores mostrar
-            foreach (Log::readAll() as $error)
-                $errores[] = $error->msg;
-            return $errores;
-        }
-    }
-
     protected function parseDte($dte): array
     {
-        $boletas = [];
+        $documentos = [];
         $dte = json_decode(json_encode($dte), true);
 
-        foreach ($dte["Boletas"] as $boleta) {
-            /*$modeloBoleta = [
+        foreach ($dte["Documentos"] as $documento) {
+            /*$modeloDocumento = [
                 "Encabezado" => [
-                    "IdDoc" => $boleta["Encabezado"]["IdDoc"] ?? [],
-                    "Emisor" => $boleta["Encabezado"]["Emisor"] ?? [],
-                    "Receptor" => $boleta["Encabezado"]["Receptor"] ?? [],
-                    "Totales" => $boleta["Encabezado"]["Totales"] ?? [],
+                    "IdDoc" => $documento["Encabezado"]["IdDoc"] ?? [],
+                    "Emisor" => $documento["Encabezado"]["Emisor"] ?? [],
+                    "Receptor" => $documento["Encabezado"]["Receptor"] ?? [],
+                    "Totales" => $documento["Encabezado"]["Totales"] ?? [],
                     ],
-                "Detalle" => $boleta["Detalle"] ?? [],
-                "Referencia" => $boleta["Referencia"] ?? false,
-                "DscRcgGlobal" => $boleta["DscRcgGlobal"] ?? false,
+                "Detalle" => $documento["Detalle"] ?? [],
+                "Referencia" => $documento["Referencia"] ?? false,
+                "DscRcgGlobal" => $documento["DscRcgGlobal"] ?? false,
             ];*/
-            $modeloBoleta = $boleta;
+            $modeloDocumento = $documento;
 
-            if(!isset($modeloBoleta["Encabezado"]["IdDoc"]["TipoDTE"]))
+            if(!isset($modeloDocumento["Encabezado"]["IdDoc"]["TipoDTE"]))
                 return ["error" => "Debe indicar el TipoDTE"];
 
-            $tipoDte = $modeloBoleta["Encabezado"]["IdDoc"]["TipoDTE"];
+            $tipoDte = $modeloDocumento["Encabezado"]["IdDoc"]["TipoDTE"];
 
-            if (!in_array($tipoDte, self::$tipos_dte))
-                return ["error" => "El TipoDTE no es válido. Debe ser 33, 34, 56 y/o 61"];
-
-            $modeloBoleta["Encabezado"]["IdDoc"]["Folio"] = ++self::$folios[$tipoDte];
-            $boletas[] = $modeloBoleta;
-
-            /*
-            $detallesExentos = [];
-            $detallesAfectos = [];
-            foreach ($boleta["Detalle"] as $detalle) {
-                if (array_key_exists("IndExe", $detalle)) {
-                    $detallesExentos[] = $detalle;
-                } else {
-                    $detallesAfectos[] = $detalle;
-                }
-            }
-
-            if (!empty($detallesExentos)) {
-                $modeloBoletaExenta = $this->generarModeloBoleta($modeloBoleta, $detallesExentos, 34);
-                $boletas[] = $modeloBoletaExenta;
-            } else if (!empty($detallesAfectos)) {
-                $modeloBoletaAfecta = $this->generarModeloBoleta($modeloBoleta, $detallesAfectos, 33);
-                $boletas[] = $modeloBoletaAfecta;
-            }*/
+            $modeloDocumento["Encabezado"]["IdDoc"]["Folio"] = ++self::$folios[$tipoDte];
+            $documentos[] = $modeloDocumento;
         }
 
         // Compara si el número de folios restante en el caf es mayor o igual al número de documentos a enviar
-        foreach (self::$tipos_dte as $key) {
-            $folios_restantes = DB::table('caf')->where('folio_id', '=', $key)->latest()->first()->folio_final - DB::table('folio')->where('id', '=', $key)->latest()->first()->cant_folios;
-            $folios_boletas = self::$folios[$key] - self::$folios_inicial[$key] + 1;
-            if ($folios_boletas > $folios_restantes) {
-                $response[] = [
+        foreach (self::$folios as $key => $value) {
+            $folio_final = DB::table('caf')->where('folio_id', '=', $key)->latest()->first()->folio_final;
+            $cant_folio = DB::table('secuencia_folio')->where('id', '=', $key)->latest()->first()->cant_folios;
+            $folios_restantes = $folio_final - $cant_folio;
+            $folios_documentos = self::$folios[$key] - self::$folios_inicial[$key] + 1;
+            if ($folios_documentos > $folios_restantes) {
+                $response = [
                     'error' => 'No hay folios suficientes para generar los documentos',
                     'tipo_folio' => $key,
+                    'máxmimo_rango_caf' => $folio_final,
+                    'último_folio_utilizado' => $cant_folio,
                     'folios_restantes' => $folios_restantes,
-                    'folios_boletas' => $folios_boletas,
+                    'folios_a_utilizar' => $folios_documentos,
                 ];
             }
         }
 
-        return $response ?? $boletas;
-    }
-
-    protected function obtenerCaratula($dte): array
-    {
-        return [
-            'RutEnvia' => $dte->Caratula->RutEnvia, // se obtiene automáticamente de la firma
-            'RutReceptor' => $dte->Caratula->RutReceptor ?? false, // se obtiene automáticamente
-            'FchResol' => $dte->Caratula->FchResol,
-            'NroResol' => $dte->Caratula->NroResol,
-        ];
+        return $response ?? $documentos;
     }
 }
 

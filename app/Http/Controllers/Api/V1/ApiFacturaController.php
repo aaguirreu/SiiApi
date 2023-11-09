@@ -24,11 +24,13 @@ use Webklex\PHPIMAP\Message;
 use Webklex\PHPIMAP\Support\AttachmentCollection;
 use Webklex\PHPIMAP\Attachment;
 
+// Debería ser class ApiFacturaController extends ApiController
+// y llamar a FacturaController con use FacturaController, new FacturaController(construct)
 class ApiFacturaController extends FacturaController
 {
     public function __construct()
     {
-        parent::__construct([33, 61]);
+        parent::__construct([33, 34, 56, 61]);
         $this->timestamp = Carbon::now('America/Santiago');
     }
 
@@ -112,6 +114,7 @@ class ApiFacturaController extends FacturaController
                 'errors' => json_decode(json_encode($errores))
             ], 400);
         }
+
         $RutEnvia = $Firma->getID(); // RUT autorizado para enviar DTEs
         $RutEmisor = '76974300-6'; // RUT del emisor del DTE
         $response = $this->enviar($RutEnvia, $RutEmisor, $EnvioDTExml);
@@ -126,18 +129,6 @@ class ApiFacturaController extends FacturaController
         // Leer string como json
         $dte = json_decode(json_encode($request->json()->all()));
 
-        // Schema del json
-        $schemaJson = file_get_contents(base_path() . '\SchemasSwagger\SchemaBoleta.json');
-
-        // Validar json
-        //$schema = Schema::import(json_decode($schemaJson));
-        //$schema->in($dte));
-
-        //$jsonArr = var_dump($dte);
-
-        // setear timestamp
-        $this->timestamp = Carbon::now('America/Santiago');
-
         // Renovar token si es necesario
         $this->isToken();
 
@@ -146,140 +137,84 @@ class ApiFacturaController extends FacturaController
         // Comparar cantidad de folios usados con cantidad de folios disponibles
 
         // Obtiene los folios con la cantidad de folios usados desde la base de datos
-        self::$folios_inicial = $this->obtenerFolios();
-
-        // Variable auxiliar para guardar el folio inicial
-
-        // Obtener caratula
-        $caratula = $this->obtenerCaratula($dte);
-
+        self::$folios_inicial = $this->obtenerFolios($dte);
+        if (isset(self::$folios_inicial['error'])) {
+            return response()->json([
+                'message' => "Error al obtener tipo de folios",
+                'errores' => self::$folios_inicial['error']
+            ], 400);
+        }
         // Obtener folios del Caf
-        $Folios = $this->obtenerFoliosCaf();
+        $folios = $this->obtenerFoliosCaf();
+        if (isset($folios['error'])) {
+            return response()->json([
+                'message' => "Error al obtener folios desde el CAF",
+                'errores' => $folios['error']
+            ], 400);
+        }
 
         // Parseo de boletas según modelo libreDTE
-        $boletas = $this->parseDte($dte);
-
-        // $dte = json_decode(json_encode($dte), true);
-        // $boletas = $dte['Boletas'];
-
-        // Si hay errores en el parseo, retornarlos
-        if (isset($boletas['error'])) {
+        $documentos = $this->parseDte($dte);
+        if (isset($documentos['error'])) {
             return response()->json([
                 'message' => "Error al parsear la boleta electrónica",
-                'errores' => json_decode(json_encode($boletas))
+                'errores' => json_decode(json_encode($documentos))
             ], 400);
         }
 
         // Objetos de Firma y Folios
-        $Firma = $this->obtenerFirma();
+        $firma = $this->obtenerFirma();
+
+        // Obtener caratula
+        $caratula = $this->obtenerCaratula($dte, $documentos, $firma);
 
         // generar cada DTE, timbrar, firmar y agregar al sobre de EnvioBOLETA
-        $EnvioDTExml = $this->generarEnvioDteXml($boletas, $Firma, $Folios, $caratula);
-        if(gettype($EnvioDTExml) == 'array'){
+        $EnvioDTExml = $this->generarEnvioDteXml($documentos, $firma, $folios, $caratula);
+        if(is_array($EnvioDTExml)){
             return response()->json([
                 'message' => "Error al generar el envio de DTEs",
                 'errores' => json_decode(json_encode($EnvioDTExml)),
             ], 400);
         }
 
+        return var_dump($EnvioDTExml);
+
         // Enviar DTE e insertar en base de datos de ser exitoso
-        $RutEnvia = $Firma->getID(); // RUT autorizado para enviar DTEs
-        $RutEmisor = $boletas[0]['Encabezado']['Emisor']['RUTEmisor']; // RUT del emisor del DTE
-        $dteresponse = $this->enviar($RutEnvia, $RutEmisor, $EnvioDTExml);
-        if ($dteresponse == false) {
+        $envioArray = $this->enviar($caratula['RutEnvia'], $caratula['RutEmisor'], $EnvioDTExml);
+        $envioResponse= $envioArray[0];
+        $filename = $envioArray[1];
+        if ($envioResponse == false) {
             return response()->json([
                 'message' => "Error al enviar el DTE",
                 'errores' => Log::read()->msg,
             ], 400);
         }
 
-        /*
-        $factura = new EnvioDte();
-        $factura->loadXML($EnvioDTExml);
-        Sii::setAmbiente(Sii::CERTIFICACION);
-        $token = json_decode(file_get_contents(base_path('config.json')))->token_dte;
-        $result = Sii::enviar($RutEnvia, $RutEmisor, $EnvioDTExml, $token);
-        // si hubo algún error al enviar al servidor mostrar
-        $errores = [];
-        if ($result===false) {
-            foreach (Log::readAll() as $error)
-                $errores[] = $error->msg;
-        }
+        // Guardar en base de datos envio, xml, etc
+        $this->guardarXmlDB($envioResponse, $filename, $caratula, $dte);
 
-        // Mostrar resultado del envío
-        if ($result->STATUS!='0') {
-            foreach (Log::readAll() as $error)
-                $errores[] = $error->msg;
-        }
-        // Convertir a array asociativo
-        $arrayData = json_decode(json_encode($result), true);
-
-        // Respuesta como JSON
-        $json_response = json_decode(json_encode($arrayData, JSON_PRETTY_PRINT));
-        Storage::disk('dtes')->put('EnvioFACTURA/factura_ejemplo_enviada.xml', $EnvioDTExml);
-        return response()->json([
-            'message' => "Factura electronica enviada correctamente",
-            'response' => [
-                "EnvioFactura" => $json_response,
-                "errores" => json_decode(json_encode($errores)),
-                //"result" => $json_response
-            ],
-        ], 200);
-        */
-        if($dteresponse->STATUS != '0'){
+        if($envioResponse->STATUS != '0') {
             return response()->json([
                 'message' => "Error en la respuesta del SII al enviar factura",
-                'errores' => $dteresponse,
+                'errores' => $envioResponse,
             ], 400);
         }
 
         return response()->json([
-            //'message' => "Factura electronica y rcof enviado correctamente",
             'message' => "Factura electronica enviada correctamente",
             'response' => [
-                "EnvioFactura" => $dteresponse,
-                //"errores" => json_decode(json_encode($errores)),
-                //"result" => $json_response
+                "EnvioFactura" => $envioResponse,
             ],
         ], 200);
 
         /*
-        if (gettype($EnvioDTExml) == 'array') {
-            return response()->json([
-                'message' => "Error al generar el envio de DTEs",
-                'errores' => json_decode(json_encode($EnvioDTExml)),
-            ], 400);
-        }
-
-        // Enviar DTE e insertar en base de datos de ser exitoso
-        $RutEnvia = $Firma->getID(); // RUT autorizado para enviar DTEs
-        $RutEmisor = $boletas[0]['Encabezado']['Emisor']['RUTEmisor']; // RUT del emisor del DTE
-        $dteresponse = $this->enviar($RutEnvia, $RutEmisor, $EnvioDTExml);
-
-        // generar rcof (consumo de folios) y enviar
-        $ConsumoFolioxml = $this->generarRCOF($EnvioDTExml);
-
-        // Si hubo errores mostrarlos
-        if (gettype($ConsumoFolioxml) == 'array') {
-            return response()->json([
-                'message' => "Error al generar el envio de Rcof (Consumo de folios)",
-                'errores' => json_decode(json_encode($ConsumoFolioxml)),
-            ], 400);
-        }
-
-        // Enviar RCOF e insertar en base de datos de ser exitoso
-        $filename = 'EnvioBOLETA_' . $this->timestamp . '.xml';
-        $filename = str_replace(' ', 'T', $filename);
-        $filename = str_replace(':', '-', $filename);
-        $rcofreponse = $this->enviarRcof($ConsumoFolioxml, $filename);
-
         // Actualizar folios en la base de datos
         $this->actualizarFolios();
         return response()->json([
             //'message' => "Factura electronica y rcof enviado correctamente",
             'message' => "Factura electronica enviada correctamente",
             'response' => [
-                "EnvioFactura" => json_decode($dteresponse),
+                "EnvioFactura" => json_decode($envioResponse),
                 //'EnvioRcof' => json_decode(json_encode(["trackid" => $rcofreponse]))
             ],
         ], 200);
