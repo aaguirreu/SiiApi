@@ -4,13 +4,14 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use Carbon\Carbon;
+use Exception;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use sasco\LibreDTE\FirmaElectronica;
 use sasco\LibreDTE\Log;
 use sasco\LibreDTE\Sii;
 use sasco\LibreDTE\Sii\Autenticacion;
-use sasco\LibreDTE\Sii\ConsumoFolio;
 use sasco\LibreDTE\Sii\Dte;
 use sasco\LibreDTE\Sii\EnvioDte;
 use sasco\LibreDTE\Sii\Folios;
@@ -19,21 +20,27 @@ use SimpleXMLElement;
 
 class DteController extends Controller
 {
-    protected $timestamp;
-    protected static $retry = 10;
-    protected static $folios = [];
-    protected static $folios_inicial = [];
-    protected static $tipos_dte = [];
+    protected string $timestamp;
+    protected static int $retry = 10;
+    protected static array $folios = [];
+    protected static array $folios_inicial = [];
+    protected static array $tipos_dte = [];
+    protected static string $url = '';
+    protected static int $ambiente; // 1 Producción, 0 Certificación
+    protected static string $token = '';
 
-    protected function actualizarFolios()
+    protected function actualizarFolios(): void
     {
         foreach (self::$folios as $key => $value) {
-            if(self::$folios_inicial[$key] <= self::$folios[$key])
+            if (self::$folios_inicial[$key] <= self::$folios[$key])
                 DB::table('secuencia_folio')->where('id', $key)->update(['cant_folios' => self::$folios[$key], 'updated_at' => $this->timestamp]);
         }
     }
 
-    protected function uploadCaf($request, ?bool $force = false)
+    /**
+     * @throws Exception
+     */
+    protected function uploadCaf($request, ?bool $force = false): JsonResponse
     {
         // Leer string como xml
         $rbody = $request->getContent();
@@ -46,9 +53,9 @@ class DteController extends Controller
          * Si existe, se obtiene el último folio final y se compara con el folio inicial del caf
          * Si no existe, se guarda el caf
          */
-        if(DB::table('caf')->where('folio_id','=', $folio_caf)->exists()){
+        if (DB::table('caf')->where('folio_id', '=', $folio_caf)->exists()) {
             if (!$force) {
-                $folio = DB::table('caf')->where('folio_id','=', $folio_caf)->latest()->first();
+                $folio = DB::table('caf')->where('folio_id', '=', $folio_caf)->latest()->first();
                 $folio_final = $folio->folio_final;
             } else {
                 $folio_final = (int)$caf->CAF->DA->RNG->D[0];
@@ -56,10 +63,10 @@ class DteController extends Controller
             }
             if ($folio_final + 1 != intval($caf->CAF->DA->RNG->D[0])) {
                 return response()->json([
-                    'message' => 'El caf no sigue el orden de folios correspondiente. Folio final: '.$folio_final.', folio caf enviado: '.$caf->CAF->DA->RNG->D[0].'. Deben ser consecutivos.'
+                    'message' => 'El caf no sigue el orden de folios correspondiente. Folio final: ' . $folio_final . ', folio caf enviado: ' . $caf->CAF->DA->RNG->D[0] . '. Deben ser consecutivos.'
                 ], 400);
             }
-        } else if(DB::table('secuencia_folio')->where('id', '=', $folio_caf)->doesntExist()) {
+        } else if (DB::table('secuencia_folio')->where('id', '=', $folio_caf)->doesntExist()) {
             $cant_folios = intval($caf->CAF->DA->RNG->D[0]);
             DB::table('secuencia_folio')->insert([
                 'id' => $folio_caf,
@@ -70,7 +77,7 @@ class DteController extends Controller
         }
 
         // Nombre caf tipodte_timestamp.xml
-        $filename = $caf->CAF->DA->TD[0].'_'.$this->timestamp.'.xml';
+        $filename = $caf->CAF->DA->TD[0] . '_' . $this->timestamp . '.xml';
         $filename = str_replace(' ', 'T', $filename);
         $filename = str_replace(':', '-', $filename);
 
@@ -90,7 +97,7 @@ class DteController extends Controller
         // Mensaje de caf guardado
         return response()->json([
             'message' => 'CAF guardado correctamente'
-        ], 200);
+        ]);
     }
 
     protected function generarModeloDocumento($modeloDocumento, $detalles, $tipoDTE): array
@@ -102,7 +109,8 @@ class DteController extends Controller
         return $modeloDocumento;
     }
 
-    protected function guardarEnvioDte($response) {
+    protected function guardarEnvioDte($response): int
+    {
         return DB::table('envio_dte')->insertGetId([
             'trackid' => $response->trackid ?? $response->TRACKID,
             'status' => 'Enviado',
@@ -111,8 +119,9 @@ class DteController extends Controller
         ]);
     }
 
-    protected function updateEnvioDte($estado, $id) {
-        if($estado) {
+    protected function updateEnvioDte($estado, $id)
+    {
+        if ($estado) {
             // Obtener row con id
             $enviodte = DB::table('envio_dte')->where('id', '=', $id)->first();
             // Insertar envio dte en la base de datos
@@ -129,66 +138,79 @@ class DteController extends Controller
         return $id;
     }
 
-    protected function guardarXmlDB($envioResponse, $filename, $caratula, $dte) {
+    protected function guardarXmlDB($envioResponse, $filename, $caratula, $dte, $dteXml): array|int
+    {
         try {
             DB::beginTransaction(); // <= Starting the transaction
 
             $envioDteId = $this->guardarEnvioDte($envioResponse);
-            $emisorID = $this->getEmpresa($caratula['RutEmisor'], $dte);
-            $caratulaId = $this->getCaratula($caratula);
+            $emisorID = $this->getEmpresa($caratula['RutEmisor'], $dte->Documentos[0]->Encabezado->Emisor);
+            $caratulaId = $this->getCaratula($caratula, $emisorID);
             $dteId = $this->guardarDte($filename, $envioDteId, $caratulaId);
-            $documentoId = $this->guardarDocumento($dteId, $envioDteId, $caratulaId);
-
+            $xml = new SimpleXMLElement($dteXml);
+            foreach ($xml->children()->SetDTE->DTE->Documento as $documento) {
+                $cafId = DB::table('caf')->where('folio_id', '=', $documento->Encabezado->IdDoc->TipoDTE)->latest()->first()->id;
+                $receptorId = $this->getEmpresa($documento->Encabezado->Receptor->RUTRecep, $documento);
+                $documentoId = $this->guardarDocumento($dteId, $cafId, $receptorId, $documento);
+                foreach ($documento->Detalle as $detalle) {
+                    $this->guardarDetalle($detalle, $documentoId);
+                }
+            }
+            // Actualizar folios en la base de datos
+            $this->actualizarFolios();
             DB::commit(); // <= Commit the changes
-        } catch (\Exception $e) {
+            return $envioDteId;
+        } catch (Exception $e) {
             report($e);
-
             DB::rollBack(); // <= Rollback in case of an exception
-            return json_decode(json_encode($e, true), JSON_PRETTY_PRINT);
+            return [
+                'error' => $e->getMessage(),
+            ];
         }
     }
 
-    protected function guardarDte($filename, $envioDteId, $caratulaId) {
+    protected function guardarDte($filename, $envioDteId, $caratulaId): int
+    {
         return DB::table('dte')->insertGetId([
             'envio_id' => $envioDteId,
-            'carautula_id' => $caratulaId,
-            'resumen_id' => 0,
+            'caratula_id' => $caratulaId,
+            'resumen_id' => null,
             'xml_filename' => $filename,
             'created_at' => $this->timestamp,
             'updated_at' => $this->timestamp
         ]);
     }
 
-    protected function getEmpresa($rut, $dte) {
+    protected function getEmpresa($rut, $dte): int
+    {
         $emisor = DB::table('empresa')->where('rut', '=', $rut)->latest()->first();
-        if($emisor) return $emisor->id;
+        if ($emisor) return $emisor->id;
         else {
             return $this->guardarEmpresa($rut, $dte);
         }
     }
 
-    protected function guardarEmpresa($rut, $empresa) {
+    protected function guardarEmpresa($rut, $empresa): int
+    {
         return DB::table('empresa')->insertGetId([
             'rut' => $rut,
-            'fecha_resolucion' => $empresa['FchResol'] ?? null,
-            'razon_social' => $empresa['RznSoc'] ?? null,
-            'giro' => $empresa['GiroEmis'] ?? null,
-            'acteco' => $empresa['Acteco'] ?? null,
-            'direccion' => $empresa['DirOrigen'] ?? null,
-            'comuna' => $empresa['CmnaOrigen'] ?? null,
-            'ciudad' => $empresa['CiudadOrigen'] ?? null,
-            'codigo_vendedor' => $empresa['CodigoVendedor'] ?? null,
-            'correo' => $empresa['CorreoEmisor'] ?? null,
-            'telefono' => $empresa['Telefono'] ?? null,
+            'fecha_resolucion' => $empresa->FchResol ?? null,
+            'razon_social' => $empresa->RznSoc ?? null,
+            'giro' => $empresa->GiroEmis ?? null,
+            'acteco' => $empresa->Acteco ?? null,
+            'direccion' => $empresa->DirOrigen ?? null,
+            'comuna' => $empresa->CmnaOrigen ?? null,
+            'ciudad' => $empresa->CiudadOrigen ?? null,
+            'codigo_vendedor' => $empresa->CodigoVendedor ?? null,
+            'correo' => $empresa->CorreoEmisor ?? null,
+            'telefono' => $empresa->Telefono ?? null,
             'created_at' => $this->timestamp,
             'updated_at' => $this->timestamp
         ]);
     }
 
-    protected function getCaratula($caratula){
-        // Obtener id emisor
-        $idEmisor = DB::table('empresa')->where('rut', '=', $caratula['RutEmisor'])->latest()->first()->id;
-
+    protected function getCaratula($caratula, $idEmisor): int
+    {
         // Verificar si existe caratula
         $existeCaratula = DB::table('caratula')
             ->where('emisor_id', '=', $idEmisor)
@@ -196,12 +218,13 @@ class DteController extends Controller
             ->where('rut_receptor', '=', $caratula['RutReceptor'])
             ->get()->first();
 
-        if(!$existeCaratula){
+        if (!$existeCaratula) {
             return $this->guardarCaratula($caratula, $idEmisor);
         } else return $existeCaratula->id;
     }
 
-    protected function guardarCaratula($caratula, $idEmisor) {
+    protected function guardarCaratula($caratula, $idEmisor): int
+    {
         return DB::table('caratula')->insertGetId([
             'emisor_id' => $idEmisor,
             'rut_envia' => $caratula['RutEnvia'],
@@ -211,29 +234,59 @@ class DteController extends Controller
         ]);
     }
 
-    protected function guardarDocumento() {
-        return DB::table('documento')->insert([
+    protected function guardarDocumento($dteId, $cafId, $receptorId, $documento): int
+    {
+        if(isset($documento->Encabezado->Referencia))
+            $refId = $this->getDocumento($documento->Encabezado->Referencia->TpoDocRef, $documento->Encabezado->Referencia->FolioRef);
+        else
+            $refId = null;
+        return DB::table('documento')->insertGetId([
             'caf_id' => $cafId,
             'dte_id' => $dteId,
-            'numero_folio' => $numeroFolio,
-            'tipo_transaccion' => $tipoTransaccion,
             'receptor_id' => $receptorId,
-            'monto_total' => $montoTotal,
-            'folio_referencia' => $folioReferencia,
+            // ref_id guarda el id del 'documento' de referencia
+            // solo en caso de que el documento sea una nota de crédito o débito
+            'ref_id' => $refId,
+            'folio' => $documento->Encabezado->IdDoc->Folio ?? null,
+            'tipo_transaccion' => $documento->Encabezado->IdDoc->TpoTranVenta ?? 1,
+            'monto_total' => $documento->Encabezado->Totales->MntTotal ?? 0,
             'created_at' => $this->timestamp,
             'updated_at' => $this->timestamp
         ]);
     }
 
-    protected function guardarDetalle() {
-
+    protected function getDocumento($tipoDte, $folio)
+    {
+        return DB::table('documento')
+            ->join('caf', 'documento.caf_id', '=', 'caf.id')
+            ->where('documento.folio', $folio)
+            ->where('caf.folio', $tipoDte)
+            ->select('documento.*')
+            ->first()->id;
     }
 
-    protected function getTokenBE() {
+    protected function guardarDetalle($detalle, $documentoId): void
+    {
+        DB::table('detalle')->insert([
+            'documento_id' => $documentoId,
+            'secuencia' => $detalle->NroLinDet,
+            'nombre' => $detalle->NmbItem,
+            'descripcion' => $detalle->DscItem ?? null,
+            'cantidad' => $detalle->QtyItem,
+            'unidad_medida' => $detalle->UnmdItem,
+            'precio' => $detalle->PrcItem,
+            'monto' => $detalle->MontoItem,
+            'created_at' => $this->timestamp,
+            'updated_at' => $this->timestamp
+        ]);
+    }
+
+    protected function getTokenBE(): void
+    {
         // Solicitar seed
         $seed = file_get_contents('https://api.sii.cl/recursos/v1/boleta.electronica.semilla');
         $seed = simplexml_load_string($seed);
-        $seed = (string) $seed->xpath('//SII:RESP_BODY/SEMILLA')[0];
+        $seed = (string)$seed->xpath('//SII:RESP_BODY/SEMILLA')[0];
         //echo "Seed = ".$seed."\n";
 
         // Obtener Firma
@@ -262,7 +315,7 @@ class DteController extends Controller
             CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
             CURLOPT_CUSTOMREQUEST => 'POST',
-            CURLOPT_POSTFIELDS =>$seedSigned,
+            CURLOPT_POSTFIELDS => $seedSigned,
             CURLOPT_HTTPHEADER => array(
                 'Content-Type: application/xml',
             ),
@@ -273,17 +326,17 @@ class DteController extends Controller
         $responseXml = simplexml_load_string($response);
 
         // Guardar Token con su timestamp en config.json
-        $tokenBE = (string) $responseXml->xpath('//TOKEN')[0];
+        $tokenBE = (string)$responseXml->xpath('//TOKEN')[0];
         $config_file = json_decode(file_get_contents(base_path('config.json')));
         $config_file->tokenBE = $tokenBE;
-        $config_file->tokenBE_timestamp = Carbon::now('America/Santiago')->timestamp;;
+        $config_file->tokenBE_timestamp = Carbon::now('America/Santiago')->timestamp;
         file_put_contents(base_path('config.json'), json_encode($config_file), JSON_PRETTY_PRINT);
     }
 
-    protected function getToken()
+    protected function getToken(): void
     {
-        // Set ambiente producción
-        Sii::setAmbiente(Sii::PRODUCCION);
+        // Set ambiente certificacion
+        Sii::setAmbiente(self::$ambiente);
         $token = Autenticacion::getToken($this->obtenerFirma());
         $config_file = json_decode(file_get_contents(base_path('config.json')));
         $config_file->token = $token;
@@ -291,26 +344,26 @@ class DteController extends Controller
         file_put_contents(base_path('config.json'), json_encode($config_file), JSON_PRETTY_PRINT);
     }
 
-    protected function isToken()
+    protected function isToken(): void
     {
-        if(file_exists(base_path('config.json'))) {
+        if (file_exists(base_path('config.json'))) {
             // Obtener config.json
             $config_file = json_decode(file_get_contents(base_path('config.json')));
 
             // Verificar tokenBE
-            if($config_file->tokenBE === '' || $config_file->tokenBE === false || $config_file->tokenBE_timestamp === false) {
+            if ($config_file->tokenBE === '' || $config_file->tokenBE === false || $config_file->tokenBE_timestamp === false) {
                 $this->getTokenBE();
             } else {
                 $now = Carbon::now('America/Santiago')->timestamp;
                 $tokenBETimeStamp = $config_file->tokenBE_timestamp;
                 $diff = $now - $tokenBETimeStamp;
-                if($diff > $config_file->tokenBE_expiration) {
+                if ($diff > $config_file->tokenBE_expiration) {
                     $this->getTokenBE();
                 }
             }
 
             // Verificar token
-            if($config_file->token === '' || $config_file->token === false || $config_file->token_timestamp === false) {
+            if ($config_file->token === '' || $config_file->token === false || $config_file->token_timestamp === false) {
                 $this->getToken();
             } else {
                 $now = Carbon::now('America/Santiago')->timestamp;
@@ -414,7 +467,8 @@ class DteController extends Controller
         return $response ?? $documentos;
     }
 
-    protected function obtenerCaratula($dte, $documentos, $firma): array {
+    protected function obtenerCaratula($dte, $documentos, $firma): array
+    {
         return [
             'RutEmisor' => $dte->Caratula->RutEmisor ?? $documentos[0]['Encabezado']['Emisor']['RUTEmisor'], // se obtiene automáticamente
             'RutEnvia' => $firma->getID(),
@@ -424,13 +478,13 @@ class DteController extends Controller
         ];
     }
 
-    protected function generarEnvioDteXml(array $documentos, FirmaElectronica $Firma, array $folios, array $caratula)
+    protected function generarEnvioDteXml(array $documentos, FirmaElectronica $Firma, array $folios, array $caratula): mixed
     {
         $EnvioDTE = new EnvioDte();
         foreach ($documentos as $documento) {
             $DTE = new Dte($documento);
-            //if (!$DTE->timbrar($folios[intval($DTE->getTipo())])) // Probar así para que se vaya el error
-            if (!$DTE->timbrar($folios[$DTE->getTipo()]))
+            if (!$DTE->timbrar($folios[intval($DTE->getTipo())]))
+            //if (!$DTE->timbrar($folios[$DTE->getTipo()]))
                 break;
             if (!$DTE->firmar($Firma))
                 break;
@@ -439,9 +493,9 @@ class DteController extends Controller
         $EnvioDTE->setFirma($Firma);
         $EnvioDTE->setCaratula($caratula);
         $EnvioDTE->generar();
-        $EnvioDTExml = new XML();
+        $errores = [];
         if ($EnvioDTE->schemaValidate()) {
-            return $EnvioDTExml;
+            return $EnvioDTE->generar();
         } else {
             //return $EnvioDTExml = $EnvioDTE->generar();
             // si hubo errores mostrar
@@ -451,26 +505,34 @@ class DteController extends Controller
         }
     }
 
-    protected function obtenerFolios($dte) {
+    protected function obtenerFolios($dte): array
+    {
         $folios = [];
-        foreach ($dte->Documentos as $documento) {
-            $tipoDte = $documento->Encabezado->IdDoc->TipoDTE;
-            if (!in_array($tipoDte, self::$tipos_dte))
-                $error['error'][] = "El TipoDTE no es válido. Debe ser 33, 34, 56 y/o 61. Encontrado: $tipoDte";
-            self::$folios[$tipoDte] = DB::table('secuencia_folio')->where('id',$tipoDte)->value('cant_folios');
-            $folios[$tipoDte] = self::$folios[$tipoDte] + 1;
+        if(isset($dte->Documentos)) {
+            foreach ($dte->Documentos as $documento) {
+                if(isset($documento->Encabezado->IdDoc->TipoDTE)) {
+                    $tipoDte = $documento->Encabezado->IdDoc->TipoDTE;
+                    if (!in_array($tipoDte, self::$tipos_dte))
+                        $error['error'][] = "El TipoDTE no es válido. Debe ser 33, 34, 56 y/o 61. Encontrado: $tipoDte";
+                    self::$folios[$tipoDte] = DB::table('secuencia_folio')->where('id', $tipoDte)->value('cant_folios');
+                    $folios[$tipoDte] = self::$folios[$tipoDte] + 1;
+                } else $error['error'][] = "No existe el campo TipoDTE en el json";
+            }
+        } else {
+            $error['error'][] = "No existe el campo Documentos en el json";
         }
         return $error ?? $folios;
     }
 
-    protected function obtenerFoliosCaf() {
+    protected function obtenerFoliosCaf(): array
+    {
         $folios = [];
         foreach (self::$folios as $tipo => $cantidad) {
             $caf = DB::table('caf')->where('folio_id', '=', $tipo)->latest()->first();
-            if($caf) {
+            if ($caf) {
                 try {
                     $folios[$tipo] = new Folios(Storage::disk('cafs')->get($caf->xml_filename));
-                } catch (\Exception $e) {
+                } catch (Exception $e) {
                     $error['error'][] = "$e\nNo existe el caf para el folio $tipo en storage";
                 }
             } else {
@@ -479,5 +541,23 @@ class DteController extends Controller
 
         }
         return $error ?? $folios;
+    }
+
+    protected function guardarXML($rutReceptor): array
+    {
+        if (!file_exists(env('DTES_PATH', "") . "$rutReceptor")) {
+            mkdir(env('DTES_PATH', "") . "$rutReceptor", 0777, true);
+        }
+        if ($rutReceptor == '60803000-K') {
+            $filename = "DTE_$this->timestamp.xml";
+        } else {
+            $tipoDTE = key(array_filter(self::$folios));
+            $folio = self::$folios[$tipoDTE];
+            $filename = "DTE_$tipoDTE" . "_$folio" . "_$this->timestamp.xml";
+        }
+        $filename = str_replace(' ', 'T', $filename);
+        $filename = str_replace(':', '-', $filename);
+        $file = env('DTES_PATH', "") . "$rutReceptor\\" . $filename;
+        return [$file, $filename];
     }
 }

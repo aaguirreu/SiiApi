@@ -22,9 +22,11 @@ use SimpleXMLElement;
 
 class BoletaController extends DteController
 {
-    public function __construct($tipos_dte)
+    public function __construct($tipos_dte, $url, $ambiente)
     {
         self::$tipos_dte = $tipos_dte;
+        self::$url = $url;
+        self::$ambiente = $ambiente;
     }
     protected function enviar($usuario, $empresa, $dte)
     {

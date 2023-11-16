@@ -2,64 +2,43 @@
 
 namespace App\Http\Controllers\Api\V1;
 
-use App\Http\Controllers\Controller;
 use Carbon\Carbon;
 use CURLFile;
 use Exception;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use sasco\LibreDTE\Estado;
-use sasco\LibreDTE\FirmaElectronica;
 use sasco\LibreDTE\Log;
 use sasco\LibreDTE\Sii;
 use sasco\LibreDTE\Sii\Autenticacion;
-use sasco\LibreDTE\Sii\ConsumoFolio;
-use sasco\LibreDTE\Sii\Dte;
-use sasco\LibreDTE\Sii\EnvioDte;
-use sasco\LibreDTE\Sii\Folios;
-use sasco\LibreDTE\XML;
-use SimpleXMLElement;
 
 class FacturaController extends DteController
 {
-    public function __construct($tipos_dte)
+    public function __construct($tipos_dte, $url, $ambiente, $token)
     {
         self::$tipos_dte = $tipos_dte;
+        self::$url = $url;
+        self::$ambiente = $ambiente;
+        self::$token = $token;
+
     }
 
-    protected function enviar($usuario, $empresa, $dte)
-    {
-        $token = json_decode(file_get_contents(base_path('config.json')))->token;
+    protected function enviar($rutEnvia, $rutEmisor, $dte) {
         // definir datos que se usarán en el envío
-        list($rutSender, $dvSender) = explode('-', str_replace('.', '', $usuario));
-        list($rutCompany, $dvCompany) = explode('-', str_replace('.', '', $empresa));
-        if (strpos($dte, '<?xml') === false) {
+        list($rutSender, $dvSender) = explode('-', str_replace('.', '', $rutEnvia));
+        list($rutCompany, $dvCompany) = explode('-', str_replace('.', '', $rutEmisor));
+        if (!str_contains($dte, '<?xml')) {
             $dte = '<?xml version="1.0" encoding="ISO-8859-1"?>' . "\n" . $dte;
         }
         do {
-            if (!file_exists(env('DTES_PATH', "")."EnvioFACTURA")) {
-                mkdir(env('DTES_PATH', "")."EnvioFACTURA", 0777, true);
-            }
-            $filename = 'EnvioFACTURA_'.$this->timestamp.'.xml';
-            $filename = str_replace(' ', 'T', $filename);
-            $filename = str_replace(':', '-', $filename);
-            $file = env('DTES_PATH', "")."EnvioFACTURA\\".$filename;
+            list($file, $filename) = $this->guardarXML('60803000-K');
         } while (file_exists($file));
 
-        // NO GUARDA LOS ARCHIVOS A PESAR DE QUE RETORNA QUE SI
-        // Guardar xml en disco
-        //$dte = mb_convert_encoding($dte, "UTF-8", "auto");
-
-        if(!Storage::disk('dtes')->put('EnvioFACTURA\\'.$filename, $dte)){
-            return response()->json([
-                'message' => 'Error al guardar el DTE en el servidor',
-            ], 400);
+        if(!Storage::disk('dtes')->put("60803000-K\\$filename", $dte)) {
+            return [response()->json([
+                'message' => 'Error al guardar el DTE en el storage',
+            ], 400), $filename];
         }
-
-        //$file = Storage::disk('dtes')->get('EnvioFACTURA\\'.$filename);
-        //$file = mb_convert_encoding($filename, "ISO-8859-1", "auto");
-
-        //$file= 'C:\Users\aagui\Downloads\factura_ejemplo.xml';
 
         $data = [
             'rutSender' => $rutSender,
@@ -71,18 +50,16 @@ class FacturaController extends DteController
 
         $header = [
             'User-Agent: Mozilla/4.0 (compatible; PROG 1.0; Logiciel)',
-            'Cookie: TOKEN=' . $token,
+            'Cookie: TOKEN=' . self::$token,
             'Content-Type: text/html; charset=ISO-8859-1',
         ];
 
         // crear sesión curl con sus opciones
         $curl = curl_init();
-        $url = 'https://maullin.sii.cl/cgi_dte/UPL/DTEUpload'; // certificacion
-        //$url = 'https://palena.sii.cl/cgi_dte/UPL/DTEUpload'; // producción
         curl_setopt($curl, CURLOPT_POST, true);
         curl_setopt($curl, CURLOPT_POSTFIELDS, $data);
         curl_setopt($curl, CURLOPT_HTTPHEADER, $header);
-        curl_setopt($curl, CURLOPT_URL, $url);
+        curl_setopt($curl, CURLOPT_URL, self::$url);
         curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
 
         // enviar XML al SII
@@ -102,11 +79,11 @@ class FacturaController extends DteController
                 Log::write(Estado::ENVIO_ERROR_500, Estado::get(Estado::ENVIO_ERROR_500));
             }
             // Borrar xml guardado anteriormente
-            Storage::disk('dtes')->delete('EnvioFACTURA\\'.$filename);
-            return response()->json([
+            Storage::disk('dtes')->delete('60803000-K\\'.$filename);
+            return [response()->json([
                 'message' => 'Error al enviar el DTE al SII',
                 'error' => $response,
-            ], 400);
+            ], 400), $filename];
         }
 
         // cerrar sesión curl
@@ -126,30 +103,17 @@ class FacturaController extends DteController
             );
             $arrayData = json_decode(json_encode($xml), true);
             // Borrar xml guardado anteriormente
-            Storage::disk('dtes')->delete('EnvioFACTURA\\'.$filename);
-            return json_decode(json_encode($arrayData, JSON_PRETTY_PRINT));
+            Storage::disk('dtes')->delete('60803000-K\\'.$filename);
+            return false;
         }
 
-         // Convertir a array asociativo
+        // Convertir a array asociativo
         $arrayData = json_decode(json_encode($xml), true);
 
         // Respuesta como JSON
         $json_response = json_decode(json_encode($arrayData, JSON_PRETTY_PRINT));
 
         return [$json_response, $filename];
-    }
-
-    // Borrar cuando deje de utilizar ambiente certificacion
-    protected function getTokenDte()
-    {
-        // Set ambiente producción
-        //Sii::setAmbiente(Sii::PRODUCCION);
-        $token = Autenticacion::getToken($this->obtenerFirma());
-        $config_file = json_decode(file_get_contents(base_path('config.json')));
-        $config_file->token = $token;
-        $config_file->token_timestamp = Carbon::now('America/Santiago')->timestamp;;
-        //Storage::disk('local')->put('config.json', json_encode($config_file, JSON_PRETTY_PRINT));
-        file_put_contents(base_path('config.json'), json_encode($config_file), JSON_PRETTY_PRINT);
     }
 
     protected function parseDte($dte): array
