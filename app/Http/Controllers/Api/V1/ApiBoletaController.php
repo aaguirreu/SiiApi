@@ -35,12 +35,10 @@ class ApiBoletaController extends BoletaController
         // Comparar cantidad de folios usados con cantidad de folios disponibles
 
         // Obtiene los folios con la cantidad de folios usados desde la base de datos
-        self::$folios_inicial = $this->obtenerFolios();
+        self::$folios_inicial = $this->obtenerFolios($dte);
 
         // Variable auxiliar para guardar el folio inicial
 
-        $caratula = $this->obtenerCaratula($dte);
-        $Folios = $this->obtenerFoliosCaf();
 
         // Parseo de boletas según modelo libreDTE
         $boletas = $this->parseDte($dte);
@@ -56,6 +54,8 @@ class ApiBoletaController extends BoletaController
         // Objetos de Firma y Folios
         $Firma = $this->obtenerFirma();
 
+        $caratula = $this->obtenerCaratula($dte, $boletas, $Firma);
+        $Folios = $this->obtenerFoliosCaf();
         // generar cada DTE, timbrar, firmar y agregar al sobre de EnvioBOLETA
         $EnvioDTExml = $this->generarEnvioDteXml($boletas, $Firma, $Folios, $caratula);
         if (gettype($EnvioDTExml) == 'array') {

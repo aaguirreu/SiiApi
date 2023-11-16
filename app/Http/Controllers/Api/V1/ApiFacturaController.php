@@ -3,27 +3,12 @@
 namespace App\Http\Controllers\Api\V1;
 
 use Carbon\Carbon;
-use http\Env\Response;
-use Illuminate\Contracts\Filesystem\FileNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Storage;
-use sasco\LibreDTE\Estado;
 use sasco\LibreDTE\Log;
 use sasco\LibreDTE\Sii;
-use sasco\LibreDTE\Sii\EnvioDte;
-use sasco\LibreDTE\XML;
-use SimpleXMLElement;
-use Webklex\PHPIMAP\ClientManager;
-use Webklex\PHPIMAP\Client;
-use Webklex\PHPIMAP\Folder;
-use Webklex\PHPIMAP\Support\MessageCollection;
-use Webklex\PHPIMAP\Message;
-use Webklex\PHPIMAP\Support\AttachmentCollection;
-use Webklex\PHPIMAP\Attachment;
+
 
 // Debería ser class ApiFacturaController extends ApiController
 // y llamar a FacturaController con use FacturaController, new FacturaController(construct)
