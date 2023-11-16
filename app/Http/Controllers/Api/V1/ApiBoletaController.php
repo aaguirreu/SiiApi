@@ -11,7 +11,11 @@ class ApiBoletaController extends BoletaController
 {
     public function __construct()
     {
-        parent::__construct([39, 41]);
+        $ambiente = 0;
+        $url = 'https://apicert.sii.cl/recursos/v1/boleta.electronica.envio/';
+        if ($ambiente == 1)
+            $url = 'https://api.sii.cl/recursos/v1/boleta.electronica.envio/';
+        parent::__construct([39, 41], $url, $ambiente);
         $this->timestamp = Carbon::now('America/Santiago');
     }
 

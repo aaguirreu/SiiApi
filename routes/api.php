@@ -1,7 +1,9 @@
 <?php
 
+use App\Http\Controllers\Api\V1\ApiFacturaController;
 use App\Http\Controllers\UserController;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -39,16 +41,13 @@ Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1'], f
     Route::post('boletas/estado.dte', 'ApiBoletaController@estadoDte');
 
     // Envio de Factura
-    Route::post('facturas/envio', 'ApiFacturaController@facturaElectronica');
-    Route::post('facturas/envioxml', 'ApiFacturaController@enviarXML');
-    Route::post('facturas/estado.envio', 'ApiFacturaController@estadoDteEnviado');
-    Route::post('facturas/estado.dte', 'ApiFacturaController@estadoDte');
-    //borrardps
-    Route::get('facturas/readlog', 'ApiFacturaController@readLog');
-    Route::get('facturas/readmail', 'ApiFacturaController@readMail');
+    Route::post('{ambiente}/dte/envio', 'ApiFacturaController@envioDte');
+    Route::post('{ambiente}/dte/estado.envio', 'ApiFacturaController@estadoEnvioDte');
+    Route::post('{ambiente}/dte/estado.dte', 'ApiFacturaController@estadoDte');
 
     // Envio de Set de Prueba
     Route::post('setdeprueba/envio', 'ApiSetPruebaBEController@setPrueba');
     Route::post('setdeprueba/estado.envio', 'ApiSetPruebaBEController@estadoDteEnviado');
     Route::post('setdeprueba/estado.dte', 'ApiSetPruebaBEController@estadoDte');
+
 });
