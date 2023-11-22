@@ -484,7 +484,7 @@ class DteController extends Controller
         foreach ($documentos as $documento) {
             $DTE = new Dte($documento);
             if (!$DTE->timbrar($folios[intval($DTE->getTipo())]))
-            //if (!$DTE->timbrar($folios[$DTE->getTipo()]))
+                //if (!$DTE->timbrar($folios[$DTE->getTipo()]))
                 break;
             if (!$DTE->firmar($Firma))
                 break;

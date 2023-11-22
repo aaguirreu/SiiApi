@@ -14,13 +14,13 @@ use sasco\LibreDTE\Sii\Autenticacion;
 
 class FacturaController extends DteController
 {
-    public function __construct($tipos_dte, $url, $ambiente, $token)
+    public function __construct($tipos_dte, $url, $ambiente)
     {
         self::$tipos_dte = $tipos_dte;
         self::$url = $url;
         self::$ambiente = $ambiente;
-        self::$token = $token;
-
+        self::isToken();
+        self::$token = json_decode(file_get_contents(base_path('config.json')))->token;
     }
 
     protected function enviar($rutEnvia, $rutEmisor, $dte) {
@@ -35,9 +35,8 @@ class FacturaController extends DteController
         } while (file_exists($file));
 
         if(!Storage::disk('dtes')->put("60803000-K\\$filename", $dte)) {
-            return [response()->json([
-                'message' => 'Error al guardar el DTE en el storage',
-            ], 400), $filename];
+            Log::write(0, 'Error al guardar dte en Storage');
+            return false;
         }
 
         $data = [
@@ -80,10 +79,7 @@ class FacturaController extends DteController
             }
             // Borrar xml guardado anteriormente
             Storage::disk('dtes')->delete('60803000-K\\'.$filename);
-            return [response()->json([
-                'message' => 'Error al enviar el DTE al SII',
-                'error' => $response,
-            ], 400), $filename];
+            return false;
         }
 
         // cerrar sesión curl
@@ -161,9 +157,6 @@ class FacturaController extends DteController
                 ];
             }
         }
-
         return $response ?? $documentos;
     }
 }
-
-

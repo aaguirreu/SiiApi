@@ -17,15 +17,13 @@ class ApiFacturaController extends FacturaController
     public function __construct()
     {
         $ambiente = 0;
-        $token = json_decode(file_get_contents(base_path('config.json')))->token;
         $url = 'https://maullin.sii.cl/cgi_dte/UPL/DTEUpload'; // url certificación
         if ($ambiente == 1) {
             //$url = 'https://palena.sii.cl/cgi_dte/UPL/DTEUpload'; // url producción
             $url = 'https://maullin.sii.cl/cgi_dte/UPL/DTEUpload';
         }
-        parent::__construct([33, 34, 56, 61], $url, $ambiente, $token);
+        parent::__construct([33, 34, 56, 61], $url, $ambiente);
         $this->timestamp = Carbon::now('America/Santiago');
-        $this->isToken();
     }
 
     public function envioDte(Request $request, $ambiente): JsonResponse
@@ -91,19 +89,19 @@ class ApiFacturaController extends FacturaController
             ], 400);
         }
 
+        if($envioResponse->STATUS != '0') {
+            return response()->json([
+                'message' => "Error en la respuesta del SII al enviar dte",
+                'errores' => $envioResponse,
+            ], 400);
+        }
+
         // Guardar en base de datos envio, xml, etc
         $dbresponse = $this->guardarXmlDB($envioResponse, $filename, $caratula, $dte, $dteXml);
         if (isset($dbresponse['error'])) {
             return response()->json([
                 'message' => "Error al guardar el DTE en la base de datos",
                 'errores' => $dbresponse['error'],
-            ], 400);
-        }
-
-        if($envioResponse->STATUS != '0') {
-            return response()->json([
-                'message' => "Error en la respuesta del SII al enviar dte",
-                'errores' => $envioResponse,
             ], 400);
         }
 
