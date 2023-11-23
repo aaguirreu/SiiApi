@@ -1,6 +1,8 @@
 <?php
 namespace App\Console\Commands;
 
+use App\Http\Controllers\Api\V1\ApiFacturaController;
+use App\Http\Controllers\Api\V1\FacturaController;
 use App\Jobs\ProcessNewMail;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -84,7 +86,14 @@ class DteImapIdleCommand extends ImapIdleCommand {
                     if($tipoXml == 'EnvioDTE') {
                         echo 'Es un DTE';
                         // Revisar si el DTE es válido y enviar respuesta al correo emisor
-                        $this->respuetaDte($attachment);
+                        $rpta = new FacturaController([33, 34, 56, 61]);
+
+                        // Obtener respuesta del Dte
+                        $rptaXml = $rpta->respuestaDte($attachment->getContent());
+                        echo $rptaXml->asXML();
+
+                        // Enviar respuesta por correo
+
                     } else if($tipoXml == 'RespuestaDTE') {
                         echo 'Es una respuesta';
                         // Revisar si la respuesta es válida
@@ -98,78 +107,6 @@ class DteImapIdleCommand extends ImapIdleCommand {
         } else {
             Log::channel(env('LOG_CHANNEL'))->info("Correo entrante sin adjuntos");
         }
-    }
-
-    private function respuetaDte($attachment)
-    {
-        // EJEMPLO
-        $RutReceptor_esperado = '76192083-9';
-        $RutEmisor_esperado = '88888888-8';
-
-        // Cargar EnvioDTE y extraer arreglo con datos de carátula y DTEs
-        $EnvioDte = new \sasco\LibreDTE\Sii\EnvioDte();
-        $EnvioDte->loadXML($attachment->getContent());
-        $Caratula = $EnvioDte->getCaratula();
-        $Documentos = $EnvioDte->getDocumentos();
-
-        // caratula
-        $caratula = [
-            'RutResponde' => $RutReceptor_esperado,
-            'RutRecibe' => $Caratula['RutEmisor'],
-            'IdRespuesta' => 1,
-            //'NmbContacto' => '',
-            //'MailContacto' => '',
-        ];
-
-        // procesar cada DTE
-        $RecepcionDTE = [];
-        foreach ($Documentos as $DTE) {
-            $estado = $DTE->getEstadoValidacion(['RUTEmisor'=>$RutEmisor_esperado, 'RUTRecep'=>$RutReceptor_esperado]);
-            $RecepcionDTE[] = [
-                'TipoDTE' => $DTE->getTipo(),
-                'Folio' => $DTE->getFolio(),
-                'FchEmis' => $DTE->getFechaEmision(),
-                'RUTEmisor' => $DTE->getEmisor(),
-                'RUTRecep' => $DTE->getReceptor(),
-                'MntTotal' => $DTE->getMontoTotal(),
-                'EstadoRecepDTE' => $estado,
-                'RecepDTEGlosa' => \sasco\LibreDTE\Sii\RespuestaEnvio::$estados['documento'][$estado],
-            ];
-        }
-
-        // armar respuesta de envío
-        $estado = $EnvioDte->getEstadoValidacion(['RutReceptor'=>$RutReceptor_esperado]);
-        $RespuestaEnvio = new \sasco\LibreDTE\Sii\RespuestaEnvio();
-        $RespuestaEnvio->agregarRespuestaEnvio([
-            'NmbEnvio' => $attachment->getName(),
-            'CodEnvio' => 1,
-            'EnvioDTEID' => $EnvioDte->getID(),
-            'Digest' => $EnvioDte->getDigest(),
-            'RutEmisor' => $EnvioDte->getEmisor(),
-            'RutReceptor' => $EnvioDte->getReceptor(),
-            'EstadoRecepEnv' => $estado,
-            'RecepEnvGlosa' => \sasco\LibreDTE\Sii\RespuestaEnvio::$estados['envio'][$estado],
-            'NroDTE' => count($RecepcionDTE),
-            'RecepcionDTE' => $RecepcionDTE,
-        ]);
-
-        // asignar carátula y Firma
-        $RespuestaEnvio->setCaratula($caratula);
-        $RespuestaEnvio->setFirma(new \sasco\LibreDTE\FirmaElectronica($config['firma']));
-
-        // generar XML
-        $xml = $RespuestaEnvio->generar();
-
-        // validar schema del XML que se generó
-        if ($RespuestaEnvio->schemaValidate()) {
-            // mostrar XML al usuario, deberá ser guardado y subido al SII en:
-            // https://www4.sii.cl/pfeInternet
-            echo $xml;
-        }
-
-        // si hubo errores mostrar
-        foreach (\sasco\LibreDTE\Log::readAll() as $error)
-            echo $error,"\n";
     }
 
     /**

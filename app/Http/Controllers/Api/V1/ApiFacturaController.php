@@ -17,12 +17,7 @@ class ApiFacturaController extends FacturaController
     public function __construct()
     {
         $ambiente = 0;
-        $url = 'https://maullin.sii.cl/cgi_dte/UPL/DTEUpload'; // url certificación
-        if ($ambiente == 1) {
-            //$url = 'https://palena.sii.cl/cgi_dte/UPL/DTEUpload'; // url producción
-            $url = 'https://maullin.sii.cl/cgi_dte/UPL/DTEUpload';
-        }
-        parent::__construct([33, 34, 56, 61], $url, $ambiente);
+        parent::__construct([33, 34, 56, 61], $ambiente);
         $this->timestamp = Carbon::now('America/Santiago');
     }
 
