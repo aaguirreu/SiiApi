@@ -4,6 +4,7 @@ namespace App\Console;
 
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
+use app\Console\Commands\DteImapIdleCommand;
 
 class Kernel extends ConsoleKernel
 {
@@ -36,6 +37,6 @@ class Kernel extends ConsoleKernel
      * @var array
      */
     protected $commands = [
-        \App\Console\Commands\ImapIdleCommand::class,
+        DteImapIdleCommand::class,
     ];
 }
