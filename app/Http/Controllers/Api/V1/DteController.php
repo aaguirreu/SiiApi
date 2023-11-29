@@ -26,7 +26,7 @@ class DteController extends Controller
     protected static array $folios_inicial = [];
     protected static array $tipos_dte = [];
     protected static string $url = '';
-    protected static int $ambiente; // 1 Producción, 0 Certificación
+    protected static int $ambiente = 0; // 1 Producción, 0 Certificación
     protected static string $token = '';
 
     protected function actualizarFolios(): void
