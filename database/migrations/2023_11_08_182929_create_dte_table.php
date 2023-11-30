@@ -18,6 +18,7 @@ class CreateDteTable extends Migration
             $table->foreignId('envio_id')->constrained('envio_dte')->onUpdate('cascade')->onDelete('cascade');
             $table->foreignId('caratula_id')->constrained('caratula');
             $table->integer('resumen_id')->nullable()->constrained('resumen_ventas_diarias');
+            $table->string('estado')->nullable();
             $table->string('xml_filename');
             $table->timestamps();
         });
