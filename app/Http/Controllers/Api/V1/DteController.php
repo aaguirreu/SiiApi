@@ -39,6 +39,7 @@ class DteController extends Controller
 
     /**
      * @throws Exception
+     * ARREGLAR: el mismo caf se puede almacenar más de una vez.
      */
     protected function uploadCaf($request, ?bool $force = false): JsonResponse
     {
@@ -113,7 +114,7 @@ class DteController extends Controller
     {
         return DB::table('envio_dte')->insertGetId([
             'trackid' => $response->trackid ?? $response->TRACKID,
-            'status' => 'Enviado',
+            'estado' => 'Enviado',
             'created_at' => $this->timestamp,
             'updated_at' => $this->timestamp
         ]);
@@ -126,7 +127,7 @@ class DteController extends Controller
             $enviodte = DB::table('envio_dte')->where('id', '=', $id)->first();
             // Insertar envio dte en la base de datos
             $enviodte->update([
-                'status' => 'Procesado',
+                'estado' => 'Procesado',
                 'created_at' => $this->timestamp,
                 'updated_at' => $this->timestamp
             ]);
@@ -138,13 +139,13 @@ class DteController extends Controller
         return $id;
     }
 
-    protected function guardarXmlDB($envioResponse, $filename, $caratula, $dte, $dteXml): array|int
+    protected function guardarXmlDB($envioResponse, $filename, $caratula, $documentoArray, $dteXml): array|int
     {
         try {
             DB::beginTransaction(); // <= Starting the transaction
 
             $envioDteId = $this->guardarEnvioDte($envioResponse);
-            $emisorID = $this->getEmpresa($caratula['RutEmisor'], $dte->Documentos[0]->Encabezado->Emisor);
+            $emisorID = $this->getEmpresa($caratula['RutEmisor'], $documentoArray->Encabezado->Emisor);
             $caratulaId = $this->getCaratula($caratula, $emisorID);
             $dteId = $this->guardarDte($filename, $envioDteId, $caratulaId);
             $xml = new SimpleXMLElement($dteXml);
@@ -176,6 +177,7 @@ class DteController extends Controller
             'caratula_id' => $caratulaId,
             'resumen_id' => null,
             'xml_filename' => $filename,
+            'estado' => null,
             'created_at' => $this->timestamp,
             'updated_at' => $this->timestamp
         ]);
@@ -472,7 +474,7 @@ class DteController extends Controller
         return [
             'RutEmisor' => $dte->Caratula->RutEmisor ?? $documentos[0]['Encabezado']['Emisor']['RUTEmisor'], // se obtiene automáticamente
             'RutEnvia' => $firma->getID(),
-            'RutReceptor' => $dte->Caratula->RutReceptor ?? $documentos[0]['Encabezado']['Receptor']['RUTRecep'], // se obtiene automáticamente
+            'RutReceptor' => $documentos[0]['Encabezado']['Receptor']['RUTRecep'] ?? "60803000-K", // se obtiene automáticamente
             'FchResol' => $dte->Caratula->FchResol,
             'NroResol' => $dte->Caratula->NroResol,
         ];

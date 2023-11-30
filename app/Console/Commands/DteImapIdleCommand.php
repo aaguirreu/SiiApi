@@ -4,9 +4,14 @@ namespace App\Console\Commands;
 use App\Http\Controllers\Api\V1\ApiFacturaController;
 use App\Http\Controllers\Api\V1\FacturaController;
 use App\Jobs\ProcessNewMail;
+use App\Mail\DteResponse;
+use Illuminate\Mail\Mailable;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use League\CommonMark\Util\Xml;
+use MongoDB\Driver\Monitoring\Subscriber;
 use Webklex\IMAP\Commands\ImapIdleCommand;
 use Webklex\IMAP\Facades\Client as ClientFacade;
 use Webklex\PHPIMAP\Exceptions\ConnectionFailedException;
@@ -61,49 +66,74 @@ class DteImapIdleCommand extends ImapIdleCommand {
 
             /* @var  \Webklex\PHPIMAP\Support\MessageCollection $attachments*/
             $attachments = $message->getAttachments();
-            foreach ($attachments as $attachment) {
-                /**
-                 * Obtener el contenido del adjunto
-                 *
-                 * @var \Webklex\PHPIMAP\Attachment $attachment
-                 * @var string $content
-                 */
+            if ($attachments->isEmpty()) {
+                Log::channel(env('LOG_CHANNEL'))->info("Correo entrante sin adjuntos");
+            } else {
+                foreach ($attachments as $attachment) {
+                    /**
+                     * Obtener el contenido del adjunto
+                     *
+                     * @var \Webklex\PHPIMAP\Attachment $attachment
+                     * @var string $content
+                     */
 
-                $attachmentInfo = [
-                    'filename' => $attachment->getName(),
-                    // Convertir el contenido a UTF-8 (solo para mostrar por pantalla)
-                    'content' => mb_convert_encoding($attachment->getContent(), 'UTF-8', 'ISO-8859-1'),
-                ];
+                    $attachmentInfo = [
+                        'filename' => $attachment->getName(),
+                        // Convertir el contenido a UTF-8 (solo para mostrar por pantalla)
+                        'content' => mb_convert_encoding($attachment->getContent(), 'UTF-8', 'ISO-8859-1'),
+                    ];
 
-                // Verificar si el adjunto es un xml
-                if(str_ends_with($attachment->getName(), '.xml')) {
-                    //Storage::disk('dtes')->put('Dte\\'.$attachment->getName(), $content);
-                    $attachmentsInfo[] = $attachmentInfo;
-                    //echo json_encode($attachmentsInfo);
-                    // Ver si el xmles un dte o una respuesta a un dte
-                    $xml = new \SimpleXMLElement($attachment->getContent());
-                    $tipoXml = $xml[0]->getName();
-                    if($tipoXml == 'EnvioDTE') {
-                        echo 'Es un DTE';
-                        // Revisar si el DTE es válido y enviar respuesta al correo emisor
-                        $rpta = new FacturaController([33, 34, 56, 61]);
+                    // Verificar si el adjunto es un xml
+                    if(str_ends_with($attachment->getName(), '.xml')) {
+                        //Storage::disk('dtes')->put('Dte\\'.$attachment->getName(), $content);
+                        $attachmentsInfo[] = $attachmentInfo;
+                        //echo json_encode($attachmentsInfo);
+                        // Ver si el xmles un dte o una respuesta a un dte
+                        $xml = new \SimpleXMLElement($attachment->getContent());
+                        $tipoXml = $xml[0]->getName();
+                        if($tipoXml == 'EnvioDTE') {
+                            try {
+                                echo "Correo entrante: EnvioDTE\n";
+                                Log::channel(env('LOG_CHANNEL'))->info("Correo entrante: EnvioDTE");
+                                // Revisar si el DTE es válido y enviar respuesta al correo emisor
+                                $rpta = new FacturaController([33, 34, 56, 61]);
 
-                        // Obtener respuesta del Dte
-                        $rptaXml = $rpta->respuestaDte($attachment->getContent());
-                        echo $rptaXml->asXML();
+                                // Obtener respuesta del Dte
+                                $fileRpta = $rpta->respuestaDte($attachment);
 
-                        // Enviar respuesta por correo
+                                // Enviar respuesta por correo
+                                Mail::to($message->from[0]->mail)->send(new DteResponse($message, $fileRpta));
 
-                    } else if($tipoXml == 'RespuestaDTE') {
-                        echo 'Es una respuesta';
-                        // Revisar si la respuesta es válida
+                                echo "Correo saliente: Respuesta enviada\n";
+                                Log::channel(env('LOG_CHANNEL'))->info("Correo saliente: Respuesta enviada");
 
+                            } catch (\Exception $e) {
+                                Log::channel(env('LOG_CHANNEL'))->info($e);
+                            }
+
+                        } else if($tipoXml == 'RespuestaDTE') {
+                            try {
+                                // Revisar si la respuesta es válida
+                                echo "Correo entrante: RespuestaDTE\n";
+                                Log::channel(env('LOG_CHANNEL'))->info("Correo entrante: RespuestaDTE");
+
+                                // Buscar en la base de datos el nombre del archivo.
+                                $filename = $xml[0]->Resultado->RecepcionEnvio->NmbEnvio;
+                                $estado = $xml[0]->Resultado->RecepcionEnvio->RecepEnvGlosa;
+                                DB::table('dte')
+                                    ->where('filename', '=', $filename)
+                                    ->update(['estado' => $estado]);
+
+                            } catch (\Exception $e) {
+                                Log::channel(env('LOG_CHANNEL'))->info($e);
+                            }
+                        }
                     }
                 }
+                // Devolver la información de los adjuntos
+                //Log::channel(env('LOG_CHANNEL'))->info(json_decode(json_encode($attachmentsInfo)));
+                //echo json_encode($attachmentsInfo);
             }
-            // Devolver la información de los adjuntos
-            //Log::channel(env('LOG_CHANNEL'))->info(json_decode(json_encode($attachmentsInfo)));
-            //echo json_encode($attachmentsInfo);
         } else {
             Log::channel(env('LOG_CHANNEL'))->info("Correo entrante sin adjuntos");
         }
@@ -119,7 +149,7 @@ class DteImapIdleCommand extends ImapIdleCommand {
     public function handle() {
         if (is_array($this->account)) {
             $client = ClientFacade::make($this->account);
-        }else{
+        } else {
             $client = ClientFacade::account($this->account);
         }
 

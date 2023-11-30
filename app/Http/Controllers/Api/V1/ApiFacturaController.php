@@ -6,6 +6,7 @@ use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use sasco\LibreDTE\Log;
 use sasco\LibreDTE\Sii;
 
@@ -75,8 +76,8 @@ class ApiFacturaController extends FacturaController
             ], 400);
         }
 
-        // Enviar DTE e insertar en base de datos de ser exitoso
-        list($envioResponse, $filename) = $this->enviar($caratula['RutEnvia'], $caratula['RutEmisor'], $dteXml);
+        // Enviar DTE al SII e insertar en base de datos de ser exitoso
+        list($envioResponse, $filename) = $this->enviar($caratula['RutEnvia'], $caratula['RutEmisor'], "60803000-K", $dteXml);
         if (!$envioResponse) {
             return response()->json([
                 'message' => "Error al enviar el DTE",
@@ -92,7 +93,49 @@ class ApiFacturaController extends FacturaController
         }
 
         // Guardar en base de datos envio, xml, etc
-        $dbresponse = $this->guardarXmlDB($envioResponse, $filename, $caratula, $dte, $dteXml);
+        $dbresponse = $this->guardarXmlDB($envioResponse, $filename, $caratula, $dte->Documentos[0], $dteXml);
+        if (isset($dbresponse['error'])) {
+            return response()->json([
+                'message' => "Error al guardar el DTE en la base de datos",
+                'errores' => $dbresponse['error'],
+            ], 400);
+        }
+
+        // Enviar DTE a receptor
+        return $this->enviarDteReceptor($documentos, $firma, $folios, $caratula);
+    }
+
+    private function enviarDteReceptor($documentos, $firma, $folios, $caratula)
+    {
+        // generar cada DTE, timbrar, firmar y agregar al sobre de EnvioBOLETA
+        $dteXml = $this->generarEnvioDteXml($documentos, $firma, $folios, $caratula);
+        if(is_array($dteXml)){
+            return response()->json([
+                'message' => "Error al generar el envio de DTEs",
+                'errores' => json_decode(json_encode($dteXml)),
+            ], 400);
+        }
+
+        // Guardar en Storage
+        if (!str_contains($dteXml, '<?xml')) {
+            $dteXml = '<?xml version="1.0" encoding="ISO-8859-1"?>' . "\n" . $dteXml;
+        }
+        do {
+            list($file, $filename) = $this->guardarXML($caratula['RutReceptor']);
+        } while (file_exists($file));
+
+        if(!Storage::disk('dtes')->put($caratula['RutReceptor'].'\\'.$filename, $dteXml)) {
+            Log::write(0, 'Error al guardar dte en Storage');
+            return response()->json([
+                'message' => "Error al guardar el DTE en el Storage",
+            ], 400);
+        }
+
+        // Guardar en base de datos envio, xml, etc
+        // trackid 0 por que es un envio a receptor
+        $envioResponse = ['trackid' => 0];
+        $envioResponse = json_decode(json_encode($envioResponse));
+        $dbresponse = $this->guardarXmlDB($envioResponse, $filename, $caratula, $documentos[0], $dteXml);
         if (isset($dbresponse['error'])) {
             return response()->json([
                 'message' => "Error al guardar el DTE en la base de datos",
@@ -160,35 +203,6 @@ class ApiFacturaController extends FacturaController
         return $xml->asXML();
     }
 
-    // Se debe enviar el xml del EnvioBoleta que se desea realizar el resumen rcof.
-    public function enviarRcofOnly(Request $request): JsonResponse
-    {
-        $dte_filename = $request->route('dte_filename');
-        if (!DB::table('envio_dte')->where('xml_filename', '=', $dte_filename)->exists()) {
-            return response()->json([
-                'message' => 'No existe el EnvioDte con ese nombre',
-            ], 400);
-        }
-
-
-        // Obtener resumen de consumo de folios
-        $EnvioBoletaxml = $request->getContent();
-        $ConsumoFolio = $this->generarRCOF($EnvioBoletaxml);
-
-        // Enviar rcof
-        $response = $this->enviarRCOF($ConsumoFolio, $dte_filename);
-        if ($response != false) {
-            return response()->json([
-                'message' => 'RCOF enviado correctamente',
-                'trackid' => $response
-            ], 200);
-        }
-        return response()->json([
-            'message' => 'Error al enviar RCOF',
-            'response' => $response
-        ], 400);
-    }
-
     public function subirCaf(Request $request): JsonResponse
     {
         return $this->uploadCaf($request);
@@ -209,5 +223,4 @@ class ApiFacturaController extends FacturaController
         }
         else abort(404);
     }
-
 }

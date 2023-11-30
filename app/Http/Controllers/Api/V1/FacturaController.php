@@ -12,6 +12,7 @@ use sasco\LibreDTE\Log;
 use sasco\LibreDTE\Sii;
 use sasco\LibreDTE\Sii\Autenticacion;
 use sasco\LibreDTE\Sii\EnvioDte;
+use sasco\LibreDTE\XML;
 
 class FacturaController extends DteController
 {
@@ -22,7 +23,7 @@ class FacturaController extends DteController
         self::$token = json_decode(file_get_contents(base_path('config.json')))->token;
     }
 
-    protected function enviar($rutEnvia, $rutEmisor, $dte) {
+    protected function enviar($rutEnvia, $rutEmisor, $rutReceptor, $dte) {
         // definir datos que se usarán en el envío
         list($rutSender, $dvSender) = explode('-', str_replace('.', '', $rutEnvia));
         list($rutCompany, $dvCompany) = explode('-', str_replace('.', '', $rutEmisor));
@@ -30,10 +31,10 @@ class FacturaController extends DteController
             $dte = '<?xml version="1.0" encoding="ISO-8859-1"?>' . "\n" . $dte;
         }
         do {
-            list($file, $filename) = $this->guardarXML('60803000-K');
+            list($file, $filename) = $this->guardarXML($rutReceptor);
         } while (file_exists($file));
 
-        if(!Storage::disk('dtes')->put("60803000-K\\$filename", $dte)) {
+        if(!Storage::disk('dtes')->put($rutReceptor.'\\'.$filename, $dte)) {
             Log::write(0, 'Error al guardar dte en Storage');
             return false;
         }
@@ -77,7 +78,7 @@ class FacturaController extends DteController
                 Log::write(Estado::ENVIO_ERROR_500, Estado::get(Estado::ENVIO_ERROR_500));
             }
             // Borrar xml guardado anteriormente
-            Storage::disk('dtes')->delete('60803000-K\\'.$filename);
+            Storage::disk('dtes')->delete($rutReceptor.'\\'.$filename);
             return false;
         }
 
@@ -98,7 +99,7 @@ class FacturaController extends DteController
             );
             $arrayData = json_decode(json_encode($xml), true);
             // Borrar xml guardado anteriormente
-            Storage::disk('dtes')->delete('60803000-K\\'.$filename);
+            Storage::disk('dtes')->delete($rutReceptor.'\\'.$filename);
             return false;
         }
 
@@ -143,7 +144,7 @@ class FacturaController extends DteController
         foreach (self::$folios as $key => $value) {
             $folio_final = DB::table('caf')->where('folio_id', '=', $key)->latest()->first()->folio_final;
             $cant_folio = DB::table('secuencia_folio')->where('id', '=', $key)->latest()->first()->cant_folios;
-            $folios_restantes = $folio_final - $cant_folio;
+            $folios_restantes = $folio_final - $cant_folio * 2; // * 2 contando el folio para el receptor.
             $folios_documentos = self::$folios[$key] - self::$folios_inicial[$key] + 1;
             if ($folios_documentos > $folios_restantes) {
                 $response = [
@@ -162,16 +163,17 @@ class FacturaController extends DteController
     public function respuestaDte($attachment)
     {
         // EJEMPLO
-        // Rut Contribuyente (EMPRESA) que redacta la respuesta
-        $RutReceptor_esperado = '76974300-6';
-        // Rut de quien envió el DTE y espera una respuesta
-        $RutEmisor_esperado = '77614933-0';
+        // RutReceptor en el DTE.xml recibido
+        $RutReceptor_esperado = env('RUT_EMISOR', '000-0');
 
         // Cargar EnvioDTE y extraer arreglo con datos de carátula y DTEs
         $EnvioDte = new EnvioDte();
         $EnvioDte->loadXML($attachment->getContent());
         $Caratula = $EnvioDte->getCaratula();
         $Documentos = $EnvioDte->getDocumentos();
+
+        // RutEmisor en el DTE.xml recibido
+        $RutEmisor_esperado = $Caratula['RutEmisor'];
 
         // caratula
         $caratula = [
@@ -225,7 +227,12 @@ class FacturaController extends DteController
         if ($RespuestaEnvio->schemaValidate()) {
             // mostrar XML al usuario, deberá ser guardado y subido al SII en:
             // https://www4.sii.cl/pfeInternet
-            return $xml;
+            $filename = 'RespuestaEnvio.xml';
+            Storage::disk('dtes')->put("Respuestas\\$filename", $xml);
+            return [
+                'filename' => $filename,
+                'data' => $xml
+            ];
         }
 
         return false;
