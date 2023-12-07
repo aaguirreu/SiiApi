@@ -34,7 +34,6 @@ class DteResponse extends Mailable
         return $this
             ->view('respuesta-email', ['name' => $this->message->getFrom()[0]->personal])
             ->subject('Respuesta DTE')
-            //->replyTo($this->message->getFrom()[0]->personal, $this->message->getFrom()[0]->personal)
             ->attachData($this->file['data'], $this->file['filename'], [
                 'mime' => 'text/xml',
             ]);

@@ -2,13 +2,17 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Mail\DteEnvio;
+use App\Mail\DteResponse;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use sasco\LibreDTE\Log;
 use sasco\LibreDTE\Sii;
+use function PHPUnit\Framework\isType;
 
 
 // Debería ser class ApiFacturaController extends ApiController
@@ -30,10 +34,6 @@ class ApiFacturaController extends FacturaController
         // Set ambiente certificacón
         $this->setAmbiente($ambiente);
 
-        // Primer folio a usar para envio de set de pruebas
-
-        // Comparar cantidad de folios usados con cantidad de folios disponibles
-
         // Obtiene los folios con la cantidad de folios usados desde la base de datos
         self::$folios_inicial = $this->obtenerFolios($dte);
         if (isset(self::$folios_inicial['error'])) {
@@ -50,6 +50,21 @@ class ApiFacturaController extends FacturaController
                 'message' => "Error al obtener folios desde el CAF",
                 'errores' => $folios['error']
             ], 400);
+        }
+
+        // Verificar si existe correo electrónico en la base de datos
+        $correo = $this->obtenerCorreoDB($dte->Documentos[0]->Encabezado->Receptor->RUTRecep);
+        if(!isset($correo)) {
+            // Verificar si existe correo electrónico en el envío
+            if (!isset($dte->Documentos[0]->Encabezado->Receptor->CorreoRecep)) {
+                return response()->json([
+                    'errores' => "No se ha encontrado el correo electrónico del receptor",
+                    'message' => "Agregue CorreoRecep en el envío o agregue/actualice al Emisor en la base de datos"
+                ], 400);
+            } else {
+                $correo = $dte->Documentos[0]->Encabezado->Receptor->CorreoRecep;
+                $this->actualizarCorreoDB($dte->Documentos[0]->Encabezado->Receptor->RUTRecep, $correo);
+            }
         }
 
         // Parseo de boletas según modelo libreDTE
@@ -77,23 +92,23 @@ class ApiFacturaController extends FacturaController
         }
 
         // Enviar DTE al SII e insertar en base de datos de ser exitoso
-        list($envioResponse, $filename) = $this->enviar($caratula['RutEnvia'], $caratula['RutEmisor'], "60803000-K", $dteXml);
-        if (!$envioResponse) {
+        list($envio_response, $filename) = $this->enviar($caratula['RutEnvia'], $caratula['RutEmisor'], "60803000-K", $dteXml);
+        if (!$envio_response) {
             return response()->json([
                 'message' => "Error al enviar el DTE",
                 'errores' => Log::read()->msg,
             ], 400);
         }
 
-        if($envioResponse->STATUS != '0') {
+        if($envio_response->STATUS != '0') {
             return response()->json([
                 'message' => "Error en la respuesta del SII al enviar dte",
-                'errores' => $envioResponse,
+                'errores' => $envio_response,
             ], 400);
         }
 
         // Guardar en base de datos envio, xml, etc
-        $dbresponse = $this->guardarXmlDB($envioResponse, $filename, $caratula, $dte->Documentos[0], $dteXml);
+        $dbresponse = $this->guardarXmlDB($envio_response, $filename, $caratula, $dte->Documentos[0], $dteXml);
         if (isset($dbresponse['error'])) {
             return response()->json([
                 'message' => "Error al guardar el DTE en la base de datos",
@@ -102,12 +117,13 @@ class ApiFacturaController extends FacturaController
         }
 
         // Enviar DTE a receptor
-        return $this->enviarDteReceptor($documentos, $firma, $folios, $caratula);
+        return $this->enviarDteReceptor($documentos, $dte->Documentos[0], $firma, $folios, $caratula, $correo, $envio_response);
     }
 
-    private function enviarDteReceptor($documentos, $firma, $folios, $caratula)
+    private function enviarDteReceptor($documentos, $doc, $firma, $folios, $caratula, $correo, $envio_response)
     {
         // generar cada DTE, timbrar, firmar y agregar al sobre de EnvioBOLETA
+        $caratula['RutReceptor'] = $doc->Encabezado->Receptor->RUTRecep;
         $dteXml = $this->generarEnvioDteXml($documentos, $firma, $folios, $caratula);
         if(is_array($dteXml)){
             return response()->json([
@@ -131,11 +147,33 @@ class ApiFacturaController extends FacturaController
             ], 400);
         }
 
+        // Enviar respuesta por correo
+        $message = [
+            'from' => DB::table('empresa')->where('rut', '=', env('RUT_EMISOR'))->first()->razon_social,
+        ];
+
+        $fileEnvio = [
+            'filename' => $filename,
+            'data' => $dteXml
+        ];
+
+        try {
+            Mail::to($correo)->send(new DteEnvio($message, $fileEnvio));
+        } catch (\Exception $e) {
+            Log::write(0, 'Error al enviar dte por correo');
+            return response()->json([
+                'message' => "Error al enviar dte por correo",
+            ], 400);
+        }
+
+        // Actualizar folios en la base de datos
+        // $this->actualizarFolios();
+
         // Guardar en base de datos envio, xml, etc
         // trackid 0 por que es un envio a receptor
-        $envioResponse = ['trackid' => 0];
-        $envioResponse = json_decode(json_encode($envioResponse));
-        $dbresponse = $this->guardarXmlDB($envioResponse, $filename, $caratula, $documentos[0], $dteXml);
+        $envio_receptor_response = ['trackid' => 0];
+        $envio_receptor_response = json_decode(json_encode($envio_receptor_response));
+        $dbresponse = $this->guardarXmlDB($envio_receptor_response, $filename, $caratula, $doc, $dteXml);
         if (isset($dbresponse['error'])) {
             return response()->json([
                 'message' => "Error al guardar el DTE en la base de datos",
@@ -146,7 +184,10 @@ class ApiFacturaController extends FacturaController
         return response()->json([
             'message' => "DTE enviado correctamente",
             'response' => [
-                "EnvioFactura" => $envioResponse,
+                'EnvioReceptor' => [
+                    'Estado' => "Enviado"
+                ],
+                'EnvioSii' => $envio_response
             ],
         ], 200);
     }

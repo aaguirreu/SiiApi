@@ -139,13 +139,13 @@ class DteController extends Controller
         return $id;
     }
 
-    protected function guardarXmlDB($envioResponse, $filename, $caratula, $documentoArray, $dteXml): array|int
+    protected function guardarXmlDB($envioResponse, $filename, $caratula, $doc, $dteXml): array|int
     {
         try {
             DB::beginTransaction(); // <= Starting the transaction
 
             $envioDteId = $this->guardarEnvioDte($envioResponse);
-            $emisorID = $this->getEmpresa($caratula['RutEmisor'], $documentoArray->Encabezado->Emisor);
+            $emisorID = $this->getEmpresa($caratula['RutEmisor'], $doc->Encabezado->Emisor);
             $caratulaId = $this->getCaratula($caratula, $emisorID);
             $dteId = $this->guardarDte($filename, $envioDteId, $caratulaId);
             $xml = new SimpleXMLElement($dteXml);
@@ -157,8 +157,6 @@ class DteController extends Controller
                     $this->guardarDetalle($detalle, $documentoId);
                 }
             }
-            // Actualizar folios en la base de datos
-            $this->actualizarFolios();
             DB::commit(); // <= Commit the changes
             return $envioDteId;
         } catch (Exception $e) {
@@ -474,7 +472,7 @@ class DteController extends Controller
         return [
             'RutEmisor' => $dte->Caratula->RutEmisor ?? $documentos[0]['Encabezado']['Emisor']['RUTEmisor'], // se obtiene automáticamente
             'RutEnvia' => $firma->getID(),
-            'RutReceptor' => $documentos[0]['Encabezado']['Receptor']['RUTRecep'] ?? "60803000-K", // se obtiene automáticamente
+            'RutReceptor' => $dte->Caratula->RutReceptor ?? "60803000-K",
             'FchResol' => $dte->Caratula->FchResol,
             'NroResol' => $dte->Caratula->NroResol,
         ];
@@ -550,13 +548,9 @@ class DteController extends Controller
         if (!file_exists(env('DTES_PATH', "") . "$rutReceptor")) {
             mkdir(env('DTES_PATH', "") . "$rutReceptor", 0777, true);
         }
-        if ($rutReceptor == '60803000-K') {
-            $filename = "DTE_$this->timestamp.xml";
-        } else {
-            $tipoDTE = key(array_filter(self::$folios));
-            $folio = self::$folios[$tipoDTE];
-            $filename = "DTE_$tipoDTE" . "_$folio" . "_$this->timestamp.xml";
-        }
+        $tipoDTE = key(array_filter(self::$folios));
+        $folio = self::$folios[$tipoDTE];
+        $filename = "DTE_$tipoDTE" . "_$folio" . "_$this->timestamp.xml";
         $filename = str_replace(' ', 'T', $filename);
         $filename = str_replace(':', '-', $filename);
         $file = env('DTES_PATH', "") . "$rutReceptor\\" . $filename;

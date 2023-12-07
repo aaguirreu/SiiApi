@@ -66,7 +66,7 @@ class ProcessNewMail implements ShouldQueue
                 ];
 
                 //if(str_ends_with($attachment->getName(), '.xml'))
-                Storage::disk('dtes')->put('EnvioFACTURA\\file.xml', "content");
+                // Storage::disk('dtes')->put('\\file.xml', "content");
                 $attachmentsInfo[] = $attachmentInfo;
             }
             // Devolver la información de los adjuntos

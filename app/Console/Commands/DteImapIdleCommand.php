@@ -10,8 +10,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
-use League\CommonMark\Util\Xml;
-use MongoDB\Driver\Monitoring\Subscriber;
 use Webklex\IMAP\Commands\ImapIdleCommand;
 use Webklex\IMAP\Facades\Client as ClientFacade;
 use Webklex\PHPIMAP\Exceptions\ConnectionFailedException;
@@ -99,7 +97,7 @@ class DteImapIdleCommand extends ImapIdleCommand {
                                 $rpta = new FacturaController([33, 34, 56, 61]);
 
                                 // Obtener respuesta del Dte
-                                $fileRpta = $rpta->respuestaDte($attachment);
+                                $fileRpta = $rpta->respuestaEnvio($attachment);
 
                                 // Enviar respuesta por correo
                                 Mail::to($message->from[0]->mail)->send(new DteResponse($message, $fileRpta));
@@ -170,6 +168,20 @@ class DteImapIdleCommand extends ImapIdleCommand {
             Log::error($e->getMessage());
             return 1;
         }
+
+        try {
+            // Obtener todos los correos no leídos en el folder INBOX
+            $unseenMessages = $folder->query()->unseen()->get();
+
+            // Procesar cada mensaje no leído
+            foreach ($unseenMessages as $message) {
+                $this->onNewMessage($message);
+            }
+        } catch (\Exception $e) {
+            Log::error($e->getMessage());
+            return 1;
+        }
+
 
         try {
             $folder->idle(function($message){

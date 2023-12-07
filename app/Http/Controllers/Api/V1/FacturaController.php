@@ -144,7 +144,7 @@ class FacturaController extends DteController
         foreach (self::$folios as $key => $value) {
             $folio_final = DB::table('caf')->where('folio_id', '=', $key)->latest()->first()->folio_final;
             $cant_folio = DB::table('secuencia_folio')->where('id', '=', $key)->latest()->first()->cant_folios;
-            $folios_restantes = $folio_final - $cant_folio * 2; // * 2 contando el folio para el receptor.
+            $folios_restantes = $folio_final - $cant_folio;
             $folios_documentos = self::$folios[$key] - self::$folios_inicial[$key] + 1;
             if ($folios_documentos > $folios_restantes) {
                 $response = [
@@ -160,11 +160,12 @@ class FacturaController extends DteController
         return $response ?? $documentos;
     }
 
-    public function respuestaDte($attachment)
+    public function respuestaEnvio($attachment): bool|array
     {
-        // EJEMPLO
+        $this->timestamp = Carbon::now('America/Santiago');
+
         // RutReceptor en el DTE.xml recibido
-        $RutReceptor_esperado = env('RUT_EMISOR', '000-0');
+        $rut_receptor_esperado = env('RUT_EMISOR', '000-0');
 
         // Cargar EnvioDTE y extraer arreglo con datos de carátula y DTEs
         $EnvioDte = new EnvioDte();
@@ -173,11 +174,11 @@ class FacturaController extends DteController
         $Documentos = $EnvioDte->getDocumentos();
 
         // RutEmisor en el DTE.xml recibido
-        $RutEmisor_esperado = $Caratula['RutEmisor'];
+        $rut_emisor_esperado = $Caratula['RutEmisor'];
 
         // caratula
         $caratula = [
-            'RutResponde' => $RutReceptor_esperado,
+            'RutResponde' => $rut_receptor_esperado,
             'RutRecibe' => $Caratula['RutEmisor'],
             'IdRespuesta' => 1,
             //'NmbContacto' => '',
@@ -185,10 +186,10 @@ class FacturaController extends DteController
         ];
 
         // procesar cada DTE
-        $RecepcionDTE = [];
+        $recepcion_dte = [];
         foreach ($Documentos as $DTE) {
-            $estado = $DTE->getEstadoValidacion(['RUTEmisor'=>$RutEmisor_esperado, 'RUTRecep'=>$RutReceptor_esperado]);
-            $RecepcionDTE[] = [
+            $estado = $DTE->getEstadoValidacion(['RUTEmisor'=>$rut_emisor_esperado, 'RUTRecep'=>$rut_receptor_esperado]);
+            $recepcion_dte[] = [
                 'TipoDTE' => $DTE->getTipo(),
                 'Folio' => $DTE->getFolio(),
                 'FchEmis' => $DTE->getFechaEmision(),
@@ -201,7 +202,7 @@ class FacturaController extends DteController
         }
 
         // armar respuesta de envío
-        $estado = $EnvioDte->getEstadoValidacion(['RutReceptor'=>$RutReceptor_esperado]);
+        $estado = $EnvioDte->getEstadoValidacion(['RutReceptor'=>$rut_receptor_esperado]);
         $RespuestaEnvio = new \sasco\LibreDTE\Sii\RespuestaEnvio();
         $RespuestaEnvio->agregarRespuestaEnvio([
             'NmbEnvio' => $attachment->getName(),
@@ -212,8 +213,8 @@ class FacturaController extends DteController
             'RutReceptor' => $EnvioDte->getReceptor(),
             'EstadoRecepEnv' => $estado,
             'RecepEnvGlosa' => \sasco\LibreDTE\Sii\RespuestaEnvio::$estados['envio'][$estado],
-            'NroDTE' => count($RecepcionDTE),
-            'RecepcionDTE' => $RecepcionDTE,
+            'NroDTE' => count($recepcion_dte),
+            'RecepcionDTE' => $recepcion_dte,
         ]);
 
         // asignar carátula y Firma
@@ -228,13 +229,135 @@ class FacturaController extends DteController
             // mostrar XML al usuario, deberá ser guardado y subido al SII en:
             // https://www4.sii.cl/pfeInternet
             $filename = 'RespuestaEnvio.xml';
-            Storage::disk('dtes')->put("Respuestas\\$filename", $xml);
+            Storage::disk('dtes')->put("Respuestas\\$rut_emisor_esperado\\$filename", $xml);
             return [
                 'filename' => $filename,
                 'data' => $xml
             ];
         }
-
         return false;
+    }
+
+    public function respuestaDocumento($dte_xml, $rut_emisor_esperado)
+    {
+        $this->timestamp = Carbon::now('America/Santiago');
+
+        // datos para validar
+        $rut_receptor_esperado = env('RUT_EMISOR', '000-0');
+
+        // Cargar EnvioDTE y extraer arreglo con datos de carátula y DTEs
+        $EnvioDte = new \sasco\LibreDTE\Sii\EnvioDte();
+        $EnvioDte->loadXML($dte_xml);
+        $Caratula = $EnvioDte->getCaratula();
+        $Documentos = $EnvioDte->getDocumentos();
+
+        // Obtener el id de la respuesta
+        $id_respuesta = DB::table('secuencia_folio')
+            ->where('id', '=', 1)
+            ->first();
+        if(isset($id_respuesta)) {
+            $id_respuesta = $id_respuesta->cant_folios;
+        } else {
+            DB::table('secuencia_folio')
+                ->insert([
+                    'id' => 1,
+                    'cant_folios' => 0,
+                    'updated_at' => $this->timestamp,
+                    'created_at' => $this->timestamp,
+                ]);
+        }
+
+        // caratula
+        $caratula = [
+            'RutResponde' => $rut_receptor_esperado,
+            'RutRecibe' => $rut_emisor_esperado,
+            'IdRespuesta' => 1,
+            //'NmbContacto' => '',
+            //'MailContacto' => '',
+        ];
+
+        // objeto para la respuesta
+        $RespuestaEnvio = new \sasco\LibreDTE\Sii\RespuestaEnvio();
+
+        // Obtener el código de envío
+        $cod_envio = DB::table('secuencia_folio')
+            ->where('id', '=', 0)
+            ->first();
+        if(isset($cod_envio)) {
+            $cod_envio = $cod_envio->cant_folios;
+        } else {
+            DB::table('secuencia_folio')
+                ->insert([
+                    'id' => 0,
+                    'cant_folios' => 0,
+                    'updated_at' => $this->timestamp,
+                    'created_at' => $this->timestamp,
+                ]);
+        }
+        foreach ($Documentos as $DTE) {
+            $estado = !$DTE->getEstadoValidacion(['RUTEmisor'=>$rut_emisor_esperado, 'RUTRecep'=>$rut_receptor_esperado]) ? 0 : 2;
+            $RespuestaEnvio->agregarRespuestaDocumento([
+                'TipoDTE' => $DTE->getTipo(),
+                'Folio' => $DTE->getFolio(),
+                'FchEmis' => $DTE->getFechaEmision(),
+                'RUTEmisor' => $DTE->getEmisor(),
+                'RUTRecep' => $DTE->getReceptor(),
+                'MntTotal' => $DTE->getMontoTotal(),
+                'CodEnvio' => ++$cod_envio,
+                'EstadoDTE' => $estado,
+                'EstadoDTEGlosa' => \sasco\LibreDTE\Sii\RespuestaEnvio::$estados['respuesta_documento'][$estado],
+            ]);
+        }
+
+        // asignar carátula y Firma
+        $RespuestaEnvio->setCaratula($caratula);
+        $RespuestaEnvio->setFirma($this->obtenerFirma());
+
+        // generar XML
+        // generar XML
+        $xml = $RespuestaEnvio->generar();
+
+        // validar schema del XML que se generó
+        if ($RespuestaEnvio->schemaValidate()) {
+            // mostrar XML al usuario, deberá ser guardado y subido al SII en:
+            // https://www4.sii.cl/pfeInternet
+            $filename = "RespuestaDocumento_$cod_envio.xml";
+            Storage::disk('dtes')->put("Respuestas\\$rut_emisor_esperado\\$filename", $xml);
+            DB::table('secuencia_folio')
+                ->where('id', '=', 0)
+                ->update([
+                    'cant_folios' => $cod_envio,
+                    'updated_at' => $this->timestamp,
+                ]);
+            return [
+                'filename' => $filename,
+                'data' => $xml
+            ];
+        }
+        return false;
+    }
+
+    public function obtenerCorreoDB($rut_receptor)
+    {
+        return DB::table('empresa')
+            ->where('rut', '=', $rut_receptor)
+            ->first()->correo;
+    }
+
+    public function actualizarCorreoDB($rut_receptor, $correo): void
+    {
+        DB::table('empresa')
+            ->where('rut', '=', $rut_receptor)
+            ->update(['correo' => $correo]);
+    }
+
+    public function obtenerCodigoRespuesta($id)
+    {
+
+    }
+
+    public function obtenerIDRespuesta($id)
+    {
+
     }
 }
