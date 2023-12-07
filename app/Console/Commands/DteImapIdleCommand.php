@@ -65,7 +65,7 @@ class DteImapIdleCommand extends ImapIdleCommand {
             /* @var  \Webklex\PHPIMAP\Support\MessageCollection $attachments*/
             $attachments = $message->getAttachments();
             if ($attachments->isEmpty()) {
-                Log::channel(env('LOG_CHANNEL'))->info("Correo entrante sin adjuntos");
+                Log::channel('default')->info("Correo entrante sin adjuntos");
             } else {
                 foreach ($attachments as $attachment) {
                     /**
@@ -92,7 +92,7 @@ class DteImapIdleCommand extends ImapIdleCommand {
                         if($tipoXml == 'EnvioDTE') {
                             try {
                                 echo "Correo entrante: EnvioDTE\n";
-                                Log::channel(env('LOG_CHANNEL'))->info("Correo entrante: EnvioDTE");
+                                Log::channel('default')->info("Correo entrante: EnvioDTE");
                                 // Revisar si el DTE es válido y enviar respuesta al correo emisor
                                 $rpta = new FacturaController([33, 34, 56, 61]);
 
@@ -103,17 +103,17 @@ class DteImapIdleCommand extends ImapIdleCommand {
                                 Mail::to($message->from[0]->mail)->send(new DteResponse($message, $fileRpta));
 
                                 echo "Correo saliente: Respuesta enviada\n";
-                                Log::channel(env('LOG_CHANNEL'))->info("Correo saliente: Respuesta enviada");
+                                Log::channel('default')->info("Correo saliente: Respuesta enviada");
 
                             } catch (\Exception $e) {
-                                Log::channel(env('LOG_CHANNEL'))->info($e);
+                                Log::channel('default')->info($e);
                             }
 
                         } else if($tipoXml == 'RespuestaDTE') {
                             try {
                                 // Revisar si la respuesta es válida
                                 echo "Correo entrante: RespuestaDTE\n";
-                                Log::channel(env('LOG_CHANNEL'))->info("Correo entrante: RespuestaDTE");
+                                Log::channel('default')->info("Correo entrante: RespuestaDTE");
 
                                 // Buscar en la base de datos el nombre del archivo.
                                 $filename = $xml[0]->Resultado->RecepcionEnvio->NmbEnvio;
@@ -123,17 +123,17 @@ class DteImapIdleCommand extends ImapIdleCommand {
                                     ->update(['estado' => $estado]);
 
                             } catch (\Exception $e) {
-                                Log::channel(env('LOG_CHANNEL'))->info($e);
+                                Log::channel('default')->info($e);
                             }
                         }
                     }
                 }
                 // Devolver la información de los adjuntos
-                //Log::channel(env('LOG_CHANNEL'))->info(json_decode(json_encode($attachmentsInfo)));
+                //Log::channel('default')->info(json_decode(json_encode($attachmentsInfo)));
                 //echo json_encode($attachmentsInfo);
             }
         } else {
-            Log::channel(env('LOG_CHANNEL'))->info("Correo entrante sin adjuntos");
+            Log::channel('default')->info("Correo entrante sin adjuntos");
         }
     }
 

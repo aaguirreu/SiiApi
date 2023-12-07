@@ -392,9 +392,9 @@ class DteController extends Controller
         // Firma .p12
         $config = [
             'firma' => [
-                'file' => env("CERT_PATH", ""),
+                'file' => config("dte.CERT_PATH"),
                 //'data' => '', // contenido del archivo certificado.p12
-                'pass' => env("CERT_PASS", "")
+                'pass' => config("dte.CERT_PASS")
             ],
         ];
         return new FirmaElectronica($config['firma']);
@@ -545,15 +545,15 @@ class DteController extends Controller
 
     protected function guardarXML($rutReceptor): array
     {
-        if (!file_exists(env('DTES_PATH', "") . "$rutReceptor")) {
-            mkdir(env('DTES_PATH', "") . "$rutReceptor", 0777, true);
+        if (!file_exists(config('dte.DTES_PATH') . "$rutReceptor")) {
+            mkdir(config('dte.DTES_PATH') . "$rutReceptor", 0777, true);
         }
         $tipoDTE = key(array_filter(self::$folios));
         $folio = self::$folios[$tipoDTE];
         $filename = "DTE_$tipoDTE" . "_$folio" . "_$this->timestamp.xml";
         $filename = str_replace(' ', 'T', $filename);
         $filename = str_replace(':', '-', $filename);
-        $file = env('DTES_PATH', "") . "$rutReceptor\\" . $filename;
+        $file = config('dte.DTES_PATH') . "$rutReceptor\\" . $filename;
         return [$file, $filename];
     }
 }

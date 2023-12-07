@@ -12,6 +12,7 @@ En el archivo php.ini quitar los punto y coma ";" de los siguientes líneas:
 - extension=pdo_pgsql
 - extension=pgsql
 - extension=soap
+- extension=curl
 
 ### .env
 
@@ -65,7 +66,7 @@ User=www-data
 Group=www-data
 
 WorkingDirectory=/var/www/my_project
-ExecStart=/var/www/my_project/php artisan dteimap:idle
+ExecStart=/user/bin/php artisan dteimap:idle
 
 Restart=on-failure
 RestartSec=5s

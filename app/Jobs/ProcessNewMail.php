@@ -70,10 +70,10 @@ class ProcessNewMail implements ShouldQueue
                 $attachmentsInfo[] = $attachmentInfo;
             }
             // Devolver la información de los adjuntos
-            //Log::channel(env('LOG_CHANNEL'))->info(json_decode(json_encode($attachmentsInfo)));
+            //Log::channel('default')->info(json_decode(json_encode($attachmentsInfo)));
             echo json_encode($attachmentsInfo);
         } else {
-            Log::channel(env('LOG_CHANNEL'))->info("No hay adjuntos");
+            Log::channel('default')->info("No hay adjuntos");
         }
     }
 }
