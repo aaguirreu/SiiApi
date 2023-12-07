@@ -339,9 +339,13 @@ class FacturaController extends DteController
 
     public function obtenerCorreoDB($rut_receptor)
     {
-        return DB::table('empresa')
-            ->where('rut', '=', $rut_receptor)
-            ->first()->correo;
+        try {
+            DB::table('empresa')
+                ->where('rut', '=', $rut_receptor)
+                ->first()->correo;
+        } catch (Exception $e) {
+            return null;
+        }
     }
 
     public function actualizarCorreoDB($rut_receptor, $correo): void
