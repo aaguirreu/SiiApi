@@ -543,10 +543,10 @@ class DteController extends Controller
         return $error ?? $folios;
     }
 
-    protected function guardarXML($rutReceptor): array
+    protected function parseFileName($rutReceptor): array
     {
         if (!file_exists(env('DTES_PATH', "") . "$rutReceptor")) {
-            mkdir(env('DTES_PATH', "") . "$rutReceptor", 0777, true);
+            mkdir(env('DTES_PATH', "") . "$rutReceptor", 0770, true);
         }
         $tipoDTE = key(array_filter(self::$folios));
         $folio = self::$folios[$tipoDTE];
