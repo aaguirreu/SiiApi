@@ -19,7 +19,9 @@
         "php-imap/php-imap": "^2.0",
         "sasco/libredte": "^21.10",
         "swaggest/json-schema": "^0.12.41",
-        "webklex/laravel-imap": "*"
+        "webklex/laravel-imap": "*",
+      "ext-http": "*",
+        "ext-dom": "*"
     },
     "require-dev": {
         "facade/ignition": "^2.5",
