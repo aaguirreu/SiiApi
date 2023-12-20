@@ -553,7 +553,7 @@ class DteController extends Controller
         $filename = "DTE_$tipoDTE" . "_$folio" . "_$this->timestamp.xml";
         $filename = str_replace(' ', 'T', $filename);
         $filename = str_replace(':', '-', $filename);
-        $file = env('DTES_PATH') . "$rutReceptor\\" . $filename;
+        $file = env('DTES_PATH') . "$rutReceptor/" . $filename;
         return [$file, $filename];
     }
 }
