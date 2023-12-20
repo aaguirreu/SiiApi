@@ -41,7 +41,7 @@ class FacturaController extends DteController
 
         list($file, $filename) = $this->parseFileName($rutReceptor);
 
-        if(!Storage::disk('dtes')->put($rutReceptor.'\\'.$filename, $dte)) {
+        if(!Storage::disk('dtes')->put($rutReceptor.'/'.$filename, $dte)) {
             Log::write(0, 'Error al guardar dte en Storage');
             return false;
         }
