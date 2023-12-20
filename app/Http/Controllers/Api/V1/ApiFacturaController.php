@@ -137,7 +137,7 @@ class ApiFacturaController extends FacturaController
             $dteXml = '<?xml version="1.0" encoding="ISO-8859-1"?>' . "\n" . $dteXml;
         }
         do {
-            list($file, $filename) = $this->guardarXML($caratula['RutReceptor']);
+            list($file, $filename) = $this->parseFileName($caratula['RutReceptor']);
         } while (file_exists($file));
 
         if(!Storage::disk('dtes')->put($caratula['RutReceptor'].'\\'.$filename, $dteXml)) {

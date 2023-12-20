@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use Carbon\Carbon;
+use CURLFile;
 use DOMDocument;
 use Exception;
 use GuzzleHttp\Client;
@@ -46,81 +47,51 @@ class FacturaController extends DteController
             return false;
         }
 
-        try {
-            $headers = [
-                'Cookie' => 'TOKEN='.self::$token,
-                'text/xml;charset=ISO-8859-1',
-            ];
+        $data = [
+            'rutSender' => $rutSender,
+            'dvSender' => $dvSender,
+            'rutCompany' => $rutCompany,
+            'dvCompany' => $dvCompany,
+            'archivo' => new CURLFile($file, 'text/xml', $filename),
+        ];
 
-            $options = [
-                'multipart' => [
-                    [
-                        'name' => 'rutSender',
-                        'contents' => $rutSender,
-                    ],
-                    [
-                        'name' => 'dvSender',
-                        'contents' => $dvSender,
-                    ],
-                    [
-                        'name' => 'rutCompany',
-                        'contents' => $rutCompany,
-                    ],
-                    [
-                        'name' => 'dvCompany',
-                        'contents' => $dvCompany,
-                    ],
-                    [
-                        'name' => 'archivo',
-                        'contents' => fopen($file, 'r'),
-                        'filename' => $file,
-                        'headers'  => [
-                            'Content-Type' => 'application/xml;charset=ISO-8859-1',
-                            'SOAPAction' => 'balance',
-                        ],
-                    ],
-                ],
-            ];
+        $header = [
+            'User-Agent: Mozilla/4.0 (compatible; PROG 1.0; Logiciel)',
+            'Cookie: TOKEN=' . self::$token,
+            'Content-Type: text/html; charset=ISO-8859-1',
+        ];
 
-            $client = new Client();
-            $request = new Request('POST', self::$url, $headers);
+        // crear sesión curl con sus opciones
+        $curl = curl_init();
+        curl_setopt($curl, CURLOPT_POST, true);
+        curl_setopt($curl, CURLOPT_POSTFIELDS, $data);
+        curl_setopt($curl, CURLOPT_HTTPHEADER, $header);
+        curl_setopt($curl, CURLOPT_URL, self::$url);
+        curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
 
-            // Enviar la solicitud de manera asíncrona y obtener la respuesta
-            $promise = $client->sendAsync($request, $options)->then(
-                function ($response) {
-                    // Obtener el cuerpo de la respuesta
-                    $body = $response->getBody()->getContents();
-                    $response = new Response(200, [], $body);
-                    // Aquí $body contiene la respuesta en formato XML
-                    echo $response->getBody()->getContents();
-
-                    // crear XML con la respuesta y retornar
-                    try {
-                        $xml = new \SimpleXMLElement($body, LIBXML_COMPACT);
-                    } catch (Exception $e) {
-                        \sasco\LibreDTE\Log::write(Estado::ENVIO_ERROR_XML, Estado::get(Estado::ENVIO_ERROR_XML, $e->getMessage()));
-                        return false;
-                    }
-                    if ($xml->STATUS!=0) {
-                        \sasco\LibreDTE\Log::write(
-                            $xml->STATUS,
-                            Estado::get($xml->STATUS).(isset($xml->DETAIL)?'. '.implode("\n", (array)$xml->DETAIL->ERROR):'')
-                        );
-                    }
-                },
-                function (RequestException $exception) {
-                    // Manejar errores en la solicitud
-                    echo "Error en la solicitud: " . $exception->getMessage();
-                }
-            );
-
-            // Esperar a que la promesa se cumpla
-            $promise->wait();
-        } catch (Exception $e) {
-            // Manejar otras excepciones
-            echo "Error general: " . $e->getMessage();
+        // enviar XML al SII
+        for ($i=0; $i<self::$retry; $i++) {
+            $response = curl_exec($curl);
+            if ($response and $response!='Error 500') {
+                break;
+            }
         }
 
+        // verificar respuesta del envío y entregar error en caso que haya uno
+        if (!$response or $response=='Error 500') {
+            if (!$response) {
+                Log::write(Estado::ENVIO_ERROR_CURL, Estado::get(Estado::ENVIO_ERROR_CURL, curl_error($curl)));
+            }
+            if ($response == 'Error 500') {
+                Log::write(Estado::ENVIO_ERROR_500, Estado::get(Estado::ENVIO_ERROR_500));
+            }
+            // Borrar xml guardado anteriormente
+            Storage::disk('dtes')->delete($rutReceptor . '\\' . $filename);
+            return false;
+        }
+
+        // cerrar sesión curl
+        curl_close($curl);
 
         // crear XML con la respuesta y retornar
         try {
@@ -138,7 +109,7 @@ class FacturaController extends DteController
         #echo $xml->asXML();
 
         // Convertir a array asociativo
-        $arrayData = json_decode(json_encode($response), true);
+        $arrayData = json_decode(json_encode($xml), true);
 
         // Respuesta como JSON
         $json_response = json_decode(json_encode($arrayData, JSON_PRETTY_PRINT));
