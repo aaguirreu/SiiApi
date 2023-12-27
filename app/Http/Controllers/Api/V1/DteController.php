@@ -139,12 +139,10 @@ class DteController extends Controller
         return $id;
     }
 
-    protected function guardarXmlDB($envioResponse, $filename, $caratula, $doc, $dteXml): array|int
+    protected function guardarXmlDB($envioDteId, $filename, $caratula, $doc, $dteXml): array|int
     {
         try {
             DB::beginTransaction(); // <= Starting the transaction
-
-            $envioDteId = $this->guardarEnvioDte($envioResponse);
             $emisorID = $this->getEmpresa($caratula['RutEmisor'], $doc->Encabezado->Emisor);
             $caratulaId = $this->getCaratula($caratula, $emisorID);
             $dteId = $this->guardarDte($filename, $envioDteId, $caratulaId);
@@ -174,19 +172,19 @@ class DteController extends Controller
             'envio_id' => $envioDteId,
             'caratula_id' => $caratulaId,
             'resumen_id' => null,
+            'estado' => null, // ACEPTADO / RECHAZADO
             'xml_filename' => $filename,
-            'estado' => null,
             'created_at' => $this->timestamp,
             'updated_at' => $this->timestamp
         ]);
     }
 
-    protected function getEmpresa($rut, $dte): int
+    protected function getEmpresa($rut, $empresa): int
     {
         $emisor = DB::table('empresa')->where('rut', '=', $rut)->latest()->first();
         if ($emisor) return $emisor->id;
         else {
-            return $this->guardarEmpresa($rut, $dte);
+            return $this->guardarEmpresa($rut, $empresa);
         }
     }
 
@@ -553,7 +551,7 @@ class DteController extends Controller
         $filename = "DTE_$tipoDTE" . "_$folio" . "_$this->timestamp.xml";
         $filename = str_replace(' ', 'T', $filename);
         $filename = str_replace(':', '-', $filename);
-        $file = env('DTES_PATH') . "$rutReceptor/" . $filename;
+        $file = env('DTES_PATH') . "/$rutReceptor/$filename";
         return [$file, $filename];
     }
 }

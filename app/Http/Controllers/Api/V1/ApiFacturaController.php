@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Mail\DteEnvio;
-use App\Mail\DteResponse;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -12,8 +11,6 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use sasco\LibreDTE\Log;
 use sasco\LibreDTE\Sii;
-use function PHPUnit\Framework\isType;
-
 
 // Debería ser class ApiFacturaController extends ApiController
 // y llamar a FacturaController con use FacturaController, new FacturaController(construct)
@@ -92,7 +89,7 @@ class ApiFacturaController extends FacturaController
         }
 
         // Enviar DTE al SII e insertar en base de datos de ser exitoso
-        list($envio_response, $filename) = $this->enviar($caratula['RutEnvia'], $caratula['RutEmisor'], "60803000-K", $dteXml);
+        list($envio_response, $filename) = $this->enviar($caratula['RutEnvia'], $caratula['RutEmisor'] , "60803000-K", $dteXml);
         if (!$envio_response) {
             return response()->json([
                 'message' => "Error al enviar el DTE",
@@ -107,14 +104,18 @@ class ApiFacturaController extends FacturaController
             ], 400);
         }
 
+        $envioDteId = $this->guardarEnvioDte($envio_response);
         // Guardar en base de datos envio, xml, etc
-        $dbresponse = $this->guardarXmlDB($envio_response, $filename, $caratula, $dte->Documentos[0], $dteXml);
+        $dbresponse = $this->guardarXmlDB($envioDteId, $filename, $caratula, $dte->Documentos[0], $dteXml);
         if (isset($dbresponse['error'])) {
             return response()->json([
                 'message' => "Error al guardar el DTE en la base de datos",
                 'errores' => $dbresponse['error'],
             ], 400);
         }
+
+        // Cambiar RutReceptor de caratula
+        $caratula['RutReceptor'] = $dte->Documentos[0]->Encabezado->Receptor->RUTRecep;
 
         // Enviar DTE a receptor
         return $this->enviarDteReceptor($documentos, $dte->Documentos[0], $firma, $folios, $caratula, $correo, $envio_response);
@@ -123,7 +124,6 @@ class ApiFacturaController extends FacturaController
     private function enviarDteReceptor($documentos, $doc, $firma, $folios, $caratula, $correo, $envio_response)
     {
         // generar cada DTE, timbrar, firmar y agregar al sobre de EnvioBOLETA
-        $caratula['RutReceptor'] = $doc->Encabezado->Receptor->RUTRecep;
         $dteXml = $this->generarEnvioDteXml($documentos, $firma, $folios, $caratula);
         if(is_array($dteXml)){
             return response()->json([
@@ -149,7 +149,7 @@ class ApiFacturaController extends FacturaController
 
         // Enviar respuesta por correo
         $message = [
-            'from' => DB::table('empresa')->where('rut', '=', env('RUT_EMISOR'))->first()->razon_social,
+            'from' => DB::table('empresa')->where('rut', '=', $caratula['RutEmisor'])->first()->razon_social,
         ];
 
         $fileEnvio = [
@@ -169,17 +169,9 @@ class ApiFacturaController extends FacturaController
         // Actualizar folios en la base de datos
         // $this->actualizarFolios();
 
-        // Guardar en base de datos envio, xml, etc
-        // trackid 0 por que es un envio a receptor
-        $envio_receptor_response = ['trackid' => 0];
-        $envio_receptor_response = json_decode(json_encode($envio_receptor_response));
-        $dbresponse = $this->guardarXmlDB($envio_receptor_response, $filename, $caratula, $doc, $dteXml);
-        if (isset($dbresponse['error'])) {
-            return response()->json([
-                'message' => "Error al guardar el DTE en la base de datos",
-                'errores' => $dbresponse['error'],
-            ], 400);
-        }
+        // Guardar en base de datos solo carátula, ya que, el dte es el mismo enviado al Sii.
+        $emisorID = $this->getEmpresa($caratula['RutEmisor'], $doc->Encabezado->Emisor);
+        $caratulaId = $this->getCaratula($caratula, $emisorID);
 
         return response()->json([
             'message' => "DTE enviado correctamente",
