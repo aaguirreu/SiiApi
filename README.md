@@ -5,6 +5,7 @@ Api que consume la api sii para el envío de boletas https://www4c.sii.cl/bolcor
 ![db_model](https://github.com/aaguirreu/SiiApi/assets/64426866/ba1f5ea9-2e83-4aee-9c80-f5320e5b652b)
 
 # Instrucciones
+Sigue las siguientes instrucciones para un correcto funcionamiento en una maquina virtual con apache2.
 
 ### php.ini
 
@@ -14,18 +15,23 @@ En el archivo php.ini quitar los punto y coma ";" de los siguientes líneas:
 - extension=soap
 - extension=curl
 
+### Clonar repositorio
+
+```
+cd /var/www/html/
+git clone https://github.com/aaguirreu/SiiApi.git
+```
+
 ### .env
 
  Copiar o reemplazar .env_example como .env  
 `cp .env_example .env`
 
-Llenar los datos faltantes:
+Llenar los datos faltantes. Verifica que CAFS_PATH Y DTES_PATH terminen en /.
 
 - CERT_PATH= Ruta a la firma digital (archivo .pfx o .p12).
 - CERT_PASS= Contraseña de la firma
 - CAFS_PATH= Carpeta donde se guardarán los cafs.xml
-- FOLIOS_PATH= Carpeta donde se guardarán los cafs.xml
-- FOLIOS_PATH= Carpeta donde se guardarán los cafs.xml
 - DTES_PATH= Carpeta donde se guardarán los dte.xml
 
 Reemplazar los valores de la base de datos según corresponda:
@@ -49,7 +55,9 @@ En desarrollo se puede ejecutar el comando de forma manual:
 
 Para que se ejecute en producción se debe configurar un cronjob que ejecute el comando cada cierto tiempo.
 Más información en la página oficial de [PHP-IMAP](https://www.php-imap.com/frameworks/laravel/service)
+
 #### Configurando un systemd service:
+
 `nano /etc/systemd/system/imap-idle.service`
 
 ```
@@ -78,8 +86,13 @@ WantedBy=multi-user.target
 systemctl start imap-idle.service
 systemctl enable imap-idle.service
 ```
-Asegúrate de que estés ejecutando queue:work en tu projecto, si no, no se procesarán los correos entrantes.
 
-`php artisan queue:work`
+#### Configuración de permisos
 
-De todas formas, estos quedarán en cola en la base de datos para ser procesados cuando se ejecute el comando.
+Verifica que el usuario al cual la aplicación pertenece tenga permisos de escritura en las carpetas de logs y cache. Con los siguientes comandos puedes asignarle los permisos. Fíjate que no estés como root user, o reemplaza ${USER} por el usuario que la aplicación utiliza.
+```
+chown -R ${USER}:www-data .
+chmod -R 774 storage/logs/
+chmod -R 774 storage/framework/
+php artisan cache:clear
+```
