@@ -21,7 +21,7 @@ class FacturaController extends DteController
         self::$token = json_decode(file_get_contents(base_path('config.json')))->token;
     }
 
-    /*
+    /**
      * Enviar DTE al SII
      */
     protected function enviar($rutEnvia, $rutEmisor, $rutReceptor, $dte) {
@@ -115,7 +115,7 @@ class FacturaController extends DteController
         return [$json_response, $filename];
     }
 
-    /*
+    /**
      * Recorre los documentos como array y les asigna un folio
      */
     protected function parseDte($dte): array
@@ -166,8 +166,9 @@ class FacturaController extends DteController
         return $response ?? $documentos;
     }
 
-    /*
+    /**
      * Generar DTE de respuesta sobre la recepción de un envío de DTE
+     * @throws Exception
      */
     public function respuestaEnvio($attachment): bool|array
     {
@@ -176,16 +177,17 @@ class FacturaController extends DteController
         // Cargar EnvioDTE y extraer arreglo con datos de carátula y DTEs
         $EnvioDte = new EnvioDte();
         $EnvioDte->loadXML($attachment->getContent());
-        $Caratula = $EnvioDte->getCaratula();
+        $caratula = $EnvioDte->getCaratula();
         $Documentos = $EnvioDte->getDocumentos();
 
         // Verificar si RutReceptor está en la base de datos como cliente con join
-        $cliente = DB::table('cliente')
-            ->join('empresa', 'cliente.empresa_id', '=', 'empresa.id')
+        $cliente = DB::table('empresa')
+            ->join('cliente', 'empresa.id', '=', 'cliente.empresa_id')
             ->where('empresa.rut', '=', $EnvioDte->getReceptor())
+            ->select('empresa.rut') // Seleccionar solo el campo que necesitas
             ->first();
 
-        if (isset($cliente)) {
+        if ($cliente) {
             // RutReceptor en el DTE.xml recibido
             $rut_receptor_esperado = $cliente->rut;
         } else {
@@ -193,29 +195,25 @@ class FacturaController extends DteController
             $rut_receptor_esperado = '000-0';
         }
 
+
         // Obtener el codigo de envio de la respuesta
         $respuesta = DB::table('secuencia_respuesta')->first();
         if(isset($respuesta)) {
             $cod_envio = $respuesta->cod_envio;
+            $idRespuesta = $respuesta->id;
         } else {
-            DB::table('secuencia_respuesta')
-                ->insert([
-                    'id' => 1,
-                    'cod_envio' => 1,
-                    'updated_at' => $this->timestamp,
-                    'created_at' => $this->timestamp,
-                ]);
             $cod_envio = 1;
+            $idRespuesta = 1;
         }
 
         // RutEmisor en el DTE.xml recibido
-        $rut_emisor_esperado = $Caratula['RutEmisor'];
+        $rut_emisor_esperado = $caratula['RutEmisor'];
 
         // caratula
-        $caratula = [
+        $caratula_respuesta = [
             'RutResponde' => $rut_receptor_esperado,
-            'RutRecibe' => $Caratula['RutEmisor'],
-            'IdRespuesta' => 1,
+            'RutRecibe' => $caratula['RutEmisor'],
+            'IdRespuesta' => ++$idRespuesta,
             //'NmbContacto' => '',
             //'MailContacto' => '',
         ];
@@ -253,7 +251,7 @@ class FacturaController extends DteController
         ]);
 
         // asignar carátula y Firma
-        $RespuestaEnvio->setCaratula($caratula);
+        $RespuestaEnvio->setCaratula($caratula_respuesta);
         $firma = $this->obtenerFirma();
         $RespuestaEnvio->setFirma($firma);
 
@@ -261,41 +259,35 @@ class FacturaController extends DteController
         $xml = $RespuestaEnvio->generar();
 
         // validar schema del XML que se generó
+        $filename = "RespuestaEnvio_{$cod_envio}_$this->timestamp.xml";
         if ($RespuestaEnvio->schemaValidate()) {
-            $filename = 'RespuestaEnvio.xml';
-            Storage::disk('dtes')->put("Respuestas\\$rut_emisor_esperado\\$filename", $xml);
             // Guardar DTE en la base de datos
-            $dte = new SimpleXMLElement($attachment->getContent());
-            // Establecer el espacio de nombres
-            $xml->registerXPathNamespace('sii', 'http://www.sii.cl/SiiDte');
-            // Obtener la caratula
-            $caratula = $xml->xpath('//sii:Caratula')[0];  // Se asume que hay solo una caratula
-            // Obtener el primer documento
-            $documento = $xml->xpath('//sii:DTE')[0];  // Se asume que hay al menos un documento
-            $dbresponse = $this->guardarXmlDB(null, $filename, $caratula, $documento, $attachment->getContent());
+            // envioDteId null significa que es un dte recibido, compra en este caso
+            $dbresponse = $this->guardarXmlDB(null, $attachment->getName(), $caratula, $attachment->getContent());
             if (isset($dbresponse['error'])) {
+                Log::write(0, $dbresponse['error']);
                 return false;
             }
-            $this->guardarRespuesta($dbresponse, $cod_envio);
-            return [
-                'filename' => $filename,
-                'data' => $xml
-            ];
+            Storage::disk('dtes')->put("$rut_emisor_esperado/Respuestas/$filename", $xml);
+            $this->guardarRespuesta($dbresponse, $cod_envio, $filename);
         }
-        return false;
+        return [
+            'filename' => $filename,
+            'data' => $xml
+        ];
     }
 
-    /*
+    /**
      * Generar DTE de respuesta sobre la aceptación o rechazo de un dte
      */
-    public function respuestaDocumento($estado, $dte_id, $dte_xml, $rut_emisor_esperado)
+    public function respuestaDocumento($dte_id, $estado, $motivo, $dte_xml)
     {
         $this->timestamp = Carbon::now('America/Santiago');
 
         // Cargar EnvioDTE y extraer arreglo con datos de carátula y DTEs
         $EnvioDte = new \sasco\LibreDTE\Sii\EnvioDte();
         $EnvioDte->loadXML($dte_xml);
-        $Caratula = $EnvioDte->getCaratula();
+        $caratula = $EnvioDte->getCaratula();
         $Documentos = $EnvioDte->getDocumentos();
 
         // Verificar si RutReceptor está en la base de datos como cliente con join
@@ -315,20 +307,23 @@ class FacturaController extends DteController
         $respuesta = DB::table('secuencia_respuesta')->where('dte_id', '=', $dte_id)->first();
         if(isset($respuesta)) {
             $cod_envio = $respuesta->cod_envio;
-        } else return false; // No existe respuesta
+        } else {
+            Log::write(0, 'No se encontró el código de envío asociado al dte');
+            return false;
+        }
 
         // caratula
-        $caratula = [
+        $rut_emisor_esperado = $EnvioDte->getEmisor();
+        $caratula_respuesta = [
             'RutResponde' => $rut_receptor_esperado,
             'RutRecibe' => $rut_emisor_esperado,
-            'IdRespuesta' => 1,
+            'IdRespuesta' => ++$respuesta->id,
             //'NmbContacto' => '',
             //'MailContacto' => '',
         ];
 
         // objeto para la respuesta
         $RespuestaEnvio = new \sasco\LibreDTE\Sii\RespuestaEnvio();
-
 
         // procesar cada DTE
         foreach ($Documentos as $DTE) {
@@ -341,30 +336,28 @@ class FacturaController extends DteController
                 'MntTotal' => $DTE->getMontoTotal(),
                 'CodEnvio' => ++$cod_envio,
                 'EstadoDTE' => $estado,
-                'EstadoDTEGlosa' => \sasco\LibreDTE\Sii\RespuestaEnvio::$estados['respuesta_documento'][$estado],
+                'EstadoDTEGlosa' => \sasco\LibreDTE\Sii\RespuestaEnvio::$estados['respuesta_documento'][$estado].$motivo,
             ]);
         }
 
         // asignar carátula y Firma
-        $RespuestaEnvio->setCaratula($caratula);
+        $RespuestaEnvio->setCaratula($caratula_respuesta);
         $RespuestaEnvio->setFirma($this->obtenerFirma());
 
         // generar XML
         // generar XML
         $xml = $RespuestaEnvio->generar();
 
+        $filename = "RespuestaEnvio_{$cod_envio}_$this->timestamp.xml";
+        $filename = str_replace(' ', 'T', $filename);
+        $filename = str_replace(':', '-', $filename);
         // validar schema del XML que se generó
         if ($RespuestaEnvio->schemaValidate()) {
-            // mostrar XML al usuario, deberá ser guardado y subido al SII en:
-            // https://www4.sii.cl/pfeInternet
             $filename = "RespuestaDocumento_$cod_envio.xml";
-            Storage::disk('dtes')->put("Respuestas\\$rut_emisor_esperado\\$filename", $xml);
-            DB::table('secuencia_folio')
-                ->where('id', '=', 0)
-                ->update([
-                    'cant_folios' => $cod_envio,
-                    'updated_at' => $this->timestamp,
-                ]);
+
+            // Guardar respuesta en la base de datos
+            Storage::disk('dtes')->put("$rut_emisor_esperado/Respuestas/$filename", $xml);
+            $this->guardarRespuesta($dte_id, $cod_envio, $filename);
             return [
                 'filename' => $filename,
                 'data' => $xml
@@ -373,7 +366,7 @@ class FacturaController extends DteController
         return false;
     }
 
-    /*
+    /**
      * Enviar respuesta sobre la recepción, aceptación o rechazo de un dte al SII
      * No se usa
      */
@@ -385,7 +378,7 @@ class FacturaController extends DteController
             $dte = '<?xml version="1.0" encoding="ISO-8859-1"?>' . "\n" . $dte;
         }
 
-        $file = Storage::disk('dtes')->path("Respuestas/$rutReceptor/$filename");
+        $file = Storage::disk('dtes')->path("$rutReceptor/Respuestas/$filename");
 
         $data = [
             'rutSender' => $rutSender,
@@ -435,7 +428,7 @@ class FacturaController extends DteController
     }
 
 
-    /*
+    /**
      * Obtiene el correo del receptor desde la base de datos según rut
      */
     public function obtenerCorreoDB($rut_receptor)
@@ -449,7 +442,7 @@ class FacturaController extends DteController
         }
     }
 
-    /*
+    /**
      * Actualiza el correo del receptor en la base de datos según rut
      */
     public function actualizarCorreoDB($rut_receptor, $correo): void
@@ -469,12 +462,16 @@ class FacturaController extends DteController
 
     }
 
-    public function guardarRespuesta($dte_id, $cod_envio): void
+    /**
+     * Guarda el xml en la base de datos
+     */
+    public function guardarRespuesta($dte_id, $cod_envio, $filename): void
     {
         DB::table('secuencia_respuesta')->insertGetId(
             [
                 'dte_id' => $dte_id,
                 'cod_envio' => $cod_envio,
+                'xml_filename' => $filename,
                 'updated_at' => $this->timestamp,
                 'created_at' => $this->timestamp,
             ]

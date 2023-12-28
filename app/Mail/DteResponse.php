@@ -20,7 +20,7 @@ class DteResponse extends Mailable
      * @return void
      */
     public function __construct(
-        protected Message $message,
+        protected string $empresa,
         protected array $file
     ) {}
 
@@ -32,7 +32,7 @@ class DteResponse extends Mailable
     public function build()
     {
         return $this
-            ->view('respuesta-email', ['name' => $this->message->getFrom()[0]->personal])
+            ->view('respuesta-email', ['name' => $this->empresa])
             ->subject('Respuesta DTE')
             ->attachData($this->file['data'], $this->file['filename'], [
                 'mime' => 'text/xml',

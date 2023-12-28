@@ -139,14 +139,14 @@ class DteController extends Controller
         return $id;
     }
 
-    protected function guardarXmlDB($envioDteId, $filename, $caratula, $doc, $dteXml): array|int
+    protected function guardarXmlDB($envioDteId, $filename, $caratula, $dteXml): array|int
     {
         try {
             DB::beginTransaction(); // <= Starting the transaction
-            $emisorID = $this->getEmpresa($caratula['RutEmisor'], $doc->Encabezado->Emisor);
+            $xml = new SimpleXMLElement($dteXml);
+            $emisorID = $this->getEmpresa($caratula['RutEmisor'], $xml->children()->SetDTE->DTE->Documento[0]->Encabezado->Emisor);
             $caratulaId = $this->getCaratula($caratula, $emisorID);
             $dteId = $this->guardarDte($filename, $envioDteId, $caratulaId);
-            $xml = new SimpleXMLElement($dteXml);
             foreach ($xml->children()->SetDTE->DTE->Documento as $documento) {
                 $cafId = DB::table('caf')->where('folio_id', '=', $documento->Encabezado->IdDoc->TipoDTE)->latest()->first()->id;
                 $receptorId = $this->getEmpresa($documento->Encabezado->Receptor->RUTRecep, $documento);
@@ -156,7 +156,7 @@ class DteController extends Controller
                 }
             }
             DB::commit(); // <= Commit the changes
-            return $envioDteId;
+            return $dteId;
         } catch (Exception $e) {
             report($e);
             DB::rollBack(); // <= Rollback in case of an exception

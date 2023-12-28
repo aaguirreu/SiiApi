@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Mail\DteEnvio;
+use App\Mail\DteResponse;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -11,6 +12,7 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use sasco\LibreDTE\Log;
 use sasco\LibreDTE\Sii;
+use SimpleXMLElement;
 
 // Debería ser class ApiFacturaController extends ApiController
 // y llamar a FacturaController con use FacturaController, new FacturaController(construct)
@@ -23,6 +25,13 @@ class ApiFacturaController extends FacturaController
         $this->timestamp = Carbon::now('America/Santiago');
     }
 
+    /**
+     * @param Request $request
+     * @param $ambiente
+     * @return JsonResponse
+     * Enviar DTE al SII y guardar en base de datos
+     * LLama a la faunción enviarDteReceptor
+     */
     public function envioDte(Request $request, $ambiente): JsonResponse
     {
         // Leer string como json
@@ -56,7 +65,7 @@ class ApiFacturaController extends FacturaController
             if (!isset($dte->Documentos[0]->Encabezado->Receptor->CorreoRecep)) {
                 return response()->json([
                     'errores' => "No se ha encontrado el correo electrónico del receptor",
-                    'message' => "Agregue CorreoRecep en el envío o agregue/actualice al Emisor en la base de datos"
+                    'message' => "Agregue CorreoRecep en el envío o agregue/actualice al receptor en la base de datos"
                 ], 400);
             } else {
                 $correo = $dte->Documentos[0]->Encabezado->Receptor->CorreoRecep;
@@ -106,7 +115,7 @@ class ApiFacturaController extends FacturaController
 
         $envioDteId = $this->guardarEnvioDte($envio_response);
         // Guardar en base de datos envio, xml, etc
-        $dbresponse = $this->guardarXmlDB($envioDteId, $filename, $caratula, $dte->Documentos[0], $dteXml);
+        $dbresponse = $this->guardarXmlDB($envioDteId, $filename, $caratula, $dteXml);
         if (isset($dbresponse['error'])) {
             return response()->json([
                 'message' => "Error al guardar el DTE en la base de datos",
@@ -121,6 +130,17 @@ class ApiFacturaController extends FacturaController
         return $this->enviarDteReceptor($documentos, $dte->Documentos[0], $firma, $folios, $caratula, $correo, $envio_response);
     }
 
+    /**
+     * @param $documentos
+     * @param $doc
+     * @param $firma
+     * @param $folios
+     * @param $caratula
+     * @param $correo
+     * @param $envio_response
+     * @return JsonResponse
+     * Enviar DTE al receptor y guardar en base de datos
+     */
     private function enviarDteReceptor($documentos, $doc, $firma, $folios, $caratula, $correo, $envio_response)
     {
         // generar cada DTE, timbrar, firmar y agregar al sobre de EnvioBOLETA
@@ -184,6 +204,12 @@ class ApiFacturaController extends FacturaController
         ], 200);
     }
 
+    /**
+     * @param Request $request
+     * @param string $ambiente
+     * @return bool|string
+     * Estado de envío de DTE
+     */
     public function estadoEnvioDte(Request $request, string $ambiente)
     {
         // Leer string como json
@@ -206,6 +232,13 @@ class ApiFacturaController extends FacturaController
         return $response->asXML();
     }
 
+
+    /**
+     * @param Request $request
+     * @param $ambiente
+     * @return bool|string
+     * Estado de DTE
+     */
     public function estadoDte(Request $request, $ambiente)
     {
         // Leer string como json
@@ -224,8 +257,8 @@ class ApiFacturaController extends FacturaController
             'DvConsultante'     => $body->dv,
             'RutCompania'       => $body->rut,
             'DvCompania'        => $body->dv,
-            'RutReceptor'       => $body->rut_receptor,
-            'DvReceptor'        => $body->dv_receptor,
+            'RutReceptor'       => $body->rutReceptor,
+            'DvReceptor'        => $body->dvReceptor,
             'TipoDte'           => $body->tipo,
             'FolioDte'          => $body->folio,
             'FechaEmisionDte'   => $body->fechaEmision,
@@ -246,6 +279,61 @@ class ApiFacturaController extends FacturaController
         return $this->uploadCaf($request, true);
     }
 
+    /**
+     * @param Request $request
+     * @return JsonResponse
+     * Envia RespuestaDTE con el estado de aceptado o rechazado
+     */
+    public function enviarRespuestaDocumento(Request $request)
+    {
+        // Leer string como json
+        $body = json_decode(json_encode($request->json()->all()));
+
+        // Obtener filename del dte con su id
+        $dte = DB::table('dte')->where('id', '=', $body->dteId)->first();
+        $filename = $dte->xml_filename;
+
+        $dte_xml = Storage::disk('dtes')->get($filename);
+
+        $motivo = match ($body->estado) {
+            0 => ".",
+            2, 1 => ". $body->motivo",
+            default => false,
+        };
+
+        if (!$motivo){
+            return response()->json([
+                'message' => "Error al enviar respuesta de documento",
+                'errores' => "Estado no válido",
+            ], 400);
+        }
+
+        // Obtener respuesta de documento
+        $respuesta = $this->respuestaDocumento($body->dteId, $body->estado, $motivo, $dte_xml);
+
+        if (isset($respuesta['error'])) {
+            return response()->json([
+                'message' => "Error al enviar respuesta de documento",
+                'errores' => $respuesta['error'],
+            ], 400);
+        }
+
+
+        $dte_xml = new SimpleXMLElement($dte_xml);
+        // Enviar respuesta por correo
+        Mail::to($body->correo)->send(new DteResponse($dte_xml->children()->SetDTE->DTE->Documento[0]->Encabezado->Emisor->RznSoc, $respuesta));
+
+        return response()->json([
+            'message' => "Respuesta de documento enviada correctamente",
+        ], 200);
+
+    }
+
+    /**
+     * @param $ambiente
+     * @return void
+     * Set ambiente certificacón o producción
+     */
     protected function setAmbiente($ambiente) {
         if ($ambiente == "certificacion") {
             self::$ambiente = 0;

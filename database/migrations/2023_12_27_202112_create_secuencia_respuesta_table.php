@@ -17,6 +17,7 @@ class CreateSecuenciaRespuestaTable extends Migration
             $table->id();
             $table->foreignId('dte_id')->constrained('dte')->onDelete('cascade')->onUpdate('cascade');
             $table->integer('cod_envio');
+            $table->string('xml_filename');
             $table->timestamps();
         });
     }
