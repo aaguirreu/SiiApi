@@ -44,6 +44,7 @@ Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1'], f
     Route::post('{ambiente}/dte/envio', 'ApiFacturaController@envioDte');
     Route::post('{ambiente}/dte/estado.envio', 'ApiFacturaController@estadoEnvioDte');
     Route::post('{ambiente}/dte/estado.dte', 'ApiFacturaController@estadoDte');
+    Route::post('{ambiente}/dte/respuesta', 'ApiFacturaController@enviarRespuestaDocumento');
 
     // Envio de Set de Prueba
     Route::post('setdeprueba/envio', 'ApiSetPruebaBEController@setPrueba');

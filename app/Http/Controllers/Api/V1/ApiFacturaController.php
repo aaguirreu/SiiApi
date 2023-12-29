@@ -284,15 +284,20 @@ class ApiFacturaController extends FacturaController
      * @return JsonResponse
      * Envia RespuestaDTE con el estado de aceptado o rechazado
      */
-    public function enviarRespuestaDocumento(Request $request)
+    public function enviarRespuestaDocumento(Request $request): JsonResponse
     {
         // Leer string como json
         $body = json_decode(json_encode($request->json()->all()));
 
         // Obtener filename del dte con su id
         $dte = DB::table('dte')->where('id', '=', $body->dteId)->first();
+        if (!$dte) {
+            return response()->json([
+                'message' => "Error al enviar respuesta de documento",
+                'errores' => "No se ha encontrado el documento",
+            ], 400);
+        }
         $filename = $dte->xml_filename;
-
         $dte_xml = Storage::disk('dtes')->get($filename);
 
         $motivo = match ($body->estado) {
@@ -317,7 +322,6 @@ class ApiFacturaController extends FacturaController
                 'errores' => $respuesta['error'],
             ], 400);
         }
-
 
         $dte_xml = new SimpleXMLElement($dte_xml);
         // Enviar respuesta por correo

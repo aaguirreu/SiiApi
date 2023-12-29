@@ -43,7 +43,7 @@ class DteImapIdleCommand extends ImapIdleCommand {
          * Una opción es que el worker obtenga nuevamente el mensaje a través del id.
          * ya que, al enviar el mensaje como parámetro éste deja de ser el mensaje original.
          */
-        #$message->setFlag('Seen');
+        $message->setFlag('Seen');
     }
 
     /**
