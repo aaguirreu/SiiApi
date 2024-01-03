@@ -32,10 +32,11 @@ class FacturaController extends DteController
             $dte = '<?xml version="1.0" encoding="ISO-8859-1"?>' . "\n" . $dte;
         }
 
-        list($file, $filename) = $this->parseFileName($rutReceptor);
-
-        if(!Storage::disk('dtes')->put("/$rutReceptor/$filename", $dte)) {
-            Log::write(0, 'Error al guardar dte en Storage');
+        list($file, $filename) = $this->parseFileName($rutEmisor, $rutReceptor);
+        try {
+            Storage::disk('dtes')->put("$rutEmisor/Envios/$rutReceptor/$filename", $dte);
+        } catch (Exception $e) {
+            Log::write(0, "Error al guardar dte en Storage. {$e->getMessage()}");
             return false;
         }
 
@@ -260,16 +261,21 @@ class FacturaController extends DteController
 
         // validar schema del XML que se generó
         $filename = "RespuestaEnvio_{$cod_envio}_$this->timestamp.xml";
+        $filename = str_replace(' ', 'T', $filename);
+        $filename = str_replace(':', '-', $filename);
         if ($RespuestaEnvio->schemaValidate()) {
             // Guardar DTE en la base de datos
-            // envioDteId null significa que es un dte recibido, compra en este caso
-            $dbresponse = $this->guardarXmlDB(null, $attachment->getName(), $caratula, $attachment->getContent());
-            if (isset($dbresponse['error'])) {
-                Log::write(0, $dbresponse['error']);
-                return false;
+            // envioDteId null significa que un dte es de tipo recibido, de compra en este caso
+            if($rut_receptor_esperado != '000-0'){
+                $dbresponse = $this->guardarXmlDB(null, $attachment->getName(), $caratula, $attachment->getContent());
+                if (isset($dbresponse['error'])) {
+                    Log::write(0, $dbresponse['error']);
+                    return false;
+                }
+                Storage::disk('dtes')->put("$rut_receptor_esperado/Recibidos/$rut_emisor_esperado/".$attachment->getName(), $attachment->getContent());
+                Storage::disk('dtes')->put("$rut_receptor_esperado/Respuestas/$rut_emisor_esperado/$filename", $xml);
+                $this->guardarRespuesta($dbresponse, $cod_envio, $filename);
             }
-            Storage::disk('dtes')->put("$rut_emisor_esperado/Respuestas/$filename", $xml);
-            $this->guardarRespuesta($dbresponse, $cod_envio, $filename);
         }
         return [
             'filename' => $filename,
@@ -348,15 +354,13 @@ class FacturaController extends DteController
         // generar XML
         $xml = $RespuestaEnvio->generar();
 
-        $filename = "RespuestaEnvio_{$cod_envio}_$this->timestamp.xml";
+        $filename = "RespuestaDocumento_{$cod_envio}_$this->timestamp.xml";
         $filename = str_replace(' ', 'T', $filename);
         $filename = str_replace(':', '-', $filename);
         // validar schema del XML que se generó
         if ($RespuestaEnvio->schemaValidate()) {
-            $filename = "RespuestaDocumento_$cod_envio.xml";
-
             // Guardar respuesta en la base de datos
-            Storage::disk('dtes')->put("$rut_emisor_esperado/Respuestas/$filename", $xml);
+            Storage::disk('dtes')->put("$rut_receptor_esperado/Respuestas/$filename", $xml);
             $this->guardarRespuesta($dte_id, $cod_envio, $filename);
             return [
                 'filename' => $filename,

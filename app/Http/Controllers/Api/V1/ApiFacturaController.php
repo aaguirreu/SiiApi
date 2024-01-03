@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
+use PHPUnit\Exception;
 use sasco\LibreDTE\Log;
 use sasco\LibreDTE\Sii;
 use SimpleXMLElement;
@@ -157,10 +158,10 @@ class ApiFacturaController extends FacturaController
             $dteXml = '<?xml version="1.0" encoding="ISO-8859-1"?>' . "\n" . $dteXml;
         }
         do {
-            list($file, $filename) = $this->parseFileName($caratula['RutReceptor']);
+            list($file, $filename) = $this->parseFileName($caratula['RutEmisor'], $caratula['RutReceptor']);
         } while (file_exists($file));
 
-        if(!Storage::disk('dtes')->put($caratula['RutReceptor'].'\\'.$filename, $dteXml)) {
+        if(!Storage::disk('dtes')->put("{$caratula['RutEmisor']}/Envios/{$caratula['RutReceptor']}/$filename", $dteXml)) {
             Log::write(0, 'Error al guardar dte en Storage');
             return response()->json([
                 'message' => "Error al guardar el DTE en el Storage",
@@ -289,16 +290,38 @@ class ApiFacturaController extends FacturaController
         // Leer string como json
         $body = json_decode(json_encode($request->json()->all()));
 
-        // Obtener filename del dte con su id
+        // Verificar si existe el dte en DB
         $dte = DB::table('dte')->where('id', '=', $body->dteId)->first();
         if (!$dte) {
             return response()->json([
                 'message' => "Error al enviar respuesta de documento",
-                'errores' => "No se ha encontrado el documento",
+                'error' => "No se ha encontrado el documento",
             ], 400);
         }
+
+        if ($dte->estado != null) {
+            return response()->json([
+                'message' => "Error al enviar respuesta de documento",
+                'error' => "El documento ya ha sido respondido",
+                'estado' => \sasco\LibreDTE\Sii\RespuestaEnvio::$estados['respuesta_documento'][$dte->estado],
+            ], 400);
+        }
+
+        // Obtener filename del dte con su id
         $filename = $dte->xml_filename;
-        $dte_xml = Storage::disk('dtes')->get($filename);
+        try {
+            $caratula = DB::table('empresa')
+                ->join('caratula', 'empresa.id', '=', 'caratula.emisor_id')
+                ->where('caratula.id', '=', $dte->caratula_id)
+                ->select('caratula.*', 'empresa.rut as rut_emisor')
+                ->first();
+            $dte_xml = Storage::disk('dtes')->get("$caratula->rut_receptor/Recibidos/$caratula->rut_emisor/$filename");
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => "Error al enviar respuesta de documento",
+                'error' => $e->getMessage(),
+            ], 400);
+        }
 
         $motivo = match ($body->estado) {
             0 => ".",
@@ -309,7 +332,7 @@ class ApiFacturaController extends FacturaController
         if (!$motivo){
             return response()->json([
                 'message' => "Error al enviar respuesta de documento",
-                'errores' => "Estado no válido",
+                'error' => "Estado no válido",
             ], 400);
         }
 
@@ -319,7 +342,7 @@ class ApiFacturaController extends FacturaController
         if (isset($respuesta['error'])) {
             return response()->json([
                 'message' => "Error al enviar respuesta de documento",
-                'errores' => $respuesta['error'],
+                'error' => $respuesta['error'],
             ], 400);
         }
 
@@ -327,10 +350,46 @@ class ApiFacturaController extends FacturaController
         // Enviar respuesta por correo
         Mail::to($body->correo)->send(new DteResponse($dte_xml->children()->SetDTE->DTE->Documento[0]->Encabezado->Emisor->RznSoc, $respuesta));
 
+        // Actualizar estado del dte en base de datos
+        DB::table('dte')
+            ->where('id', '=', $body->dteId)
+            ->update(['estado' => $body->estado]);
+
         return response()->json([
             'message' => "Respuesta de documento enviada correctamente",
         ], 200);
+    }
 
+    public function agregarCliente(Request $request): JsonResponse {
+        // Leer string como json
+        $body = json_decode(json_encode($request->json()->all()));
+
+        // Verificar si existe el cliente en DB
+        $cliente = DB::table('cliente')->where('empresa_id', '=', $body->empresa_id)->first();
+        if ($cliente) {
+            return response()->json([
+                'message' => "Error al agregar cliente",
+                'error' => "El cliente ya existe",
+            ], 400);
+        } else {
+            try {
+                $id_cliente = DB::table('cliente')->insertGetId([
+                    'empresa_id' => $body->empresa_id,
+                    'created_at' => $this->timestamp,
+                    'updated_at' => $this->timestamp,
+                ]);
+
+                return response()->json([
+                    'message' => "Cliente agregado correctamente",
+                ], 200);
+
+            } catch (Exception $e) {
+                return response()->json([
+                    'message' => "Error al agregar cliente",
+                    'error' => $e->getMessage(),
+                ], 400);
+            }
+        }
     }
 
     /**

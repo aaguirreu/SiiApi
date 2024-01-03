@@ -18,7 +18,6 @@ use Webklex\PHPIMAP\Folder;
 use Webklex\PHPIMAP\Message;
 
 class DteImapIdleCommand extends ImapIdleCommand {
-
     /**
      * The name and signature of the console command.
      *
@@ -106,7 +105,7 @@ class DteImapIdleCommand extends ImapIdleCommand {
                                 Log::channel('default')->info("Correo saliente: Respuesta enviada");
 
                             } catch (\Exception $e) {
-                                Log::channel('default')->info($e);
+                                Log::channel('default')->info($e->getMessage());
                             }
 
                         } else if($tipoXml == 'RespuestaDTE') {
@@ -123,7 +122,7 @@ class DteImapIdleCommand extends ImapIdleCommand {
                                     ->update(['estado' => $estado]);
 
                             } catch (\Exception $e) {
-                                Log::channel('default')->info($e);
+                                Log::channel('default')->info($e->getMessage());
                             }
                         }
                     }

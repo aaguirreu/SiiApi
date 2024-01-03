@@ -541,17 +541,14 @@ class DteController extends Controller
         return $error ?? $folios;
     }
 
-    protected function parseFileName($rutReceptor): array
+    protected function parseFileName($rutEmisor, $rutReceptor): array
     {
-        if (!file_exists(env('DTES_PATH') . "$rutReceptor")) {
-            mkdir(env('DTES_PATH') . "$rutReceptor", 0777, true);
-        }
         $tipoDTE = key(array_filter(self::$folios));
         $folio = self::$folios[$tipoDTE];
         $filename = "DTE_$tipoDTE" . "_$folio" . "_$this->timestamp.xml";
         $filename = str_replace(' ', 'T', $filename);
         $filename = str_replace(':', '-', $filename);
-        $file = env('DTES_PATH') . "/$rutReceptor/$filename";
+        $file = Storage::disk('dtes')->path("$rutEmisor/Envios/$rutReceptor/$filename");
         return [$file, $filename];
     }
 }
