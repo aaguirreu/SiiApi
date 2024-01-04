@@ -39,7 +39,6 @@ class ApiBoletaController extends BoletaController
 
         // Variable auxiliar para guardar el folio inicial
 
-
         // Parseo de boletas según modelo libreDTE
         $boletas = $this->parseDte($dte);
 

@@ -96,3 +96,16 @@ chmod -R 774 storage/logs/
 chmod -R 774 storage/framework/
 php artisan cache:clear
 ```
+
+### Obtener Token para consumir la API
+
+Para esta api se utiliza Sanctum. Usando los siguientes comandos obtendrás el token para consumir la api.
+
+```
+php artisan migrate --seed
+php artisan tinker
+$user = User::find(1);
+$token = $user->createToken('token')->plainTextToken;
+```
+
+El string que se imprima al final será tu token bearer.
