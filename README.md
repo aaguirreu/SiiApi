@@ -14,6 +14,7 @@ En el archivo php.ini quitar los punto y coma ";" de los siguientes líneas:
 - extension=pgsql
 - extension=soap
 - extension=curl
+- extension=zip
 
 ### Clonar repositorio
 
@@ -43,8 +44,9 @@ Reemplazar los valores de la base de datos según corresponda:
 - DB_USERNAME=postgres
 - DB_PASSWORD=postgres
 
-### Migrar la base de datos
+### Instalar dependencias y migrar la base de datos
 
+`composer install --no-dev`
 `php artisan migrate`
 
 ### Configurar dteimap:idle command para recibir los correos

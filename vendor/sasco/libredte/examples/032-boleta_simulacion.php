@@ -296,9 +296,6 @@ $set_pruebas = [
     ],
 ];
 
-$firma_config = ['file'=>'/ruta/al/certificado.p12', 'pass'=>'contraseña'];
-
-
 // Objetos de Firma y Folios
 $Firma = new \sasco\LibreDTE\FirmaElectronica($config['firma']);
 $Folios = [];
