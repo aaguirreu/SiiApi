@@ -30,12 +30,23 @@ class ApiBoletaController extends BoletaController
         // Renovar token si es necesario
         $this->isToken();
 
-        // Primer folio a usar para envio de set de pruebas
-
-        // Comparar cantidad de folios usados con cantidad de folios disponibles
-
         // Obtiene los folios con la cantidad de folios usados desde la base de datos
         self::$folios_inicial = $this->obtenerFolios($dte);
+        if (isset(self::$folios_inicial['error'])) {
+            return response()->json([
+                'message' => "Error al obtener tipo de folios",
+                'errores' => self::$folios_inicial['error']
+            ], 400);
+        }
+
+        // Obtener folios del Caf
+        $folios = $this->obtenerFoliosCaf();
+        if (isset($folios['error'])) {
+            return response()->json([
+                'message' => "Error al obtener folios desde el CAF",
+                'errores' => $folios['error']
+            ], 400);
+        }
 
         // Variable auxiliar para guardar el folio inicial
 
@@ -54,9 +65,9 @@ class ApiBoletaController extends BoletaController
         $Firma = $this->obtenerFirma();
 
         $caratula = $this->obtenerCaratula($dte, $boletas, $Firma);
-        $Folios = $this->obtenerFoliosCaf();
+
         // generar cada DTE, timbrar, firmar y agregar al sobre de EnvioBOLETA
-        $EnvioDTExml = $this->generarEnvioDteXml($boletas, $Firma, $Folios, $caratula);
+        $EnvioDTExml = $this->generarEnvioDteXml($boletas, $Firma, $folios, $caratula);
         if (gettype($EnvioDTExml) == 'array') {
             return response()->json([
                 'message' => "Error al generar el envio de DTEs",

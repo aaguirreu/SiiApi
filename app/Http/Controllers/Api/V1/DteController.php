@@ -507,11 +507,12 @@ class DteController extends Controller
     {
         $folios = [];
         if(isset($dte->Documentos)) {
+            $tipos_str = implode(", ", self::$tipos_dte);
             foreach ($dte->Documentos as $documento) {
                 if(isset($documento->Encabezado->IdDoc->TipoDTE)) {
                     $tipoDte = $documento->Encabezado->IdDoc->TipoDTE;
                     if (!in_array($tipoDte, self::$tipos_dte))
-                        $error['error'][] = "El TipoDTE no es válido. Debe ser 33, 34, 56 y/o 61. Encontrado: $tipoDte";
+                        $error['error'][] = "El TipoDTE no es válido. Debe ser $tipos_str. Encontrado: $tipoDte";
                     self::$folios[$tipoDte] = DB::table('secuencia_folio')->where('id', $tipoDte)->value('cant_folios');
                     $folios[$tipoDte] = self::$folios[$tipoDte] + 1;
                 } else $error['error'][] = "No existe el campo TipoDTE en el json";
