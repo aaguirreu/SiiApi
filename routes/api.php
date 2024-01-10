@@ -30,9 +30,9 @@ Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1', 'm
     Route::post('rcof/{dte_filename}', 'ApiSetPruebaBEController@enviarRcofOnly');
 
     // Envio de Boletas
-    Route::post('boletas/envio', 'ApiBoletaController@boletaElectronica');
-    Route::post('boletas/estado.envio', 'ApiBoletaController@estadoDteEnviado');
-    Route::post('boletas/estado.dte', 'ApiBoletaController@estadoDte');
+    Route::post('{ambiente}/boletas/envio', 'ApiBoletaController@boletaElectronica');
+    Route::post('{ambiente}/boletas/estado.envio', 'ApiBoletaController@estadoDteEnviado');
+    Route::post('{ambiente}/boletas/estado.dte', 'ApiBoletaController@estadoDte');
 
     // Envio de Factura
     Route::post('{ambiente}/dte/envio', 'ApiFacturaController@envioDte');

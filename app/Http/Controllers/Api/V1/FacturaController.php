@@ -49,9 +49,7 @@ class FacturaController extends DteController
         ];
 
         $header = [
-            'User-Agent: Mozilla/4.0 (compatible; PROG 1.0; Logiciel)',
             'Cookie: TOKEN=' . self::$token,
-            'Content-Type: text/html; charset=ISO-8859-1',
         ];
 
         // crear sesión curl con sus opciones
@@ -79,7 +77,7 @@ class FacturaController extends DteController
                 Log::write(Estado::ENVIO_ERROR_500, Estado::get(Estado::ENVIO_ERROR_500));
             }
             // Borrar xml guardado anteriormente
-            Storage::disk('dtes')->delete($rutReceptor . '\\' . $filename);
+            Storage::disk('dtes')->delete("$rutEmisor/Envios/$rutReceptor/$filename");
             return false;
         }
 
@@ -92,7 +90,7 @@ class FacturaController extends DteController
         } catch (Exception $e) {
             \sasco\LibreDTE\Log::write(Estado::ENVIO_ERROR_XML, Estado::get(Estado::ENVIO_ERROR_XML, $e->getMessage()));
             // Borrar xml guardado anteriormente
-            Storage::disk('dtes')->delete($rutReceptor . '\\' . $filename);
+            Storage::disk('dtes')->delete("$rutEmisor/Envios/$rutReceptor/$filename");
             return false;
         }
 
@@ -103,7 +101,7 @@ class FacturaController extends DteController
                 Estado::get($xml->STATUS).(isset($xml->DETAIL)?'. '.implode("\n", (array)$xml->DETAIL->ERROR):'')
             );
             // Borrar xml guardado anteriormente
-            Storage::disk('dtes')->delete($rutReceptor . '\\' . $filename);
+            Storage::disk('dtes')->delete("$rutEmisor/Envios/$rutReceptor/$filename");
             return false;
         }
 
@@ -114,57 +112,6 @@ class FacturaController extends DteController
         $json_response = json_decode(json_encode($arrayData, JSON_PRETTY_PRINT));
 
         return [$json_response, $filename];
-    }
-
-    /**
-     * Recorre los documentos como array y les asigna un folio
-     */
-    protected function parseDte($dte): array
-    {
-        $documentos = [];
-        $dte = json_decode(json_encode($dte), true);
-
-        foreach ($dte["Documentos"] as $documento) {
-            /*$modeloDocumento = [
-                "Encabezado" => [
-                    "IdDoc" => $documento["Encabezado"]["IdDoc"] ?? [],
-                    "Emisor" => $documento["Encabezado"]["Emisor"] ?? [],
-                    "Receptor" => $documento["Encabezado"]["Receptor"] ?? [],
-                    "Totales" => $documento["Encabezado"]["Totales"] ?? [],
-                    ],
-                "Detalle" => $documento["Detalle"] ?? [],
-                "Referencia" => $documento["Referencia"] ?? false,
-                "DscRcgGlobal" => $documento["DscRcgGlobal"] ?? false,
-            ];*/
-            $modeloDocumento = $documento;
-
-            if(!isset($modeloDocumento["Encabezado"]["IdDoc"]["TipoDTE"]))
-                return ["error" => "Debe indicar el TipoDTE"];
-
-            $tipoDte = $modeloDocumento["Encabezado"]["IdDoc"]["TipoDTE"];
-
-            $modeloDocumento["Encabezado"]["IdDoc"]["Folio"] = ++self::$folios[$tipoDte];
-            $documentos[] = $modeloDocumento;
-        }
-
-        // Compara si el número de folios restante en el caf es mayor o igual al número de documentos a enviar
-        foreach (self::$folios as $key => $value) {
-            $folio_final = DB::table('caf')->where('folio_id', '=', $key)->latest()->first()->folio_final;
-            $cant_folio = DB::table('secuencia_folio')->where('id', '=', $key)->latest()->first()->cant_folios;
-            $folios_restantes = $folio_final - $cant_folio;
-            $folios_documentos = self::$folios[$key] - self::$folios_inicial[$key] + 1;
-            if ($folios_documentos > $folios_restantes) {
-                $response = [
-                    'error' => 'No hay folios suficientes para generar los documentos',
-                    'tipo_folio' => $key,
-                    'máxmimo_rango_caf' => $folio_final,
-                    'último_folio_utilizado' => $cant_folio,
-                    'folios_restantes' => $folios_restantes,
-                    'folios_a_utilizar' => $folios_documentos,
-                ];
-            }
-        }
-        return $response ?? $documentos;
     }
 
     /**

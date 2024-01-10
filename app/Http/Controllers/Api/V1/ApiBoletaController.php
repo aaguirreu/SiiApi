@@ -6,29 +6,23 @@ use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use sasco\LibreDTE\Log;
 
 class ApiBoletaController extends BoletaController
 {
     public function __construct()
     {
-        $ambiente = 0;
-        $url = 'https://apicert.sii.cl/recursos/v1/boleta.electronica.envio/';
-        if ($ambiente == 1)
-            $url = 'https://api.sii.cl/recursos/v1/boleta.electronica.envio/';
-        parent::__construct([39, 41], $url, $ambiente);
+        parent::__construct([39, 41]);
         $this->timestamp = Carbon::now('America/Santiago');
     }
 
-    public function boletaElectronica(Request $request): JsonResponse
+    public function boletaElectronica(Request $request, $ambiente): JsonResponse
     {
         // Leer string como json
         $dte = json_decode(json_encode($request->json()->all()));
 
-        // setear timestamp
-        $this->timestamp = Carbon::now('America/Santiago');
-
-        // Renovar token si es necesario
-        $this->isToken();
+        // Set ambiente certificacón
+        $this->setAmbiente($ambiente);
 
         // Obtiene los folios con la cantidad de folios usados desde la base de datos
         self::$folios_inicial = $this->obtenerFolios($dte);
@@ -67,34 +61,50 @@ class ApiBoletaController extends BoletaController
         $caratula = $this->obtenerCaratula($dte, $boletas, $Firma);
 
         // generar cada DTE, timbrar, firmar y agregar al sobre de EnvioBOLETA
-        $EnvioDTExml = $this->generarEnvioDteXml($boletas, $Firma, $folios, $caratula);
-        if (gettype($EnvioDTExml) == 'array') {
+        $envio_dte_xml = $this->generarEnvioDteXml($boletas, $Firma, $folios, $caratula);
+        if (gettype($envio_dte_xml) == 'array') {
             return response()->json([
                 'message' => "Error al generar el envio de DTEs",
-                'errores' => json_decode(json_encode($EnvioDTExml)),
+                'errores' => json_decode(json_encode($envio_dte_xml)),
             ], 400);
         }
 
         // Enviar DTE e insertar en base de datos de ser exitoso
-        $RutEnvia = $Firma->getID(); // RUT autorizado para enviar DTEs
-        $RutEmisor = $boletas[0]['Encabezado']['Emisor']['RUTEmisor']; // RUT del emisor del DTE
-        $dteresponse = $this->enviar($RutEnvia, $RutEmisor, $EnvioDTExml);
+        $rut_envia = $Firma->getID(); // RUT autorizado para enviar DTEs
+        $rut_emisor = $boletas[0]['Encabezado']['Emisor']['RUTEmisor']; // RUT del emisor del DTE
+        list($envio_response, $filename) = $this->enviar($rut_envia, $rut_emisor, $envio_dte_xml);
+        if (!$envio_response) {
+            return response()->json([
+                'message' => "Error al enviar la boleta",
+                'errores' => Log::read()->msg,
+            ], 400);
+        }
+
+        $envioDteId = $this->guardarEnvioDte($envio_response);
+        // Guardar en base de datos envio, xml, etc
+        $dbresponse = $this->guardarXmlDB($envioDteId, $filename, $caratula, $envio_dte_xml);
+        if (isset($dbresponse['error'])) {
+            return response()->json([
+                'message' => "Error al guardar el DTE en la base de datos",
+                'errores' => $dbresponse['error'],
+            ], 400);
+        }
 
         // Actualizar folios en la base de datos
         $this->actualizarFolios();
         return response()->json([
-            'message' => "Boleta electronica y rcof enviado correctamente",
+            'message' => "Boleta electronica enviada correctamente",
             'response' => [
-                "EnvioBoleta" => json_decode($dteresponse),
+                "EnvioBoleta" => $envio_response,
                 //'EnvioRcof' => json_decode(json_encode(["trackid" => $rcofreponse]))
             ],
         ], 200);
     }
 
-    public function estadoDteEnviado(Request $request): JsonResponse
+    public function estadoDteEnviado(Request $request, $ambiente): JsonResponse
     {
-        // Renovar token si es necesario
-        $this->isToken();
+        // Set ambiente certificacón
+        $this->setAmbiente($ambiente);
 
         // Leer string como json
         $rbody = json_encode($request->json()->all());
@@ -118,7 +128,7 @@ class ApiBoletaController extends BoletaController
             CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
             CURLOPT_CUSTOMREQUEST => 'GET',
             CURLOPT_HTTPHEADER => array(
-                'Cookie: TOKEN=' . json_decode(file_get_contents(base_path('config.json')))->token,
+                'Cookie: TOKEN=' . self::$token,
             ),
         ));
 
@@ -130,13 +140,13 @@ class ApiBoletaController extends BoletaController
         ], 200);
     }
 
-    public function estadoDte(Request $request): JsonResponse
+    public function estadoDte(Request $request, $ambiente): JsonResponse
     {
         // setear timestamp
         $this->timestamp = Carbon::now('America/Santiago');
 
-        // Renovar token si es necesario
-        $this->isToken();
+        // Set ambiente certificacón
+        $this->setAmbiente($ambiente);
 
         // Leer string como json
         $rbody = json_encode($request->json()->all());
@@ -174,7 +184,7 @@ class ApiBoletaController extends BoletaController
             CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
             CURLOPT_CUSTOMREQUEST => 'GET',
             CURLOPT_HTTPHEADER => array(
-                'Cookie: TOKEN=' . json_decode(file_get_contents(base_path('config.json')))->token,
+                'Cookie: TOKEN=' . self::$token,
             ),
         ));
 
@@ -198,9 +208,6 @@ class ApiBoletaController extends BoletaController
 
         // setear timestamp
         $this->timestamp = Carbon::now('America/Santiago');
-
-        // Renovar token si es necesario
-        $this->isToken();
 
         // Obtener resumen de consumo de folios
         $EnvioBoletaxml = $request->getContent();
@@ -230,4 +237,16 @@ class ApiBoletaController extends BoletaController
         return $this->uploadCaf($request, true);
     }
 
+    protected function setAmbiente($ambiente) {
+        if ($ambiente == "certificacion") {
+            self::$ambiente = 0;
+            self::$url = 'https://pangal.sii.cl/recursos/v1/boleta.electronica.envio'; // url certificación ENVIO BOLETAS
+            // self::$url = 'https://apicert.sii.cl/recursos/v1/boleta.electronica.envio/'; // url certificación CONSULTAS BOLETAS
+        } else if ($ambiente == "produccion") {
+            self::$ambiente = 1;
+            self::$url = 'https://rahue.sii.cl/recursos/v1/boleta.electronica.envio'; // url producción ENVIO BOLETAS
+            //self::$url = 'https://api.sii.cl/recursos/v1/boleta.electronica.envio/'; // url producción CONSULTAS BOLETAS
+        }
+        else abort(404);
+    }
 }

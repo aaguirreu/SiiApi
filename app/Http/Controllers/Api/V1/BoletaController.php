@@ -22,31 +22,28 @@ use SimpleXMLElement;
 
 class BoletaController extends DteController
 {
-    public function __construct($tipos_dte, $url, $ambiente)
+    public function __construct($tipos_dte)
     {
         self::$tipos_dte = $tipos_dte;
-        self::$url = $url;
-        self::$ambiente = $ambiente;
+        self::isToken();
+        self::$token = json_decode(file_get_contents(base_path('config.json')))->tokenBE;
     }
-    protected function enviar($usuario, $empresa, $dte)
+    protected function enviar($rut_envia, $rut_emisor, $dte)
     {
-        $token = json_decode(file_get_contents(base_path('config.json')))->token_dte;
         // definir datos que se usarán en el envío
-        list($rutSender, $dvSender) = explode('-', str_replace('.', '', $usuario));
-        list($rutCompany, $dvCompany) = explode('-', str_replace('.', '', $empresa));
+        list($rutSender, $dvSender) = explode('-', str_replace('.', '', $rut_envia));
+        list($rutCompany, $dvCompany) = explode('-', str_replace('.', '', $rut_emisor));
         if (strpos($dte, '<?xml') === false) {
             $dte = '<?xml version="1.0" encoding="ISO-8859-1"?>' . "\n" . $dte;
         }
-        do {
-            if (!file_exists(env('DTES_PATH', "")."EnvioBOLETA")) {
-                mkdir(env('DTES_PATH', "")."EnvioBOLETA", 0777, true);
-            }
-            $filename = 'EnvioBOLETA_'.$this->timestamp.'.xml';
-            $filename = str_replace(' ', 'T', $filename);
-            $filename = str_replace(':', '-', $filename);
-            $file = env('DTES_PATH', "")."EnvioBOLETA\\".$filename;
-        } while (file_exists($file));
-        Storage::disk('dtes')->put('EnvioBOLETA\\'.$filename, $dte);
+        list($file, $filename) = $this->parseFileName($rut_emisor, '60803000-K');
+        try {
+            Storage::disk('dtes')->put("$rut_emisor/Envios/60803000-K/$filename", $dte);
+        } catch (Exception $e) {
+            Log::write(0, "Error al guardar dte en Storage. {$e->getMessage()}");
+            return false;
+        }
+
         $data = [
             'rutSender' => $rutSender,
             'dvSender' => $dvSender,
@@ -54,16 +51,14 @@ class BoletaController extends DteController
             'dvCompany' => $dvCompany,
             'archivo' => new CURLFile($file),
         ];
-        $header = ['Cookie: TOKEN=' . $token];
+        $header = ['Cookie: TOKEN=' . self::$token];
 
         // crear sesión curl con sus opciones
         $curl = curl_init();
-        //$url = 'https://rahue.sii.cl/recursos/v1/boleta.electronica.envio'; // producción
-        $url = 'https://pangal.sii.cl/recursos/v1/boleta.electronica.envio'; // certificación
         curl_setopt($curl, CURLOPT_POST, true);
         curl_setopt($curl, CURLOPT_POSTFIELDS, $data);
         curl_setopt($curl, CURLOPT_HTTPHEADER, $header);
-        curl_setopt($curl, CURLOPT_URL, $url);
+        curl_setopt($curl, CURLOPT_URL, self::$url);
         curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
 
         // enviar XML al SII
@@ -76,21 +71,18 @@ class BoletaController extends DteController
 
         // cerrar sesión curl
         curl_close($curl);
-
         // verificar respuesta del envío y entregar error en caso que haya uno
         if (!$response or $response=='Error 500') {
             if (!$response) {
-                Log::write(Estado::ENVIO_ERROR_CURL, Estado::get(Estado::ENVIO_ERROR_CURL, curl_error($curl)));
+                //Log::write(Estado::ENVIO_ERROR_CURL, Estado::get(Estado::ENVIO_ERROR_CURL, curl_error($curl)));
+                Log::write(Estado::ENVIO_ERROR_CURL, 'Respuesta retornó false');
             }
-            if ($response=='Error 500') {
+            if ($response == 'Error 500') {
                 Log::write(Estado::ENVIO_ERROR_500, Estado::get(Estado::ENVIO_ERROR_500));
             }
             // Borrar xml guardado anteriormente
-            Storage::disk('dtes')->delete('EnvioBOLETA\\'.$filename);
-            return response()->json([
-                'message' => 'Error al enviar el DTE al SII',
-                'error' => $response,
-            ], 400);
+            Storage::disk('dtes')->delete("$rut_emisor/Envios/60803000-K/$filename");
+            return false;
         }
 
         // crear json con la respuesta y retornar
@@ -109,10 +101,7 @@ class BoletaController extends DteController
             );
         }
 
-        // Guardar envio dte en la base de datos
-        $this->guardarEnvioDte($json_response, $filename);
-
-        return $response;
+        return [$json_response, $filename];
     }
 
     protected function generarRCOF($documentos)

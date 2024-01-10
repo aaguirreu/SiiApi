@@ -101,15 +101,6 @@ class DteController extends Controller
         ]);
     }
 
-    protected function generarModeloDocumento($modeloDocumento, $detalles, $tipoDTE): array
-    {
-        $modeloDocumento["Encabezado"]["IdDoc"]["TipoDTE"] = $modeloDocumento["Encabezado"]["IdDoc"]["TipoDTE"] ?? $tipoDTE;
-        $modeloDocumento["Encabezado"]["IdDoc"]["Folio"] = $modeloDocumento["Encabezado"]["IdDoc"]["Folio"] ?? ++self::$folios[$tipoDTE];
-        $modeloDocumento["Detalle"] = $detalles;
-
-        return $modeloDocumento;
-    }
-
     protected function guardarEnvioDte($response): int
     {
         return DB::table('envio_dte')->insertGetId([
@@ -253,12 +244,12 @@ class DteController extends Controller
         ]);
     }
 
-    protected function getDocumento($tipoDte, $folio)
+    protected function getDocumento($tipo_dte, $folio)
     {
         return DB::table('documento')
             ->join('caf', 'documento.caf_id', '=', 'caf.id')
             ->where('documento.folio', $folio)
-            ->where('caf.folio', $tipoDte)
+            ->where('caf.folio', $tipo_dte)
             ->select('documento.*')
             ->first()->id;
     }
@@ -337,7 +328,10 @@ class DteController extends Controller
         Sii::setAmbiente(self::$ambiente);
         $token = Autenticacion::getToken($this->obtenerFirma());
         $config_file = json_decode(file_get_contents(base_path('config.json')));
-        $config_file->token = $token;
+        if(in_array("39", self::$tipos_dte) || in_array("41", self::$tipos_dte))
+            $config_file->tokenBE = $token;
+        else
+            $config_file->token = $token;
         $config_file->token_timestamp = Carbon::now('America/Santiago')->timestamp;
         file_put_contents(base_path('config.json'), json_encode($config_file), JSON_PRETTY_PRINT);
     }
@@ -398,70 +392,43 @@ class DteController extends Controller
         return new FirmaElectronica($config['firma']);
     }
 
+    /**
+     * Recorre los documentos como array y les asigna un folio
+     */
     protected function parseDte($dte): array
     {
         $documentos = [];
-        foreach ($dte->Documentos as $documento) {
-            // Modelo documento
-            $modeloDocumento = [
-                "Encabezado" => [
-                    "IdDoc" => [],
-                    "Emisor" => [
-                        'RUTEmisor' => $documento->Encabezado->Emisor->RUTEmisor ?? false,
-                        'RznSoc' => $documento->Encabezado->Emisor->RznSoc ?? false,
-                        'GiroEmis' => $documento->Encabezado->Emisor->GiroEmis ?? false,
-                        'DirOrigen' => $documento->Encabezado->Emisor->DirOrigen ?? false,
-                        'CmnaOrigen' => $documento->Encabezado->Emisor->CmnaOrigen ?? false,
-                    ],
-                    "Receptor" => [
-                        'RUTRecep' => $documento->Encabezado->Receptor->RUTRecep ?? '000-0',
-                        'RznSocRecep' => $documento->Encabezado->Receptor->RznSocRecep ?? false,
-                        'GiroRecep' => $documento->Encabezado->Receptor->GiroRecep ?? false,
-                        'DirRecep' => $documento->Encabezado->Receptor->DirRecep ?? false,
-                        'CmnaRecep' => $documento->Encabezado->Receptor->CmnaRecep ?? false,
-                        'CiudadRecep' => $documento->Encabezado->Receptor->CiudadRecep ?? false,
-                    ],
-                ],
-                "Detalle" => [],
-                "Referencia" => [],
-            ];
+        $dte = json_decode(json_encode($dte), true);
 
-            $detallesExentos = [];
-            $detallesAfectos = [];
+        foreach ($dte["Documentos"] as $documento) {
+            $modeloDocumento = $documento;
 
-            foreach ($documento->Detalle as $detalle) {
-                if (array_key_exists("IndExe", json_decode(json_encode($detalle), true))) {
-                    $detallesExentos[] = json_decode(json_encode($detalle), true);
-                } else {
-                    $detallesAfectos[] = json_decode(json_encode($detalle), true);
-                }
-            }
+            if(!isset($modeloDocumento["Encabezado"]["IdDoc"]["TipoDTE"]))
+                return ["error" => "Debe indicar el TipoDTE"];
 
-            if (!empty($detallesExentos)) {
-                $modeloDocumentoExenta = $this->generarModeloDocumento($modeloDocumento, $detallesExentos, 41);
-                $documentos[] = $modeloDocumentoExenta;
-            }
+            $tipo_dte = $modeloDocumento["Encabezado"]["IdDoc"]["TipoDTE"];
 
-            if (!empty($detallesAfectos)) {
-                $modeloDocumentoAfecta = $this->generarModeloDocumento($modeloDocumento, $detallesAfectos, 39);
-                $documentos[] = $modeloDocumentoAfecta;
-            }
+            $modeloDocumento["Encabezado"]["IdDoc"]["Folio"] = ++self::$folios[$tipo_dte];
+            $documentos[] = $modeloDocumento;
         }
 
         // Compara si el número de folios restante en el caf es mayor o igual al número de documentos a enviar
-        foreach (self::$tipos_dte as $key) {
-            $folios_restantes = DB::table('caf')->where('folio_id', '=', $key)->latest()->first()->folio_final - DB::table('secuencia_folio')->where('id', '=', $key)->latest()->first()->cant_folios;
+        foreach (self::$folios as $key => $value) {
+            $folio_final = DB::table('caf')->where('folio_id', '=', $key)->latest()->first()->folio_final;
+            $cant_folio = DB::table('secuencia_folio')->where('id', '=', $key)->latest()->first()->cant_folios;
+            $folios_restantes = $folio_final - $cant_folio;
             $folios_documentos = self::$folios[$key] - self::$folios_inicial[$key] + 1;
             if ($folios_documentos > $folios_restantes) {
-                $response[] = [
+                $response = [
                     'error' => 'No hay folios suficientes para generar los documentos',
                     'tipo_folio' => $key,
+                    'máxmimo_rango_caf' => $folio_final,
+                    'último_folio_utilizado' => $cant_folio,
                     'folios_restantes' => $folios_restantes,
-                    'folios_documentos' => $folios_documentos,
+                    'folios_a_utilizar' => $folios_documentos,
                 ];
             }
         }
-
         return $response ?? $documentos;
     }
 
@@ -510,11 +477,11 @@ class DteController extends Controller
             $tipos_str = implode(", ", self::$tipos_dte);
             foreach ($dte->Documentos as $documento) {
                 if(isset($documento->Encabezado->IdDoc->TipoDTE)) {
-                    $tipoDte = $documento->Encabezado->IdDoc->TipoDTE;
-                    if (!in_array($tipoDte, self::$tipos_dte))
-                        $error['error'][] = "El TipoDTE no es válido. Debe ser $tipos_str. Encontrado: $tipoDte";
-                    self::$folios[$tipoDte] = DB::table('secuencia_folio')->where('id', $tipoDte)->value('cant_folios');
-                    $folios[$tipoDte] = self::$folios[$tipoDte] + 1;
+                    $tipo_dte = $documento->Encabezado->IdDoc->TipoDTE;
+                    if (!in_array($tipo_dte, self::$tipos_dte))
+                        $error['error'][] = "El TipoDTE no es válido. Debe ser $tipos_str. Encontrado: $tipo_dte";
+                    self::$folios[$tipo_dte] = DB::table('secuencia_folio')->where('id', $tipo_dte)->value('cant_folios');
+                    $folios[$tipo_dte] = self::$folios[$tipo_dte] + 1;
                 } else $error['error'][] = "No existe el campo TipoDTE en el json";
             }
         } else {
@@ -542,14 +509,14 @@ class DteController extends Controller
         return $error ?? $folios;
     }
 
-    protected function parseFileName($rutEmisor, $rutReceptor): array
+    protected function parseFileName($rut_emisor, $rut_receptor): array
     {
-        $tipoDTE = key(array_filter(self::$folios));
-        $folio = self::$folios[$tipoDTE];
-        $filename = "DTE_$tipoDTE" . "_$folio" . "_$this->timestamp.xml";
+        $tipo_dte = key(array_filter(self::$folios));
+        $folio = self::$folios[$tipo_dte];
+        $filename = "DTE_$tipo_dte" . "_$folio" . "_$this->timestamp.xml";
         $filename = str_replace(' ', 'T', $filename);
         $filename = str_replace(':', '-', $filename);
-        $file = Storage::disk('dtes')->path("$rutEmisor/Envios/$rutReceptor/$filename");
+        $file = Storage::disk('dtes')->path("$rut_emisor/Envios/$rut_receptor/$filename");
         return [$file, $filename];
     }
 }

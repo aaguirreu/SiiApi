@@ -21,8 +21,7 @@ class ApiFacturaController extends FacturaController
 {
     public function __construct()
     {
-        $ambiente = 0;
-        parent::__construct([33, 34, 56, 61], $ambiente);
+        parent::__construct([33, 34, 56, 61]);
         $this->timestamp = Carbon::now('America/Santiago');
     }
 
@@ -90,16 +89,16 @@ class ApiFacturaController extends FacturaController
         $caratula = $this->obtenerCaratula($dte, $documentos, $firma);
 
         // generar cada DTE, timbrar, firmar y agregar al sobre de EnvioBOLETA
-        $dteXml = $this->generarEnvioDteXml($documentos, $firma, $folios, $caratula);
-        if(is_array($dteXml)){
+        $envio_dte_xml = $this->generarEnvioDteXml($documentos, $firma, $folios, $caratula);
+        if(is_array($envio_dte_xml)){
             return response()->json([
                 'message' => "Error al generar el envio de DTEs",
-                'errores' => json_decode(json_encode($dteXml)),
+                'errores' => json_decode(json_encode($envio_dte_xml)),
             ], 400);
         }
 
         // Enviar DTE al SII e insertar en base de datos de ser exitoso
-        list($envio_response, $filename) = $this->enviar($caratula['RutEnvia'], $caratula['RutEmisor'] , "60803000-K", $dteXml);
+        list($envio_response, $filename) = $this->enviar($caratula['RutEnvia'], $caratula['RutEmisor'] , "60803000-K", $envio_dte_xml);
         if (!$envio_response) {
             return response()->json([
                 'message' => "Error al enviar el DTE",
@@ -116,7 +115,7 @@ class ApiFacturaController extends FacturaController
 
         $envioDteId = $this->guardarEnvioDte($envio_response);
         // Guardar en base de datos envio, xml, etc
-        $dbresponse = $this->guardarXmlDB($envioDteId, $filename, $caratula, $dteXml);
+        $dbresponse = $this->guardarXmlDB($envioDteId, $filename, $caratula, $envio_dte_xml);
         if (isset($dbresponse['error'])) {
             return response()->json([
                 'message' => "Error al guardar el DTE en la base de datos",
@@ -145,26 +144,38 @@ class ApiFacturaController extends FacturaController
     private function enviarDteReceptor($documentos, $doc, $firma, $folios, $caratula, $correo, $envio_response)
     {
         // generar cada DTE, timbrar, firmar y agregar al sobre de EnvioBOLETA
-        $dteXml = $this->generarEnvioDteXml($documentos, $firma, $folios, $caratula);
-        if(is_array($dteXml)){
+        $envio_dte_xml = $this->generarEnvioDteXml($documentos, $firma, $folios, $caratula);
+        if(is_array($envio_dte_xml)){
             return response()->json([
-                'message' => "Error al generar el envio de DTEs",
-                'errores' => json_decode(json_encode($dteXml)),
+                'message' => "DTE enviado correctamente al SII pero NO al receptor",
+                'response' => [
+                    'EnvioSii' => $envio_response,
+                    'EnvioReceptor' => [
+                        'message' => "Error al generar el envio de DTEs",
+                        'errores' => json_decode(json_encode($envio_dte_xml)),
+                    ]
+                ],
             ], 400);
         }
 
         // Guardar en Storage
-        if (!str_contains($dteXml, '<?xml')) {
-            $dteXml = '<?xml version="1.0" encoding="ISO-8859-1"?>' . "\n" . $dteXml;
+        if (!str_contains($envio_dte_xml, '<?xml')) {
+            $envio_dte_xml = '<?xml version="1.0" encoding="ISO-8859-1"?>' . "\n" . $envio_dte_xml;
         }
         do {
             list($file, $filename) = $this->parseFileName($caratula['RutEmisor'], $caratula['RutReceptor']);
         } while (file_exists($file));
 
-        if(!Storage::disk('dtes')->put("{$caratula['RutEmisor']}/Envios/{$caratula['RutReceptor']}/$filename", $dteXml)) {
+        if(!Storage::disk('dtes')->put("{$caratula['RutEmisor']}/Envios/{$caratula['RutReceptor']}/$filename", $envio_dte_xml)) {
             Log::write(0, 'Error al guardar dte en Storage');
             return response()->json([
-                'message' => "Error al guardar el DTE en el Storage",
+                'message' => "DTE enviado correctamente al SII pero NO al receptor",
+                'response' => [
+                    'EnvioSii' => $envio_response,
+                    'EnvioReceptor' => [
+                        'message' => "Error al guardar el DTE en el Storage",
+                    ]
+                ],
             ], 400);
         }
 
@@ -175,7 +186,7 @@ class ApiFacturaController extends FacturaController
 
         $fileEnvio = [
             'filename' => $filename,
-            'data' => $dteXml
+            'data' => $envio_dte_xml
         ];
 
         try {
@@ -183,7 +194,13 @@ class ApiFacturaController extends FacturaController
         } catch (\Exception $e) {
             Log::write(0, 'Error al enviar dte por correo');
             return response()->json([
-                'message' => "Error al enviar dte por correo",
+                'message' => "DTE enviado correctamente al SII pero NO al receptor",
+                'response' => [
+                    'EnvioSii' => $envio_response,
+                    'EnvioReceptor' => [
+                        'message' => "Error al enviar dte por correo",
+                    ]
+                ],
             ], 400);
         }
 
@@ -197,10 +214,10 @@ class ApiFacturaController extends FacturaController
         return response()->json([
             'message' => "DTE enviado correctamente",
             'response' => [
+                'EnvioSii' => $envio_response,
                 'EnvioReceptor' => [
                     'Estado' => "Enviado"
-                ],
-                'EnvioSii' => $envio_response
+                ]
             ],
         ], 200);
     }
