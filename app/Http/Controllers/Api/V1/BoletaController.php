@@ -74,8 +74,7 @@ class BoletaController extends DteController
         // verificar respuesta del envío y entregar error en caso que haya uno
         if (!$response or $response=='Error 500') {
             if (!$response) {
-                //Log::write(Estado::ENVIO_ERROR_CURL, Estado::get(Estado::ENVIO_ERROR_CURL, curl_error($curl)));
-                Log::write(Estado::ENVIO_ERROR_CURL, 'Respuesta retornó false');
+                Log::write(Estado::ENVIO_ERROR_CURL, Estado::get(Estado::ENVIO_ERROR_CURL, curl_error($curl)));
             }
             if ($response == 'Error 500') {
                 Log::write(Estado::ENVIO_ERROR_500, Estado::get(Estado::ENVIO_ERROR_500));

@@ -49,7 +49,9 @@ class FacturaController extends DteController
         ];
 
         $header = [
+            'User-Agent: Mozilla/4.0 (compatible; PROG 1.0; Logiciel)',
             'Cookie: TOKEN=' . self::$token,
+            'Content-Type: text/html; charset=ISO-8859-1',
         ];
 
         // crear sesión curl con sus opciones
@@ -89,7 +91,6 @@ class FacturaController extends DteController
             $xml = new \SimpleXMLElement($response, LIBXML_COMPACT);
         } catch (Exception $e) {
             \sasco\LibreDTE\Log::write(Estado::ENVIO_ERROR_XML, Estado::get(Estado::ENVIO_ERROR_XML, $e->getMessage()));
-            // Borrar xml guardado anteriormente
             Storage::disk('dtes')->delete("$rutEmisor/Envios/$rutReceptor/$filename");
             return false;
         }
@@ -244,10 +245,16 @@ class FacturaController extends DteController
         $Documentos = $EnvioDte->getDocumentos();
 
         // Verificar si RutReceptor está en la base de datos como cliente con join
-        $cliente = DB::table('cliente')
-            ->join('empresa', 'cliente.empresa_id', '=', 'empresa.id')
-            ->where('empresa.rut', '=', $EnvioDte->getReceptor())
-            ->first();
+        try {
+            $cliente = DB::table('cliente')
+                ->join('empresa', 'cliente.empresa_id', '=', 'empresa.id')
+                ->where('empresa.rut', '=', $EnvioDte->getReceptor())
+                ->first();
+        } catch (\Exception $e) {
+            Log::write(0, "Error al obtener cliente de la base de datos. Puede que el receptor de este dte no esté registrado como cliente.");
+            return false;
+        }
+
         if (isset($cliente)) {
             // RutReceptor en el DTE.xml recibido
             $rut_receptor_esperado = $cliente->rut;
@@ -298,7 +305,6 @@ class FacturaController extends DteController
         $RespuestaEnvio->setFirma($this->obtenerFirma());
 
         // generar XML
-        // generar XML
         $xml = $RespuestaEnvio->generar();
 
         $filename = "RespuestaDocumento_{$cod_envio}_$this->timestamp.xml";
@@ -317,11 +323,67 @@ class FacturaController extends DteController
         return false;
     }
 
+    public function envioRecibos($dte_id, $estado, $motivo, $dte_xml)
+    {
+        $this->timestamp = Carbon::now('America/Santiago');
+
+        // Cargar EnvioDTE y extraer arreglo con datos de carátula y DTEs
+        $EnvioDte = new \sasco\LibreDTE\Sii\EnvioDte();
+        $EnvioDte->loadXML($dte_xml);
+        $caratula = $EnvioDte->getCaratula();
+        $Documentos = $EnvioDte->getDocumentos();
+
+        // caratula
+        $rut_emisor_esperado = $EnvioDte->getEmisor();
+        $rut_receptor_esperado = $EnvioDte->getReceptor();
+
+        $caratula_respuesta = [
+            'RutResponde' => $rut_receptor_esperado,
+            'RutRecibe' => $rut_emisor_esperado,
+            //'NmbContacto' => '',
+            //'MailContacto' => '',
+        ];
+
+        // objeto EnvioRecibo, asignar carátula y Firma
+        $EnvioRecibos = new \sasco\LibreDTE\Sii\EnvioRecibos();
+        $EnvioRecibos->setCaratula($caratula_respuesta);
+        $firma = $this->obtenerFirma();
+        $EnvioRecibos->setFirma($firma);
+
+        // procesar cada DTE
+        foreach ($Documentos as $DTE) {
+            $EnvioRecibos->agregar([
+                'TipoDoc' => $DTE->getTipo(),
+                'Folio' => $DTE->getFolio(),
+                'FchEmis' => $DTE->getFechaEmision(),
+                'RUTEmisor' => $DTE->getEmisor(),
+                'RUTRecep' => $DTE->getReceptor(),
+                'MntTotal' => $DTE->getMontoTotal(),
+                'Recinto' => 'Oficina central',
+                'RutFirma' => $firma->getID(),
+            ]);
+        }
+
+        // generar XML
+        $xml = $EnvioRecibos->generar();
+
+        $filename = "EnvioRecibo_{$dte_id}_$this->timestamp.xml";
+        $filename = str_replace(' ', 'T', $filename);
+        $filename = str_replace(':', '-', $filename);
+        // validar schema del XML que se generó
+        if ($EnvioRecibos->schemaValidate()) {
+            // Guardar respuesta en la base de datos
+            // Storage::disk('dtes')->put("$rut_receptor_esperado/Respuestas/$filename", $xml);
+            return $this->enviarReciboSii($firma->getID(), $rut_emisor_esperado, $rut_receptor_esperado, $xml, $filename);
+        }
+        return false;
+    }
+
     /**
      * Enviar respuesta sobre la recepción, aceptación o rechazo de un dte al SII
      * No se usa
      */
-    public function enviarRespuestaSii($rutEnvia, $rutEmisor, $rutReceptor, $dte, $filename)
+    public function enviarReciboSii($rutEnvia, $rutEmisor, $rutReceptor, $dte, $filename)
     {
         list($rutSender, $dvSender) = explode('-', str_replace('.', '', $rutEnvia));
         list($rutCompany, $dvCompany) = explode('-', str_replace('.', '', $rutEmisor));
@@ -329,7 +391,13 @@ class FacturaController extends DteController
             $dte = '<?xml version="1.0" encoding="ISO-8859-1"?>' . "\n" . $dte;
         }
 
-        $file = Storage::disk('dtes')->path("$rutReceptor/Respuestas/$filename");
+        try {
+            $file = Storage::disk('dtes')->put("$rutReceptor/Respuestas/$rutEmisor/$filename", $dte);
+        } catch (Exception $e) {
+            Log::write(0, "Error al guardar dte en Storage. {$e->getMessage()}");
+            return false;
+        }
+        $file = Storage::disk('dtes')->path("$rutReceptor/Respuestas/$rutEmisor/$filename");
 
         $data = [
             'rutSender' => $rutSender,
@@ -349,7 +417,7 @@ class FacturaController extends DteController
         curl_setopt($curl, CURLOPT_POST, true);
         curl_setopt($curl, CURLOPT_POSTFIELDS, $data);
         curl_setopt($curl, CURLOPT_HTTPHEADER, $header);
-        curl_setopt($curl, CURLOPT_URL, 'https://palena.sii.cl/cgi_dte/UPL/DTEUpload');
+        curl_setopt($curl, CURLOPT_URL, 'https://maullin.sii.cl/cgi_dte/UPL/DTEUpload');
         curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
 
         // enviar XML al SII
@@ -369,13 +437,40 @@ class FacturaController extends DteController
                 Log::write(Estado::ENVIO_ERROR_500, Estado::get(Estado::ENVIO_ERROR_500));
             }
             // Borrar xml guardado anteriormente
-            Storage::disk('dtes')->delete($file);
+            Storage::disk('dtes')->delete("$rutReceptor/Respuestas/$rutEmisor/$filename");
             return false;
         }
 
         // cerrar sesión curl
         curl_close($curl);
-        echo $response;
+
+        // crear XML con la respuesta y retornar
+        try {
+            $xml = new \SimpleXMLElement($response, LIBXML_COMPACT);
+        } catch (Exception $e) {
+            \sasco\LibreDTE\Log::write(Estado::ENVIO_ERROR_XML, Estado::get(Estado::ENVIO_ERROR_XML, $e->getMessage()));
+            Storage::disk('dtes')->delete("$rutReceptor/Respuestas/$rutEmisor/$filename");
+            return false;
+        }
+
+        // Verificar si el envío fue correcto
+        if ($xml->STATUS!=0) {
+            \sasco\LibreDTE\Log::write(
+                $xml->STATUS,
+                Estado::get($xml->STATUS).(isset($xml->DETAIL)?'. '.implode("\n", (array)$xml->DETAIL->ERROR):'')
+            );
+            // Borrar xml guardado anteriormente
+            Storage::disk('dtes')->delete("$rutReceptor/Respuestas/$rutEmisor/$filename");
+            return false;
+        }
+
+        // Convertir a array asociativo
+        $arrayData = json_decode(json_encode($xml), true);
+
+        // Respuesta como JSON
+        $json_response = json_decode(json_encode($arrayData, JSON_PRETTY_PRINT));
+
+        return [$json_response, $filename];
     }
 
 

@@ -324,15 +324,40 @@ class ApiFacturaController extends FacturaController
             ], 400);
         }
 
+        // Obtener caratula de dte
+        $caratula = DB::table('caratula')
+            ->where('id', '=', $dte->caratula_id)->first();
+
+        // Obtener id de caratula.rut_receptor si existe
+        try {
+            $receptor = DB::table('empresa')
+                ->where('rut', '=', $caratula->rut_receptor)->first();
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => "Error al enviar respuesta de documento",
+                'error' => "No existe el receptor $caratula->rut_receptor en base de datos",
+            ], 400);
+        }
+
+        // Verificar si RutReceptor está en la base de datos como cliente
+        try {
+            $cliente = DB::table('cliente')
+                ->where('id', '=', $receptor->id)
+                ->first();
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => "Error al enviar respuesta de documento",
+                'error' => "El receptor $caratula->rut_receptor no está registrado como cliente"
+            ], 400);
+        }
+
         // Obtener filename del dte con su id
         $filename = $dte->xml_filename;
         try {
-            $caratula = DB::table('empresa')
-                ->join('caratula', 'empresa.id', '=', 'caratula.emisor_id')
-                ->where('caratula.id', '=', $dte->caratula_id)
-                ->select('caratula.*', 'empresa.rut as rut_emisor')
+            $emisor = DB::table('empresa')
+                ->where('id', '=', $caratula->emisor_id)
                 ->first();
-            $dte_xml = Storage::disk('dtes')->get("$caratula->rut_receptor/Recibidos/$caratula->rut_emisor/$filename");
+            $dte_xml = Storage::disk('dtes')->get("$receptor->rut/Recibidos/$emisor->rut/$filename");
         } catch (\Exception $e) {
             return response()->json([
                 'message' => "Error al enviar respuesta de documento",
@@ -355,7 +380,6 @@ class ApiFacturaController extends FacturaController
 
         // Obtener respuesta de documento
         $respuesta = $this->respuestaDocumento($body->dteId, $body->estado, $motivo, $dte_xml);
-
         if (isset($respuesta['error'])) {
             return response()->json([
                 'message' => "Error al enviar respuesta de documento",
@@ -363,9 +387,25 @@ class ApiFacturaController extends FacturaController
             ], 400);
         }
 
-        $dte_xml = new SimpleXMLElement($dte_xml);
+        $respuesta_xml = new SimpleXMLElement($dte_xml);
         // Enviar respuesta por correo
-        Mail::to($body->correo)->send(new DteResponse($dte_xml->children()->SetDTE->DTE->Documento[0]->Encabezado->Emisor->RznSoc, $respuesta));
+        Mail::to($body->correo)->send(new DteResponse($respuesta_xml->children()->SetDTE->DTE->Documento[0]->Encabezado->Emisor->RznSoc, $respuesta));
+
+        // Enviar respuesta al SII
+        list($envio_response, $filename) = $this->envioRecibos($body->dteId, $body->estado, $motivo, $dte_xml);
+        if (!$envio_response) {
+            return response()->json([
+                'message' => "Error al enviar respuesta al Sii",
+                'errores' => Log::read()->msg,
+            ], 400);
+        }
+
+        if($envio_response->STATUS != '0') {
+            return response()->json([
+                'message' => "Error en la respuesta del SII al enviar respuesta",
+                'errores' => $envio_response,
+            ], 400);
+        }
 
         // Actualizar estado del dte en base de datos
         DB::table('dte')

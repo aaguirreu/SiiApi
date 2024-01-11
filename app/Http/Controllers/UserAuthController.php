@@ -17,7 +17,7 @@ class UserAuthController extends Controller
         ]);
 
         if (Auth::attempt($credentials)) {
-            $user = User::where('name', $request->name)->first();
+            $user = User::where('email', $request->email)->first();
             $token = $user->createToken('token-name')->plainTextToken;
             return response()->json(['token' => $token], 200);
         } else {
