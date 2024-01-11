@@ -100,7 +100,7 @@ class I18n
         }
         $locale = self::$locales[self::$idioma];
         putenv("LANG=".$locale);
-        setlocale(LC_MESSAGES, $locale);
+        setlocale(LC_ALL, $locale);
         bindtextdomain($domain, dirname(dirname(__FILE__)).'/locale');
         textdomain($domain);
         bind_textdomain_codeset($domain, 'UTF-8');
