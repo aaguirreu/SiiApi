@@ -77,7 +77,7 @@ class ApiFacturaController extends FacturaController
         $documentos = $this->parseDte($dte);
         if (isset($documentos['error'])) {
             return response()->json([
-                'message' => "Error al parsear la boleta electrónica",
+                'message' => "Error al parsear el dte",
                 'errores' => json_decode(json_encode($documentos))
             ], 400);
         }
@@ -123,6 +123,9 @@ class ApiFacturaController extends FacturaController
             ], 400);
         }
 
+        // Actualizar folios en la base de datos
+        $this->actualizarFolios();
+
         // Cambiar RutReceptor de caratula
         $caratula['RutReceptor'] = $dte->Documentos[0]->Encabezado->Receptor->RUTRecep;
 
@@ -155,7 +158,7 @@ class ApiFacturaController extends FacturaController
                         'errores' => json_decode(json_encode($envio_dte_xml)),
                     ]
                 ],
-            ], 400);
+            ], 200);
         }
 
         // Guardar en Storage
@@ -176,7 +179,7 @@ class ApiFacturaController extends FacturaController
                         'message' => "Error al guardar el DTE en el Storage",
                     ]
                 ],
-            ], 400);
+            ], 200);
         }
 
         // Enviar respuesta por correo
@@ -201,11 +204,8 @@ class ApiFacturaController extends FacturaController
                         'message' => "Error al enviar dte por correo",
                     ]
                 ],
-            ], 400);
+            ], 200);
         }
-
-        // Actualizar folios en la base de datos
-        // $this->actualizarFolios();
 
         // Guardar en base de datos solo carátula, ya que, el dte es el mismo enviado al Sii.
         $emisorID = $this->getEmpresa($caratula['RutEmisor'], $doc->Encabezado->Emisor);
@@ -287,13 +287,19 @@ class ApiFacturaController extends FacturaController
         return $xml->asXML();
     }
 
-    public function subirCaf(Request $request): JsonResponse
+    public function subirCaf(Request $request, $ambiente): JsonResponse
     {
+        // Set ambiente certificacón
+        $this->setAmbiente($ambiente);
+
         return $this->uploadCaf($request);
     }
 
-    public function forzarSubirCaf(Request $request): JsonResponse
+    public function forzarSubirCaf(Request $request,  $ambiente): JsonResponse
     {
+        // Set ambiente certificacón
+        $this->setAmbiente($ambiente);
+
         return $this->uploadCaf($request, true);
     }
 

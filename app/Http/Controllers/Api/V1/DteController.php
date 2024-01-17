@@ -32,8 +32,9 @@ class DteController extends Controller
     protected function actualizarFolios(): void
     {
         foreach (self::$folios as $key => $value) {
+            self::$ambiente == 0 ? $tipo = -$key : $tipo = $key;
             if (self::$folios_inicial[$key] <= self::$folios[$key])
-                DB::table('secuencia_folio')->where('id', $key)->update(['cant_folios' => self::$folios[$key], 'updated_at' => $this->timestamp]);
+                DB::table('secuencia_folio')->where('id', $tipo)->update(['cant_folios' => self::$folios[$key], 'updated_at' => $this->timestamp]);
         }
     }
 
@@ -41,7 +42,7 @@ class DteController extends Controller
      * @throws Exception
      * ARREGLAR: el mismo caf se puede almacenar más de una vez.
      */
-    protected function uploadCaf($request, ?bool $force = false): JsonResponse
+    protected function uploadCaf($request, ?bool $force = false)//: JsonResponse
     {
         // Leer string como xml
         $rbody = $request->getContent();
@@ -49,6 +50,9 @@ class DteController extends Controller
 
         // Si el caf no sigue el orden de folios correspondiente, no se sube.
         $folio_caf = $caf->CAF->DA->TD[0];
+        // Si el ambiente es de certificación agregar un 0 al id
+        if(self::$ambiente == 0)
+            $folio_caf = -$folio_caf;
 
         /* Consulta si existe el folio en la base de datos
          * Si existe, se obtiene el último folio final y se compara con el folio inicial del caf
@@ -139,7 +143,9 @@ class DteController extends Controller
             $caratulaId = $this->getCaratula($caratula, $emisorID);
             $dteId = $this->guardarDte($filename, $envioDteId, $caratulaId);
             foreach ($xml->children()->SetDTE->DTE->Documento as $documento) {
-                $cafId = DB::table('caf')->where('folio_id', '=', $documento->Encabezado->IdDoc->TipoDTE)->latest()->first()->id;
+                // Si el ambiente es de certificación transformar tipo dte a negativo.
+                self::$ambiente == 0 ? $tipo_dte = -$documento->Encabezado->IdDoc->TipoDTE : $tipo_dte = $documento->Encabezado->IdDoc->TipoDTE;
+                $cafId = DB::table('caf')->where('folio_id', '=', $tipo_dte)->latest()->first()->id;
                 $receptorId = $this->getEmpresa($documento->Encabezado->Receptor->RUTRecep, $documento);
                 $documentoId = $this->guardarDocumento($dteId, $cafId, $receptorId, $documento);
                 foreach ($documento->Detalle as $detalle) {
@@ -414,18 +420,19 @@ class DteController extends Controller
 
         // Compara si el número de folios restante en el caf es mayor o igual al número de documentos a enviar
         foreach (self::$folios as $key => $value) {
-            $folio_final = DB::table('caf')->where('folio_id', '=', $key)->latest()->first()->folio_final;
-            $cant_folio = DB::table('secuencia_folio')->where('id', '=', $key)->latest()->first()->cant_folios;
+            self::$ambiente == 0 ? $tipo_dte = -$key : $tipo_dte = $key;
+            $folio_final = DB::table('caf')->where('folio_id', '=', $tipo_dte)->latest()->first()->folio_final;
+            $cant_folio = DB::table('secuencia_folio')->where('id', '=', $tipo_dte)->latest()->first()->cant_folios;
             $folios_restantes = $folio_final - $cant_folio;
             $folios_documentos = self::$folios[$key] - self::$folios_inicial[$key] + 1;
             if ($folios_documentos > $folios_restantes) {
                 $response = [
-                    'error' => 'No hay folios suficientes para generar los documentos',
-                    'tipo_folio' => $key,
-                    'máxmimo_rango_caf' => $folio_final,
-                    'último_folio_utilizado' => $cant_folio,
-                    'folios_restantes' => $folios_restantes,
+                    'error' => 'No hay folios suficientes para generar el/los documento(s)',
+                    'tipo_folio' => $tipo_dte,
                     'folios_a_utilizar' => $folios_documentos,
+                    'folios_restantes' => $folios_restantes,
+                    'último_folio_caf' => $folio_final,
+                    'último_folio_utilizado' => $cant_folio,
                 ];
             }
         }
@@ -474,13 +481,22 @@ class DteController extends Controller
     {
         $folios = [];
         if(isset($dte->Documentos)) {
+            // Obtiene los tipos dte como string
             $tipos_str = implode(", ", self::$tipos_dte);
+
+            // Recorrer documentos
             foreach ($dte->Documentos as $documento) {
                 if(isset($documento->Encabezado->IdDoc->TipoDTE)) {
                     $tipo_dte = $documento->Encabezado->IdDoc->TipoDTE;
                     if (!in_array($tipo_dte, self::$tipos_dte))
                         $error['error'][] = "El TipoDTE no es válido. Debe ser $tipos_str. Encontrado: $tipo_dte";
-                    self::$folios[$tipo_dte] = DB::table('secuencia_folio')->where('id', $tipo_dte)->value('cant_folios');
+                    self::$ambiente == 0 ? $tipo = -$tipo_dte : $tipo = $tipo_dte;
+                    try {
+                        self::$folios[$tipo_dte] = DB::table('secuencia_folio')->where('id', $tipo)->value('cant_folios');
+                    } catch (Exception $e){
+                        $error['error'][] = "No existe la secuencia de folios con id $tipo";
+                        return $error;
+                    }
                     $folios[$tipo_dte] = self::$folios[$tipo_dte] + 1;
                 } else $error['error'][] = "No existe el campo TipoDTE en el json";
             }
@@ -494,15 +510,16 @@ class DteController extends Controller
     {
         $folios = [];
         foreach (self::$folios as $tipo => $cantidad) {
-            $caf = DB::table('caf')->where('folio_id', '=', $tipo)->latest()->first();
+            self::$ambiente == 0 ? $tipo_dte = -$tipo : $tipo_dte = $tipo;
+            $caf = DB::table('caf')->where('folio_id', '=', $tipo_dte)->latest()->first();
             if ($caf) {
                 try {
                     $folios[$tipo] = new Folios(Storage::disk('cafs')->get($caf->xml_filename));
                 } catch (Exception $e) {
-                    $error['error'][] = "$e\nNo existe el caf para el folio $tipo en storage";
+                    $error['error'][] = "$e\nNo existe el caf para el folio $tipo_dte en storage";
                 }
             } else {
-                $error['error'][] = "No existe el caf para el folio $tipo en la base de datos";
+                $error['error'][] = "No existe el caf para el folio $tipo_dte en la base de datos";
             }
 
         }

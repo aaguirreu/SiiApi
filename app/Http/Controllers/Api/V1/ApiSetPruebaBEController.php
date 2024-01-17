@@ -256,15 +256,4 @@ class ApiSetPruebaBEController extends SetPruebaBEController
             'response' => $response
         ], 400);
     }
-
-    public function subirCaf(Request $request):JsonResponse
-    {
-        return $this->uploadCaf($request);
-    }
-
-    public function forzarSubirCaf(Request $request): JsonResponse
-    {
-        return $this->uploadCaf($request, true);
-    }
-
 }

@@ -20,11 +20,10 @@ Route::post('/tokens/create', 'App\Http\Controllers\UserAuthController@login');
 
 // Api/V1
 Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1', 'middleware' => ['auth:sanctum']], function () {
-    Route::post('apicontroller', 'ApiController@respond');
 
     // Caf
-    Route::post('subircaf', 'ApiSetPruebaBEController@subirCaf');
-    Route::post('subircafforce', 'ApiSetPruebaBEController@forzarSubirCaf');
+    Route::post('{ambiente}/subircaf', 'ApiFacturaController@subirCaf');
+    Route::post('{ambiente}/subircaf.forzar', 'ApiFacturaController@forzarSubirCaf');
 
     // Rcof
     Route::post('rcof/{dte_filename}', 'ApiSetPruebaBEController@enviarRcofOnly');
