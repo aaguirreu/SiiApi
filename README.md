@@ -2,7 +2,9 @@ Api que consume la api sii para el envío de boletas https://www4c.sii.cl/bolcor
 
 # Diagrama de la DB
 
-![db_model](https://github.com/aaguirreu/SiiApi/assets/64426866/ba1f5ea9-2e83-4aee-9c80-f5320e5b652b)
+![SiiApiDBDiagram](https://github.com/aaguirreu/SiiApi/assets/64426866/70b3a044-cb09-4528-9d7c-724e6a1c61d0)
+
+
 
 # Instrucciones
 Sigue las siguientes instrucciones para un correcto funcionamiento en una maquina virtual con apache2.
