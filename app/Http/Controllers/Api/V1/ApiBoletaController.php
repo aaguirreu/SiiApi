@@ -6,7 +6,10 @@ use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use phpseclib\Net\SCP;
+use phpseclib\Net\SFTP;
 use sasco\LibreDTE\Log;
+use sasco\LibreDTE\Sii\EnvioDte;
 
 class ApiBoletaController extends BoletaController
 {
@@ -248,5 +251,62 @@ class ApiBoletaController extends BoletaController
             //self::$url = 'https://api.sii.cl/recursos/v1/boleta.electronica.envio/'; // url producción CONSULTAS BOLETAS
         }
         else abort(404);
+    }
+
+    public function generarPdf(Request $request): JsonResponse {
+        // Obtener xml del body de la request
+        $xml = $request->getContent();
+
+        // Cargar EnvioDTE y extraer arreglo con datos de carátula y DTEs
+        $EnvioDte = new EnvioDte();
+        $EnvioDte->loadXML($xml);
+        $Caratula = $EnvioDte->getCaratula();
+        $Documentos = $EnvioDte->getDocumentos();
+
+        // procesar cada DTEs e ir agregándolo al PDF
+        $DTE = $Documentos[0];
+        $filename = 'dte_'.$Caratula['RutEmisor'].'_'.$DTE->getID();
+        if (!$DTE->getDatos())
+            //die('No se pudieron obtener los datos del DTE');
+            return response()->json([
+                'message' => 'No se pudieron obtener los datos del DTE'
+            ], 400);
+
+        $pdf = new \sasco\LibreDTE\Sii\Dte\PDF\Dte(true); // =false hoja carta, =true papel contínuo (false por defecto si no se pasa)
+        $pdf->setFooterText();
+        $pdf->setLogo('/vendor/sasco/website/webroot/img/logo_mini.png'); // debe ser PNG!
+        $pdf->setResolucion(['FchResol'=>$Caratula['FchResol'], 'NroResol'=>$Caratula['NroResol']]);
+        //$pdf->setCedible(true);
+        $pdf->agregar($DTE->getDatos(), $DTE->getTED());
+        //$pdf->Output(sys_get_temp_dir()."$filename.pdf", 'F');
+        // entregar archivo comprimido que incluirá cada uno de los DTEs
+        // PARA AHORRAR ESPACIO EN TMP DELETE DEBE SER TRUE!!!
+        //\sasco\LibreDTE\File::compress(sys_get_temp_dir()."$filename.pdf", ['format'=>'zip', 'delete'=>true, 'download'=>false]);
+
+        // Inicia secion con usuario host y password
+        try {
+            $port = 22;
+            $sftp = new SFTP('host', $port);
+            if (!$sftp->login('user', 'password')) {
+                return response()->json([
+                    'message' => 'Error al iniciar sesión',
+                    'response' => $sftp->getExitStatus()
+                ], 400);
+            }
+
+            $sftp->put("$filename.pdf", $pdf->getPDFData(), SCP::SOURCE_STRING);
+
+        } catch (\Exception $e) {
+
+            return response()->json([
+                'message' => 'Error al enviar PDF Exception',
+                'response' => $e->getTraceAsString()
+            ], 400);
+        }
+
+        return response()->json([
+            'message' => 'PDF enviado correctamente',
+        ], 200);
+
     }
 }

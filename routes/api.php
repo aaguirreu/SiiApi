@@ -44,6 +44,9 @@ Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1', 'm
     Route::post('setdeprueba/estado.envio', 'ApiSetPruebaBEController@estadoDteEnviado');
     Route::post('setdeprueba/estado.dte', 'ApiSetPruebaBEController@estadoDte');
 
+    // Generar PDF
+    Route::post('/dte/pdf', 'ApiBoletaController@generarPdf');
+
     // Administración
     Route::post('administrar/clientes/agregar', 'ApiFacturaController@agregarCliente');
 });
