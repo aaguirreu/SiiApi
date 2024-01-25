@@ -18,7 +18,6 @@ class FacturaController extends DteController
     {
         self::$tipos_dte = $tipos_dte;
         self::isToken();
-        self::$token = json_decode(file_get_contents(base_path('config.json')))->token;
     }
 
     /**
@@ -34,7 +33,7 @@ class FacturaController extends DteController
 
         list($file, $filename) = $this->parseFileName($rutEmisor, $rutReceptor);
         try {
-            Storage::disk('dtes')->put("$rutEmisor/Envios/$rutReceptor/$filename", $dte);
+            Storage::disk('xml')->put("$rutEmisor/Envios/$rutReceptor/$filename", $dte);
         } catch (Exception $e) {
             Log::write(0, "Error al guardar dte en Storage. {$e->getMessage()}");
             return false;
@@ -79,7 +78,7 @@ class FacturaController extends DteController
                 Log::write(Estado::ENVIO_ERROR_500, Estado::get(Estado::ENVIO_ERROR_500));
             }
             // Borrar xml guardado anteriormente
-            Storage::disk('dtes')->delete("$rutEmisor/Envios/$rutReceptor/$filename");
+            Storage::disk('xml')->delete("$rutEmisor/Envios/$rutReceptor/$filename");
             return false;
         }
 
@@ -91,7 +90,7 @@ class FacturaController extends DteController
             $xml = new \SimpleXMLElement($response, LIBXML_COMPACT);
         } catch (Exception $e) {
             \sasco\LibreDTE\Log::write(Estado::ENVIO_ERROR_XML, Estado::get(Estado::ENVIO_ERROR_XML, $e->getMessage()));
-            Storage::disk('dtes')->delete("$rutEmisor/Envios/$rutReceptor/$filename");
+            Storage::disk('xml')->delete("$rutEmisor/Envios/$rutReceptor/$filename");
             return false;
         }
 
@@ -102,7 +101,7 @@ class FacturaController extends DteController
                 Estado::get($xml->STATUS).(isset($xml->DETAIL)?'. '.implode("\n", (array)$xml->DETAIL->ERROR):'')
             );
             // Borrar xml guardado anteriormente
-            Storage::disk('dtes')->delete("$rutEmisor/Envios/$rutReceptor/$filename");
+            Storage::disk('xml')->delete("$rutEmisor/Envios/$rutReceptor/$filename");
             return false;
         }
 
@@ -220,8 +219,8 @@ class FacturaController extends DteController
                     Log::write(0, $dbresponse['error']);
                     return false;
                 }
-                Storage::disk('dtes')->put("$rut_receptor_esperado/Recibidos/$rut_emisor_esperado/".$attachment->getName(), $attachment->getContent());
-                Storage::disk('dtes')->put("$rut_receptor_esperado/Respuestas/$rut_emisor_esperado/$filename", $xml);
+                Storage::disk('xml')->put("$rut_receptor_esperado/Recibidos/$rut_emisor_esperado/".$attachment->getName(), $attachment->getContent());
+                Storage::disk('xml')->put("$rut_receptor_esperado/Respuestas/$rut_emisor_esperado/$filename", $xml);
                 $this->guardarRespuesta($dbresponse, $cod_envio, $filename);
             }
         }
@@ -313,7 +312,7 @@ class FacturaController extends DteController
         // validar schema del XML que se generó
         if ($RespuestaEnvio->schemaValidate()) {
             // Guardar respuesta en la base de datos
-            Storage::disk('dtes')->put("$rut_receptor_esperado/Respuestas/$filename", $xml);
+            Storage::disk('xml')->put("$rut_receptor_esperado/Respuestas/$filename", $xml);
             $this->guardarRespuesta($dte_id, $cod_envio, $filename);
             return [
                 'filename' => $filename,
@@ -373,7 +372,7 @@ class FacturaController extends DteController
         // validar schema del XML que se generó
         if ($EnvioRecibos->schemaValidate()) {
             // Guardar respuesta en la base de datos
-            // Storage::disk('dtes')->put("$rut_receptor_esperado/Respuestas/$filename", $xml);
+            // Storage::disk('xml')->put("$rut_receptor_esperado/Respuestas/$filename", $xml);
             return $this->enviarReciboSii($firma->getID(), $rut_emisor_esperado, $rut_receptor_esperado, $xml, $filename);
         }
         return false;
@@ -392,12 +391,12 @@ class FacturaController extends DteController
         }
 
         try {
-            $file = Storage::disk('dtes')->put("$rutReceptor/Respuestas/$rutEmisor/$filename", $dte);
+            $file = Storage::disk('xml')->put("$rutReceptor/Respuestas/$rutEmisor/$filename", $dte);
         } catch (Exception $e) {
             Log::write(0, "Error al guardar dte en Storage. {$e->getMessage()}");
             return false;
         }
-        $file = Storage::disk('dtes')->path("$rutReceptor/Respuestas/$rutEmisor/$filename");
+        $file = Storage::disk('xml')->path("$rutReceptor/Respuestas/$rutEmisor/$filename");
 
         $data = [
             'rutSender' => $rutSender,
@@ -437,7 +436,7 @@ class FacturaController extends DteController
                 Log::write(Estado::ENVIO_ERROR_500, Estado::get(Estado::ENVIO_ERROR_500));
             }
             // Borrar xml guardado anteriormente
-            Storage::disk('dtes')->delete("$rutReceptor/Respuestas/$rutEmisor/$filename");
+            Storage::disk('xml')->delete("$rutReceptor/Respuestas/$rutEmisor/$filename");
             return false;
         }
 
@@ -449,7 +448,7 @@ class FacturaController extends DteController
             $xml = new \SimpleXMLElement($response, LIBXML_COMPACT);
         } catch (Exception $e) {
             \sasco\LibreDTE\Log::write(Estado::ENVIO_ERROR_XML, Estado::get(Estado::ENVIO_ERROR_XML, $e->getMessage()));
-            Storage::disk('dtes')->delete("$rutReceptor/Respuestas/$rutEmisor/$filename");
+            Storage::disk('xml')->delete("$rutReceptor/Respuestas/$rutEmisor/$filename");
             return false;
         }
 
@@ -460,7 +459,7 @@ class FacturaController extends DteController
                 Estado::get($xml->STATUS).(isset($xml->DETAIL)?'. '.implode("\n", (array)$xml->DETAIL->ERROR):'')
             );
             // Borrar xml guardado anteriormente
-            Storage::disk('dtes')->delete("$rutReceptor/Respuestas/$rutEmisor/$filename");
+            Storage::disk('xml')->delete("$rutReceptor/Respuestas/$rutEmisor/$filename");
             return false;
         }
 

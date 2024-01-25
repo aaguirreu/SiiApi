@@ -10,13 +10,11 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
-use PHPUnit\Exception;
 use sasco\LibreDTE\Log;
 use sasco\LibreDTE\Sii;
 use SimpleXMLElement;
 
-// Debería ser class ApiFacturaController extends ApiController
-// y llamar a FacturaController con use FacturaController, new FacturaController(construct)
+
 class ApiFacturaController extends FacturaController
 {
     public function __construct()
@@ -40,8 +38,26 @@ class ApiFacturaController extends FacturaController
         // Set ambiente certificacón
         $this->setAmbiente($ambiente);
 
+        // Verificar si existe empresa
+        $empresa = DB::table('empresa')->where('rut', '=', $dte->Documentos[0]->Encabezado->Emisor->RUTEmisor)->first();
+        if (!$empresa) {
+            return response()->json([
+                'message' => "Error al encontrar la empresa",
+                'error' => "No existe empresa con el rut " . $dte->Documentos[0]->Encabezado->Emisor->RUTEmisor,
+            ], 400);
+        }
+
+        // Verificar la empresa es cliente
+        $cliente = DB::table('cliente')->where('empresa_id', '=', $empresa->id)->first();
+        if (!$cliente) {
+            return response()->json([
+                'message' => "Error al encontrar el cliente",
+                'error' => "No existe cliente con el rut " . $empresa->rut,
+            ], 400);
+        }
+
         // Obtiene los folios con la cantidad de folios usados desde la base de datos
-        self::$folios_inicial = $this->obtenerFolios($dte);
+        self::$folios_inicial = $this->obtenerFolios($dte, $empresa->id);
         if (isset(self::$folios_inicial['error'])) {
             return response()->json([
                 'message' => "Error al obtener tipo de folios",
@@ -50,7 +66,7 @@ class ApiFacturaController extends FacturaController
         }
 
         // Obtener folios del Caf
-        $folios = $this->obtenerFoliosCaf();
+        $folios = $this->obtenerFoliosCaf($empresa->id, $empresa->rut);
         if (isset($folios['error'])) {
             return response()->json([
                 'message' => "Error al obtener folios desde el CAF",
@@ -74,7 +90,7 @@ class ApiFacturaController extends FacturaController
         }
 
         // Parseo de boletas según modelo libreDTE
-        $documentos = $this->parseDte($dte);
+        $documentos = $this->parseDte($dte, $empresa->id);
         if (isset($documentos['error'])) {
             return response()->json([
                 'message' => "Error al parsear el dte",
@@ -98,7 +114,7 @@ class ApiFacturaController extends FacturaController
         }
 
         // Enviar DTE al SII e insertar en base de datos de ser exitoso
-        list($envio_response, $filename) = $this->enviar($caratula['RutEnvia'], $caratula['RutEmisor'] , "60803000-K", $envio_dte_xml);
+        list($envio_response, $filename) = $this->enviar($caratula['RutEnvia'], $caratula['RutEmisor'], "60803000-K", $envio_dte_xml);
         if (!$envio_response) {
             return response()->json([
                 'message' => "Error al enviar el DTE",
@@ -113,7 +129,11 @@ class ApiFacturaController extends FacturaController
             ], 400);
         }
 
+        // Guardar en tabla envio_dte
+        // Se separa de guardarXmlDB por que esta función se utiliza para guardar compras y ventas
+        // los dte recibidos (compras) no tienen envio_id
         $envioDteId = $this->guardarEnvioDte($envio_response);
+
         // Guardar en base de datos envio, xml, etc
         $dbresponse = $this->guardarXmlDB($envioDteId, $filename, $caratula, $envio_dte_xml);
         if (isset($dbresponse['error'])) {
@@ -124,7 +144,7 @@ class ApiFacturaController extends FacturaController
         }
 
         // Actualizar folios en la base de datos
-        $this->actualizarFolios();
+        $this->actualizarFolios($empresa->id);
 
         // Cambiar RutReceptor de caratula
         $caratula['RutReceptor'] = $dte->Documentos[0]->Encabezado->Receptor->RUTRecep;
@@ -144,7 +164,7 @@ class ApiFacturaController extends FacturaController
      * @return JsonResponse
      * Enviar DTE al receptor y guardar en base de datos
      */
-    private function enviarDteReceptor($documentos, $doc, $firma, $folios, $caratula, $correo, $envio_response)
+    private function enviarDteReceptor($documentos, $doc, $firma, $folios, $caratula, $correo, $envio_response): JsonResponse
     {
         // generar cada DTE, timbrar, firmar y agregar al sobre de EnvioBOLETA
         $envio_dte_xml = $this->generarEnvioDteXml($documentos, $firma, $folios, $caratula);
@@ -169,7 +189,7 @@ class ApiFacturaController extends FacturaController
             list($file, $filename) = $this->parseFileName($caratula['RutEmisor'], $caratula['RutReceptor']);
         } while (file_exists($file));
 
-        if(!Storage::disk('dtes')->put("{$caratula['RutEmisor']}/Envios/{$caratula['RutReceptor']}/$filename", $envio_dte_xml)) {
+        if(!Storage::disk('xml')->put("{$caratula['RutEmisor']}/Envios/{$caratula['RutReceptor']}/$filename", $envio_dte_xml)) {
             Log::write(0, 'Error al guardar dte en Storage');
             return response()->json([
                 'message' => "DTE enviado correctamente al SII pero NO al receptor",
@@ -208,8 +228,9 @@ class ApiFacturaController extends FacturaController
         }
 
         // Guardar en base de datos solo carátula, ya que, el dte es el mismo enviado al Sii.
-        $emisorID = $this->getEmpresa($caratula['RutEmisor'], $doc->Encabezado->Emisor);
-        $caratulaId = $this->getCaratula($caratula, $emisorID);
+        $emisor_id = $this->getEmpresa($caratula['RutEmisor'], $doc->Encabezado->Emisor);
+        $receptor_id = $this->getEmpresa($caratula['RutReceptor'], $doc->Encabezado->Emisor);
+        $caratulaId = $this->getCaratula($caratula, $emisor_id, $receptor_id);
 
         return response()->json([
             'message' => "DTE enviado correctamente",
@@ -242,7 +263,7 @@ class ApiFacturaController extends FacturaController
         $response = Sii::request('QueryEstUp', 'getEstUp', [
             $body->rut,
             $body->dv,
-            $body->trackID,
+            $body->track_id,
             self::$token
         ]);
         // si el estado se pudo recuperar se muestra estado y glosa
@@ -275,32 +296,16 @@ class ApiFacturaController extends FacturaController
             'DvConsultante'     => $body->dv,
             'RutCompania'       => $body->rut,
             'DvCompania'        => $body->dv,
-            'RutReceptor'       => $body->rutReceptor,
-            'DvReceptor'        => $body->dvReceptor,
+            'RutReceptor'       => $body->rut_receptor,
+            'DvReceptor'        => $body->dv_receptor,
             'TipoDte'           => $body->tipo,
             'FolioDte'          => $body->folio,
-            'FechaEmisionDte'   => $body->fechaEmision,
+            'FechaEmisionDte'   => $body->fecha_emision,
             'MontoDte'          => $body->monto,
             'token'             => self::$token,
         ]);
 
         return $xml->asXML();
-    }
-
-    public function subirCaf(Request $request, $ambiente): JsonResponse
-    {
-        // Set ambiente certificacón
-        $this->setAmbiente($ambiente);
-
-        return $this->uploadCaf($request);
-    }
-
-    public function forzarSubirCaf(Request $request,  $ambiente): JsonResponse
-    {
-        // Set ambiente certificacón
-        $this->setAmbiente($ambiente);
-
-        return $this->uploadCaf($request, true);
     }
 
     /**
@@ -363,7 +368,7 @@ class ApiFacturaController extends FacturaController
             $emisor = DB::table('empresa')
                 ->where('id', '=', $caratula->emisor_id)
                 ->first();
-            $dte_xml = Storage::disk('dtes')->get("$receptor->rut/Recibidos/$emisor->rut/$filename");
+            $dte_xml = Storage::disk('xml')->get("$receptor->rut/Recibidos/$emisor->rut/$filename");
         } catch (\Exception $e) {
             return response()->json([
                 'message' => "Error al enviar respuesta de documento",
@@ -421,53 +426,5 @@ class ApiFacturaController extends FacturaController
         return response()->json([
             'message' => "Respuesta de documento enviada correctamente",
         ], 200);
-    }
-
-    public function agregarCliente(Request $request): JsonResponse {
-        // Leer string como json
-        $body = json_decode(json_encode($request->json()->all()));
-
-        // Verificar si existe el cliente en DB
-        $cliente = DB::table('cliente')->where('empresa_id', '=', $body->empresa_id)->first();
-        if ($cliente) {
-            return response()->json([
-                'message' => "Error al agregar cliente",
-                'error' => "El cliente ya existe",
-            ], 400);
-        } else {
-            try {
-                $id_cliente = DB::table('cliente')->insertGetId([
-                    'empresa_id' => $body->empresa_id,
-                    'created_at' => $this->timestamp,
-                    'updated_at' => $this->timestamp,
-                ]);
-
-                return response()->json([
-                    'message' => "Cliente agregado correctamente",
-                ], 200);
-
-            } catch (Exception $e) {
-                return response()->json([
-                    'message' => "Error al agregar cliente",
-                    'error' => $e->getMessage(),
-                ], 400);
-            }
-        }
-    }
-
-    /**
-     * @param $ambiente
-     * @return void
-     * Set ambiente certificacón o producción
-     */
-    protected function setAmbiente($ambiente) {
-        if ($ambiente == "certificacion") {
-            self::$ambiente = 0;
-            self::$url = 'https://maullin.sii.cl/cgi_dte/UPL/DTEUpload'; // url certificación
-        } else if ($ambiente == "produccion") {
-            self::$ambiente = 1;
-            self::$url = 'https://palena.sii.cl/cgi_dte/UPL/DTEUpload'; // url producción
-        }
-        else abort(404);
     }
 }

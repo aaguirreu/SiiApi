@@ -82,7 +82,7 @@ class DteImapIdleCommand extends ImapIdleCommand {
 
                     // Verificar si el adjunto es un xml
                     if(str_ends_with($attachment->getName(), '.xml')) {
-                        //Storage::disk('dtes')->put('Dte\\'.$attachment->getName(), $content);
+                        //Storage::disk('xml')->put('Dte\\'.$attachment->getName(), $content);
                         $attachmentsInfo[] = $attachmentInfo;
                         //echo json_encode($attachmentsInfo);
                         // Ver si el xmles un dte o una respuesta a un dte

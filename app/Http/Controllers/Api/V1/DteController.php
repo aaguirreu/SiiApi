@@ -26,15 +26,17 @@ class DteController extends Controller
     protected static array $folios_inicial = [];
     protected static array $tipos_dte = [];
     protected static string $url = '';
+    protected static string $url_api = ''; // se utiliza solo en boleta electronica para consultas de estado
     protected static int $ambiente = 0; // 1 Producción, 0 Certificación
     protected static string $token = '';
+    protected static string $token_api; // se utiliza solo en boleta electronica para consultas de estado
 
-    protected function actualizarFolios(): void
+    protected function actualizarFolios($id): void
     {
         foreach (self::$folios as $key => $value) {
             self::$ambiente == 0 ? $tipo = -$key : $tipo = $key;
             if (self::$folios_inicial[$key] <= self::$folios[$key])
-                DB::table('secuencia_folio')->where('id', $tipo)->update(['cant_folios' => self::$folios[$key], 'updated_at' => $this->timestamp]);
+                DB::table('secuencia_folio')->where('empresa_id', '=', $id)->where('tipo', '=', $tipo)->update(['cant_folios' => self::$folios[$key], 'updated_at' => $this->timestamp]);
         }
     }
 
@@ -42,62 +44,70 @@ class DteController extends Controller
      * @throws Exception
      * ARREGLAR: el mismo caf se puede almacenar más de una vez.
      */
-    protected function uploadCaf($request, ?bool $force = false)//: JsonResponse
+    protected function uploadCaf($request, $folio_caf, $filename, $id, $fecha_vencimiento, ?bool $forzar = false): JsonResponse
     {
         // Leer string como xml
         $rbody = $request->getContent();
-        $caf = new simpleXMLElement($rbody);
+        $caf_xml = new simpleXMLElement($rbody);
 
-        // Si el caf no sigue el orden de folios correspondiente, no se sube.
-        $folio_caf = $caf->CAF->DA->TD[0];
-        // Si el ambiente es de certificación agregar un 0 al id
-        if(self::$ambiente == 0)
-            $folio_caf = -$folio_caf;
-
-        /* Consulta si existe el folio en la base de datos
+        /**
+         * Consulta si existe el folio en la base de datos
          * Si existe, se obtiene el último folio final y se compara con el folio inicial del caf
          * Si no existe, se guarda el caf
          */
-        if (DB::table('caf')->where('folio_id', '=', $folio_caf)->exists()) {
-            if (!$force) {
-                $folio = DB::table('caf')->where('folio_id', '=', $folio_caf)->latest()->first();
+        $folio = DB::table('caf')->where('empresa_id', '=', $id)->where('folio_id', '=', $folio_caf);
+        if ($folio) {
+            if (!$forzar) {
                 $folio_final = $folio->folio_final;
             } else {
-                $folio_final = (int)$caf->CAF->DA->RNG->D[0];
+                $folio_final = (int)$caf_xml->CAF->DA->RNG->D[0];
                 $folio_final--;
             }
-            if ($folio_final + 1 != intval($caf->CAF->DA->RNG->D[0])) {
+            if ($folio_final + 1 != intval($caf_xml->CAF->DA->RNG->D[0])) {
+                // Si el caf no sigue el orden de folios correspondiente, no se sube.
                 return response()->json([
-                    'message' => 'El caf no sigue el orden de folios correspondiente. Folio final: ' . $folio_final . ', folio caf enviado: ' . $caf->CAF->DA->RNG->D[0] . '. Deben ser consecutivos.'
+                    'message' => 'El caf no sigue el orden de folios correspondiente. Deben ser consecutivos.',
+                    'registro' => 'Último folio registrado: '.$folio_final,
+                    'envio' => 'Caf recibido: '.intval($caf_xml->CAF->DA->RNG->D[0]),
                 ], 400);
             }
-        } else if (DB::table('secuencia_folio')->where('id', '=', $folio_caf)->doesntExist()) {
-            $cant_folios = intval($caf->CAF->DA->RNG->D[0]);
-            DB::table('secuencia_folio')->insert([
-                'id' => $folio_caf,
+        }
+
+        // Si no existe la secuencia para el caf, se crea antes de ingresar el caf
+        $secuencia = DB::table('secuencia_folio')->where('empresa_id', '=', $id)->where('tipo', '=', $folio_caf)->latest()->first();
+        if (!$secuencia) {
+            $cant_folios = intval($caf_xml->CAF->DA->RNG->D[0]);
+            $secuencia_id = DB::table('secuencia_folio')->insertGetId([
+                'empresa_id' => $id,
+                'tipo' => $folio_caf,
                 'cant_folios' => --$cant_folios,
                 'created_at' => $this->timestamp,
                 'updated_at' => $this->timestamp
             ]);
         }
 
-        // Nombre caf tipodte_timestamp.xml
-        $filename = $caf->CAF->DA->TD[0] . '_' . $this->timestamp . '.xml';
-        $filename = str_replace(' ', 'T', $filename);
-        $filename = str_replace(':', '-', $filename);
+        try {
+            //Guardar caf en storage
+            Storage::disk('xml')->put("/{$caf_xml->CAF->DA->RE[0]}/Cafs/$filename", $rbody);
 
-        //Guardar caf en storage
-        Storage::disk('cafs')->put($filename, $rbody);
-
-        // Guardar en base de datos
-        DB::table('caf')->insert([
-            'folio_id' => $folio_caf,
-            'folio_inicial' => $caf->CAF->DA->RNG->D[0],
-            'folio_final' => $caf->CAF->DA->RNG->H[0],
-            'xml_filename' => $filename,
-            'created_at' => $this->timestamp,
-            'updated_at' => $this->timestamp
-        ]);
+            // Guardar en base de datos
+            DB::table('caf')->insert([
+                'empresa_id' => $id,
+                'secuencia_id' => $secuencia->id ?? $secuencia_id,
+                'tipo' => $folio_caf,
+                'folio_inicial' => $caf_xml->CAF->DA->RNG->D[0],
+                'folio_final' => $caf_xml->CAF->DA->RNG->H[0],
+                'fecha_vencimiento' => $fecha_vencimiento,
+                'xml_filename' => $filename,
+                'created_at' => $this->timestamp,
+                'updated_at' => $this->timestamp
+            ]);
+        } catch (Exception $e) {
+            return response()->json([
+                'message' => 'Error al subir caf',
+                'error' => $e->getMessage(),
+            ], 400);
+        }
 
         // Mensaje de caf guardado
         return response()->json([
@@ -134,26 +144,27 @@ class DteController extends Controller
         return $id;
     }
 
-    protected function guardarXmlDB($envioDteId, $filename, $caratula, $dteXml): array|int
+    protected function guardarXmlDB($envio_dte_id, $filename, $caratula, $dte_xml): array|int
     {
         try {
             DB::beginTransaction(); // <= Starting the transaction
-            $xml = new SimpleXMLElement($dteXml);
-            $emisorID = $this->getEmpresa($caratula['RutEmisor'], $xml->children()->SetDTE->DTE->Documento[0]->Encabezado->Emisor);
-            $caratulaId = $this->getCaratula($caratula, $emisorID);
-            $dteId = $this->guardarDte($filename, $envioDteId, $caratulaId);
-            foreach ($xml->children()->SetDTE->DTE->Documento as $documento) {
+            $Xml = new SimpleXMLElement($dte_xml);
+            $emisor_id = $this->getEmpresa($caratula['RutEmisor'], $Xml->children()->SetDTE->DTE->Documento[0]->Encabezado->Emisor);
+            $receptor_id = $this->getEmpresa($caratula['RutReceptor'], $Xml->children()->SetDTE->DTE->Documento[0]->Encabezado->Receptor->RUTRecep);
+            $caratula_id = $this->getCaratula($caratula, $emisor_id, $receptor_id);
+            $dte_id = $this->guardarDte($filename, $envio_dte_id, $caratula_id);
+            foreach ($Xml->children()->SetDTE->DTE->Documento as $documento) {
                 // Si el ambiente es de certificación transformar tipo dte a negativo.
                 self::$ambiente == 0 ? $tipo_dte = -$documento->Encabezado->IdDoc->TipoDTE : $tipo_dte = $documento->Encabezado->IdDoc->TipoDTE;
-                $cafId = DB::table('caf')->where('folio_id', '=', $tipo_dte)->latest()->first()->id;
+                $cafId = DB::table('caf')->where('empresa_id', '=', $emisor_id)->where('tipo', '=', $tipo_dte)->latest()->first()->id;
                 $receptorId = $this->getEmpresa($documento->Encabezado->Receptor->RUTRecep, $documento);
-                $documentoId = $this->guardarDocumento($dteId, $cafId, $receptorId, $documento);
+                $documentoId = $this->guardarDocumento($dte_id, $cafId, $receptorId, $documento);
                 foreach ($documento->Detalle as $detalle) {
                     $this->guardarDetalle($detalle, $documentoId);
                 }
             }
             DB::commit(); // <= Commit the changes
-            return $dteId;
+            return $dte_id;
         } catch (Exception $e) {
             report($e);
             DB::rollBack(); // <= Rollback in case of an exception
@@ -163,11 +174,11 @@ class DteController extends Controller
         }
     }
 
-    protected function guardarDte($filename, $envioDteId, $caratulaId): int
+    protected function guardarDte($filename, $envio_dte_id, $caratula_id): int
     {
         return DB::table('dte')->insertGetId([
-            'envio_id' => $envioDteId,
-            'caratula_id' => $caratulaId,
+            'envio_id' => $envio_dte_id,
+            'caratula_id' => $caratula_id,
             'resumen_id' => null,
             'estado' => null, // ACEPTADO / RECHAZADO
             'xml_filename' => $filename,
@@ -204,32 +215,32 @@ class DteController extends Controller
         ]);
     }
 
-    protected function getCaratula($caratula, $idEmisor): int
+    protected function getCaratula($caratula, $emisor_id, $receptor_id): int
     {
         // Verificar si existe caratula
         $existeCaratula = DB::table('caratula')
-            ->where('emisor_id', '=', $idEmisor)
+            ->where('emisor_id', '=', $emisor_id)
+            ->where('receptor_id', '=', $receptor_id)
             ->where('rut_envia', '=', $caratula['RutEnvia'])
-            ->where('rut_receptor', '=', $caratula['RutReceptor'])
             ->get()->first();
 
         if (!$existeCaratula) {
-            return $this->guardarCaratula($caratula, $idEmisor);
+            return $this->guardarCaratula($caratula, $emisor_id, $receptor_id);
         } else return $existeCaratula->id;
     }
 
-    protected function guardarCaratula($caratula, $idEmisor): int
+    protected function guardarCaratula($caratula, $emisor_id, $receptor_id): int
     {
         return DB::table('caratula')->insertGetId([
-            'emisor_id' => $idEmisor,
+            'emisor_id' => $emisor_id,
+            'receptor_id' => $receptor_id,
             'rut_envia' => $caratula['RutEnvia'],
-            'rut_receptor' => $caratula['RutReceptor'],
             'created_at' => $this->timestamp,
             'updated_at' => $this->timestamp
         ]);
     }
 
-    protected function guardarDocumento($dteId, $cafId, $receptorId, $documento): int
+    protected function guardarDocumento($dte_id, $cafId, $receptorId, $documento): int
     {
         if(isset($documento->Encabezado->Referencia))
             $refId = $this->getDocumento($documento->Encabezado->Referencia->TpoDocRef, $documento->Encabezado->Referencia->FolioRef);
@@ -237,7 +248,7 @@ class DteController extends Controller
             $refId = null;
         return DB::table('documento')->insertGetId([
             'caf_id' => $cafId,
-            'dte_id' => $dteId,
+            'dte_id' => $dte_id,
             'receptor_id' => $receptorId,
             // ref_id guarda el id del 'documento' de referencia
             // solo en caso de que el documento sea una nota de crédito o débito
@@ -276,10 +287,11 @@ class DteController extends Controller
         ]);
     }
 
-    protected function getTokenBE(): void
+    protected function getTokenBE($url): void
     {
         // Solicitar seed
-        $seed = file_get_contents('https://api.sii.cl/recursos/v1/boleta.electronica.semilla');
+        $url_seed = $url.'.semilla';
+        $seed = file_get_contents($url_seed);
         $seed = simplexml_load_string($seed);
         $seed = (string)$seed->xpath('//SII:RESP_BODY/SEMILLA')[0];
         //echo "Seed = ".$seed."\n";
@@ -302,7 +314,7 @@ class DteController extends Controller
         // Solicitar token con la semilla firmada
         $curl = curl_init();
         curl_setopt_array($curl, array(
-            CURLOPT_URL => 'https://api.sii.cl/recursos/v1/boleta.electronica.token',
+            CURLOPT_URL => $url.".token",
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_ENCODING => '',
             CURLOPT_MAXREDIRS => 10,
@@ -321,25 +333,33 @@ class DteController extends Controller
         $responseXml = simplexml_load_string($response);
 
         // Guardar Token con su timestamp en config.json
-        $tokenBE = (string)$responseXml->xpath('//TOKEN')[0];
+        $token = (string)$responseXml->xpath('//TOKEN')[0];
         $config_file = json_decode(file_get_contents(base_path('config.json')));
-        $config_file->tokenBE = $tokenBE;
-        $config_file->tokenBE_timestamp = Carbon::now('America/Santiago')->timestamp;
-        file_put_contents(base_path('config.json'), json_encode($config_file), JSON_PRETTY_PRINT);
+        if ($url == 'https://apicert.sii.cl/recursos/v1/boleta.electronica') {
+            $config_file->be->cert->token = $token;
+            $config_file->be->cert->token_timestamp = Carbon::now('America/Santiago')->timestamp;
+        }
+        else if ($url == 'https://api.sii.cl/recursos/v1/boleta.electronica') {
+            $config_file->be->prod->token = $token;
+            $config_file->be->prod->token_timestamp = Carbon::now('America/Santiago')->timestamp;
+        }
+        $this->guardarConfigFile($config_file);
     }
 
-    protected function getToken(): void
+    protected function getToken($ambiente): void
     {
         // Set ambiente certificacion
-        Sii::setAmbiente(self::$ambiente);
+        Sii::setAmbiente($ambiente);
         $token = Autenticacion::getToken($this->obtenerFirma());
         $config_file = json_decode(file_get_contents(base_path('config.json')));
-        if(in_array("39", self::$tipos_dte) || in_array("41", self::$tipos_dte))
-            $config_file->tokenBE = $token;
-        else
-            $config_file->token = $token;
-        $config_file->token_timestamp = Carbon::now('America/Santiago')->timestamp;
-        file_put_contents(base_path('config.json'), json_encode($config_file), JSON_PRETTY_PRINT);
+        if ($ambiente == SII::CERTIFICACION) {
+            $config_file->dte->cert->token = $token;
+            $config_file->dte->cert->token_timestamp = Carbon::now('America/Santiago')->timestamp;
+        } else if ($ambiente == SII::PRODUCCION) {
+            $config_file->dte->prod->token = $token;
+            $config_file->dte->prod->token_timestamp = Carbon::now('America/Santiago')->timestamp;
+        }
+        $this->guardarConfigFile($config_file);
     }
 
     protected function isToken(): void
@@ -347,41 +367,75 @@ class DteController extends Controller
         if (file_exists(base_path('config.json'))) {
             // Obtener config.json
             $config_file = json_decode(file_get_contents(base_path('config.json')));
-
-            // Verificar tokenBE
-            if ($config_file->tokenBE === '' || $config_file->tokenBE === false || $config_file->tokenBE_timestamp === false) {
-                $this->getTokenBE();
-            } else {
+            // Verificar token Boleta Electronica
+            if ($config_file->be->cert->token === '' || !$config_file->be->cert->token || !$config_file->be->cert->token_timestamp)
+                // Obtener token de boleta electrónica certificación
+                $this->getTokenBE('https://apicert.sii.cl/recursos/v1/boleta.electronica');
+            else if ($config_file->be->prod->token === '' || !$config_file->be->prod->token || !$config_file->be->prod->token_timestamp)
+                    // Obtener token de boleta electrónica certificación y producción
+                $this->getTokenBE('https://api.sii.cl/recursos/v1/boleta.electronica');
+            else {
                 $now = Carbon::now('America/Santiago')->timestamp;
-                $tokenBETimeStamp = $config_file->tokenBE_timestamp;
-                $diff = $now - $tokenBETimeStamp;
-                if ($diff > $config_file->tokenBE_expiration) {
-                    $this->getTokenBE();
+                $diff = $now - $config_file->be->cert->token_timestamp;
+                if ($diff > $config_file->be->cert->token_expiration) {
+                    $this->getTokenBE('https://apicert.sii.cl/recursos/v1/boleta.electronica'); // certificación
+                }
+                $diff = $now - $config_file->be->prod->token_timestamp;
+                if ($diff > $config_file->be->prod->token_expiration) {
+                    $this->getTokenBE('https://api.sii.cl/recursos/v1/boleta.electronica'); // producción
                 }
             }
 
-            // Verificar token
-            if ($config_file->token === '' || $config_file->token === false || $config_file->token_timestamp === false) {
-                $this->getToken();
-            } else {
+            // Verificar token DTE
+            if ($config_file->dte->cert->token === '' || !$config_file->dte->cert->token || !$config_file->dte->cert->token_timestamp)
+                $this->getToken(SII::CERTIFICACION);
+            else if ($config_file->dte->prod->token === '' || !$config_file->dte->prod->token || !$config_file->dte->prod->token_timestamp)
+                $this->getToken(SII::PRODUCCION);
+            else {
                 $now = Carbon::now('America/Santiago')->timestamp;
-                $tokenDteTimeStamp = $config_file->token_timestamp;
-                $diff = $now - $tokenDteTimeStamp;
-                if ($diff > $config_file->token_expiration) {
-                    $this->getToken();
+                $diff = $now - $config_file->dte->cert->token_timestamp;
+                if ($diff > $config_file->dte->cert->token_expiration) {
+                    $this->getToken(SII::CERTIFICACION);
+                }
+                $diff = $now - $config_file->dte->prod->token_timestamp;
+                if ($diff > $config_file->dte->prod->token_expiration) {
+                    $this->getToken(SII::PRODUCCION);
                 }
             }
         } else {
             file_put_contents(base_path('config.json'), json_encode([
-                'token' => '',
-                'token_timestamp' => '',
-                'token_expiration' => 3600,
-                'tokenBE' => '',
-                'tokenBE_timestamp' => '',
-                'tokenBE_expiration' => 3600
-            ]), JSON_PRETTY_PRINT);
-            $this->getToken();
-            $this->getTokenBE();
+                'dte' => [
+                    'prod' => [
+                        'token' => '',
+                        'token_timestamp' => '',
+                        'token_expiration' => 3600
+                    ],
+                    'cert' => [
+                        'token' => '',
+                        'token_timestamp' => '',
+                        'token_expiration' => 3600
+                    ]
+                ],
+                'be' => [
+                    'prod' => [
+                        'token' => '',
+                        'token_timestamp' => '',
+                        'token_expiration' => 3600
+                    ],
+                    'cert' => [
+                        'token' => '',
+                        'token_timestamp' => '',
+                        'token_expiration' => 3600
+                    ]
+                ]
+            ], JSON_PRETTY_PRINT));
+
+            // Obtener token de boleta electrónica certificación y producción
+            $this->getToken(SII::CERTIFICACION);
+            $this->getToken(SII::PRODUCCION);
+
+            $this->getTokenBE('https://apicert.sii.cl/recursos/v1/boleta.electronica'); // certificación
+            $this->getTokenBE('https://api.sii.cl/recursos/v1/boleta.electronica'); // producción
         }
     }
 
@@ -398,10 +452,15 @@ class DteController extends Controller
         return new FirmaElectronica($config['firma']);
     }
 
+    protected function guardarConfigFile($config_file): void
+    {
+        file_put_contents(base_path('config.json'), json_encode($config_file,JSON_PRETTY_PRINT));
+    }
+
     /**
      * Recorre los documentos como array y les asigna un folio
      */
-    protected function parseDte($dte): array
+    protected function parseDte($dte, $id): array
     {
         $documentos = [];
         $dte = json_decode(json_encode($dte), true);
@@ -421,8 +480,9 @@ class DteController extends Controller
         // Compara si el número de folios restante en el caf es mayor o igual al número de documentos a enviar
         foreach (self::$folios as $key => $value) {
             self::$ambiente == 0 ? $tipo_dte = -$key : $tipo_dte = $key;
-            $folio_final = DB::table('caf')->where('folio_id', '=', $tipo_dte)->latest()->first()->folio_final;
-            $cant_folio = DB::table('secuencia_folio')->where('id', '=', $tipo_dte)->latest()->first()->cant_folios;
+            $caf = DB::table('caf')->where('empresa_id', '=', $id)->where('tipo', '=', $tipo_dte)->latest()->first();
+            $folio_final = $caf->folio_final;
+            $cant_folio = DB::table('secuencia_folio')->where('id', '=', $caf->secuencia_id)->latest()->first()->cant_folios;
             $folios_restantes = $folio_final - $cant_folio;
             $folios_documentos = self::$folios[$key] - self::$folios_inicial[$key] + 1;
             if ($folios_documentos > $folios_restantes) {
@@ -477,7 +537,7 @@ class DteController extends Controller
         }
     }
 
-    protected function obtenerFolios($dte): array
+    protected function obtenerFolios($dte, $id): array
     {
         $folios = [];
         if(isset($dte->Documentos)) {
@@ -492,7 +552,7 @@ class DteController extends Controller
                         $error['error'][] = "El TipoDTE no es válido. Debe ser $tipos_str. Encontrado: $tipo_dte";
                     self::$ambiente == 0 ? $tipo = -$tipo_dte : $tipo = $tipo_dte;
                     try {
-                        self::$folios[$tipo_dte] = DB::table('secuencia_folio')->where('id', $tipo)->value('cant_folios');
+                        self::$folios[$tipo_dte] = DB::table('secuencia_folio')->where('empresa_id', '=', $id)->where('tipo', '=', $tipo)->value('cant_folios');
                     } catch (Exception $e){
                         $error['error'][] = "No existe la secuencia de folios con id $tipo";
                         return $error;
@@ -506,15 +566,15 @@ class DteController extends Controller
         return $error ?? $folios;
     }
 
-    protected function obtenerFoliosCaf(): array
+    protected function obtenerFoliosCaf($id, $rut): array
     {
         $folios = [];
         foreach (self::$folios as $tipo => $cantidad) {
             self::$ambiente == 0 ? $tipo_dte = -$tipo : $tipo_dte = $tipo;
-            $caf = DB::table('caf')->where('folio_id', '=', $tipo_dte)->latest()->first();
+            $caf = DB::table('caf')->where('empresa_id', '=', $id)->where('tipo', '=', $tipo_dte)->latest()->first();
             if ($caf) {
                 try {
-                    $folios[$tipo] = new Folios(Storage::disk('cafs')->get($caf->xml_filename));
+                    $folios[$tipo] = new Folios(Storage::disk('xml')->get("$rut/Cafs/$caf->xml_filename"));
                 } catch (Exception $e) {
                     $error['error'][] = "$e\nNo existe el caf para el folio $tipo_dte en storage";
                 }
@@ -533,7 +593,56 @@ class DteController extends Controller
         $filename = "DTE_$tipo_dte" . "_$folio" . "_$this->timestamp.xml";
         $filename = str_replace(' ', 'T', $filename);
         $filename = str_replace(':', '-', $filename);
-        $file = Storage::disk('dtes')->path("$rut_emisor/Envios/$rut_receptor/$filename");
+        $file = Storage::disk('xml')->path("$rut_emisor/Envios/$rut_receptor/$filename");
         return [$file, $filename];
+    }
+
+    /**
+     * @param $ambiente
+     * @return void
+     * Obtiene el ambiente y setea las variables de clase correspondientes
+     * Tanto el envío de boleta electronica como DTEs utilizan el token obtenido desde el servicio de DTEs por algún error en el SII
+     * En el caso de consultas de estado de boletas electronicas se utiliza el token obtenido desde el servicio de boletas electronicas
+     */
+    protected function setAmbiente($ambiente): void
+    {
+        // Servicio Boleta Electronica
+        if(in_array("39", self::$tipos_dte) || in_array("41", self::$tipos_dte)) {
+            if ($ambiente == "certificacion") {
+                self::$ambiente = 0;
+                self::$url = 'https://pangal.sii.cl/recursos/v1/boleta.electronica.envio'; // url certificación ENVIO BOLETAS
+                self::$url_api = 'https://apicert.sii.cl/recursos/v1/boleta.electronica'; // url certificación CONSULTAS BOLETAS
+
+                // IMPORTANTE: token debería ser el obtenido desde la api de boletas electronicas:
+                // self::$token = json_decode(file_get_contents(base_path('config.json')))->be->cert->token;
+                // pero solo funciona con el token de DTE's certificación/produccion
+                // Esto solo sucede con el envío de boletas, no con la consulta de estado de boletas
+                self::$token = json_decode(file_get_contents(base_path('config.json')))->dte->cert->token;
+                // Token para consultas de estado de boletas
+                self::$token_api = json_decode(file_get_contents(base_path('config.json')))->be->cert->token;
+            } else if ($ambiente == "produccion") {
+                self::$ambiente = 1;
+                self::$url = 'https://rahue.sii.cl/recursos/v1/boleta.electronica.envio'; // url producción ENVIO BOLETAS
+                self::$url_api = 'https://api.sii.cl/recursos/v1/boleta.electronica'; // url producción CONSULTAS BOLETAS
+                // IMPORTANTE: token debería ser el obtenido desde la api de boletas electronicas:
+                // self::$token = json_decode(file_get_contents(base_path('config.json')))->be->prod->token;
+                // pero solo funciona con el token de DTE's certificación/produccion
+                self::$token = json_decode(file_get_contents(base_path('config.json')))->dte->prod->token;
+                // Token para consultas de estado de boletas
+                self::$token_api = json_decode(file_get_contents(base_path('config.json')))->be->prod->token;
+            }
+            else abort(404);
+        } else { // Servicio DTEs
+            if ($ambiente == "certificacion") {
+                self::$ambiente = 0;
+                self::$url = 'https://maullin.sii.cl/cgi_dte/UPL/DTEUpload'; // url certificación
+                self::$token = json_decode(file_get_contents(base_path('config.json')))->dte->cert->token;
+            } else if ($ambiente == "produccion") {
+                self::$ambiente = 1;
+                self::$url = 'https://palena.sii.cl/cgi_dte/UPL/DTEUpload'; // url producción
+                self::$token = json_decode(file_get_contents(base_path('config.json')))->dte->prod->token;
+            }
+            else abort(404);
+        }
     }
 }

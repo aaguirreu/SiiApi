@@ -27,8 +27,26 @@ class ApiBoletaController extends BoletaController
         // Set ambiente certificacón
         $this->setAmbiente($ambiente);
 
+        // Verificar si existe empresa
+        $empresa = DB::table('empresa')->where('rut', '=', $dte->Documentos[0]->Encabezado->Emisor->RUTEmisor)->first();
+        if (!$empresa) {
+            return response()->json([
+                'message' => "Error al encontrar la empresa",
+                'error' => "No existe empresa con el rut " . $dte->Documentos[0]->Encabezado->Emisor->RUTEmisor,
+            ], 400);
+        }
+
+        // Verificar la empresa es cliente
+        $cliente = DB::table('cliente')->where('empresa_id', '=', $empresa->id)->first();
+        if (!$cliente) {
+            return response()->json([
+                'message' => "Error al encontrar el cliente",
+                'error' => "No existe cliente con el rut " . $dte->Encabezado->Receptor->RUTRecep,
+            ], 400);
+        }
+
         // Obtiene los folios con la cantidad de folios usados desde la base de datos
-        self::$folios_inicial = $this->obtenerFolios($dte);
+        self::$folios_inicial = $this->obtenerFolios($dte, $empresa->id);
         if (isset(self::$folios_inicial['error'])) {
             return response()->json([
                 'message' => "Error al obtener tipo de folios",
@@ -37,7 +55,7 @@ class ApiBoletaController extends BoletaController
         }
 
         // Obtener folios del Caf
-        $folios = $this->obtenerFoliosCaf();
+        $folios = $this->obtenerFoliosCaf($empresa->id, $empresa->rut);
         if (isset($folios['error'])) {
             return response()->json([
                 'message' => "Error al obtener folios desde el CAF",
@@ -45,10 +63,8 @@ class ApiBoletaController extends BoletaController
             ], 400);
         }
 
-        // Variable auxiliar para guardar el folio inicial
-
         // Parseo de boletas según modelo libreDTE
-        $boletas = $this->parseDte($dte);
+        $boletas = $this->parseDte($dte, $empresa->id);
 
         // Si hay errores en el parseo, retornarlos
         if (isset($boletas[0]['error'])) {
@@ -83,7 +99,11 @@ class ApiBoletaController extends BoletaController
             ], 400);
         }
 
+        // Guardar en tabla envio_dte
+        // Se separa de guardarXmlDB por que esta función se utiliza para guardar compras y ventas
+        // los dte recibidos (compras) no tienen envio_id
         $envioDteId = $this->guardarEnvioDte($envio_response);
+
         // Guardar en base de datos envio, xml, etc
         $dbresponse = $this->guardarXmlDB($envioDteId, $filename, $caratula, $envio_dte_xml);
         if (isset($dbresponse['error'])) {
@@ -94,7 +114,7 @@ class ApiBoletaController extends BoletaController
         }
 
         // Actualizar folios en la base de datos
-        $this->actualizarFolios();
+        $this->actualizarFolios($empresa->id);
         return response()->json([
             'message' => "Boleta electronica enviada correctamente",
             'response' => [
@@ -118,11 +138,11 @@ class ApiBoletaController extends BoletaController
         // consultar estado dte
         $rut = $body->rut;
         $dv = $body->dv;
-        $trackID = $body->trackID;
+        $trackID = $body->track_id;
         $destino = $rut . '-' . $dv . '-' . $trackID;
         $curl = curl_init();
         curl_setopt_array($curl, array(
-            CURLOPT_URL => 'https://api.sii.cl/recursos/v1/boleta.electronica.envio/' . $destino,
+            CURLOPT_URL => self::$url_api.".envio/" . $destino,
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_ENCODING => '',
             CURLOPT_MAXREDIRS => 10,
@@ -131,7 +151,7 @@ class ApiBoletaController extends BoletaController
             CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
             CURLOPT_CUSTOMREQUEST => 'GET',
             CURLOPT_HTTPHEADER => array(
-                'Cookie: TOKEN=' . self::$token,
+                'Cookie: TOKEN=' . self::$token_api,
             ),
         ));
 
@@ -171,10 +191,10 @@ class ApiBoletaController extends BoletaController
         $rut_receptor = $body->rut_receptor;
         $dv_receptor = $body->dv_receptor;
         $monto = $body->monto;
-        $fechaEmision = $body->fechaEmision;
+        $fechaEmision = $body->fecha_emision;
         $required = $rut . '-' . $dv . '-' . $tipo . '-' . $folio;
         $opcionales = '?rut_receptor=' . $rut_receptor . '&dv_receptor=' . $dv_receptor . '&monto=' . $monto . '&fechaEmision=' . $fechaEmision;
-        $url = 'https://api.sii.cl/recursos/v1/boleta.electronica/' . $required . '/estado' . $opcionales;
+        $url = self::$url_api. "/" . $required . '/estado' . $opcionales;
         //echo $url."\n";
         $curl = curl_init();
         curl_setopt_array($curl, array(
@@ -187,7 +207,7 @@ class ApiBoletaController extends BoletaController
             CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
             CURLOPT_CUSTOMREQUEST => 'GET',
             CURLOPT_HTTPHEADER => array(
-                'Cookie: TOKEN=' . self::$token,
+                'Cookie: TOKEN=' . self::$token_api,
             ),
         ));
 
@@ -228,29 +248,6 @@ class ApiBoletaController extends BoletaController
             'message' => 'Error al enviar RCOF',
             'response' => $response
         ], 400);
-    }
-
-    public function subirCaf(Request $request): JsonResponse
-    {
-        return $this->uploadCaf($request);
-    }
-
-    public function forzarSubirCaf(Request $request): JsonResponse
-    {
-        return $this->uploadCaf($request, true);
-    }
-
-    protected function setAmbiente($ambiente) {
-        if ($ambiente == "certificacion") {
-            self::$ambiente = 0;
-            self::$url = 'https://pangal.sii.cl/recursos/v1/boleta.electronica.envio'; // url certificación ENVIO BOLETAS
-            // self::$url = 'https://apicert.sii.cl/recursos/v1/boleta.electronica.envio/'; // url certificación CONSULTAS BOLETAS
-        } else if ($ambiente == "produccion") {
-            self::$ambiente = 1;
-            self::$url = 'https://rahue.sii.cl/recursos/v1/boleta.electronica.envio'; // url producción ENVIO BOLETAS
-            //self::$url = 'https://api.sii.cl/recursos/v1/boleta.electronica.envio/'; // url producción CONSULTAS BOLETAS
-        }
-        else abort(404);
     }
 
     public function generarPdf(Request $request): JsonResponse {

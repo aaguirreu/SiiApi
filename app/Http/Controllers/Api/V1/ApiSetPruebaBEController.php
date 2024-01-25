@@ -148,7 +148,7 @@ class ApiSetPruebaBEController extends SetPruebaBEController
         $destino = $rut.'-'.$dv.'-'.$trackID;
         $curl = curl_init();
         curl_setopt_array($curl, array(
-            CURLOPT_URL => 'https://apicert.sii.cl/recursos/v1/boleta.electronica.envio/'.$destino,
+            CURLOPT_URL => self::$url."/$destino",
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_ENCODING => '',
             CURLOPT_MAXREDIRS => 10,
