@@ -21,10 +21,6 @@ Route::post('/tokens/create', 'App\Http\Controllers\UserAuthController@login');
 // Api/V1
 Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1', 'middleware' => ['auth:sanctum']], function () {
 
-    // Caf
-    Route::post('{ambiente}/subircaf', 'ApiFacturaController@subirCaf');
-    Route::post('{ambiente}/subircaf.forzar', 'ApiFacturaController@forzarSubirCaf');
-
     // Rcof
     Route::post('rcof/{dte_filename}', 'ApiSetPruebaBEController@enviarRcofOnly');
 
@@ -48,5 +44,12 @@ Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1', 'm
     Route::post('/dte/pdf', 'ApiBoletaController@generarPdf');
 
     // Administración
-    Route::post('administrar/clientes/agregar', 'ApiFacturaController@agregarCliente');
+        // Cliente
+    Route::post('administrar/cliente.agregar', 'ApiAdminController@agregarCliente');
+        // Empresa
+    Route::post('administrar/empresa.agregar', 'ApiAdminController@agregarEmpresa');
+        // Caf & subircaf.forzar
+    Route::post('{ambiente}/{id}/subircaf{forzar?}', 'ApiAdminController@subirCaf')
+        ->whereNumber('id')
+        ->where('forzar', '.forzar');
 });
