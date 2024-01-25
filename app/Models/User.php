@@ -41,4 +41,9 @@ class User extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
     ];
+
+    public static function where(string $string, mixed $name)
+    {
+        return User::where($string, $name)->first();
+    }
 }
