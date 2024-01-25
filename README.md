@@ -34,8 +34,7 @@ Llenar los datos faltantes. Verifica que CAFS_PATH Y DTES_PATH terminen en /.
 
 - CERT_PATH= Ruta a la firma digital (archivo .pfx o .p12).
 - CERT_PASS= Contraseña de la firma
-- CAFS_PATH= Carpeta donde se guardarán los cafs.xml
-- DTES_PATH= Carpeta donde se guardarán los dte.xml
+- XML_PATH= Carpeta donde se guardarán los cafs.xml
 
 Reemplazar los valores de la base de datos según corresponda:
 
@@ -48,8 +47,10 @@ Reemplazar los valores de la base de datos según corresponda:
 
 ### Instalar dependencias y migrar la base de datos
 
-`composer install --no-dev`
-`php artisan migrate`
+```
+composer install --no-dev
+php artisan migrate --seed
+```
 
 ### Configurar dteimap:idle command para recibir los correos
 
@@ -103,10 +104,8 @@ php artisan cache:clear
 
 ### Obtener Token para consumir la API
 
-Para esta api se utiliza Sanctum. Usando los siguientes comandos obtendrás el token para consumir la api.
-
+Para esta api se utiliza Sanctum. Usando los siguientes comandos obtendrás el token para consumir la api. Es importante haber utilizado la flag --seed al migrar para poder obtener el usuario.
 ```
-php artisan migrate --seed
 php artisan tinker
 $user = User::find(1);
 $token = $user->createToken('token')->plainTextToken;
