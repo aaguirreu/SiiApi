@@ -48,7 +48,7 @@ class SetPruebaFEController extends DteController
             $filename = str_replace(':', '-', $filename);
             $file = env('DTES_PATH', "")."EnvioBOLETA/".$filename;
         } while (file_exists($file));
-        Storage::disk('dtes')->put('envioBOLETA/'.$filename, $dte);
+        Storage::disk('xml')->put('envioBOLETA/'.$filename, $dte);
         $data = [
             'rutSender' => $rutSender,
             'dvSender' => $dvSender,
@@ -87,7 +87,7 @@ class SetPruebaFEController extends DteController
                 Log::write(Estado::ENVIO_ERROR_500, Estado::get(Estado::ENVIO_ERROR_500));
             }
             // Borrar xml guardado anteriormente
-            Storage::disk('dtes')->delete('envioBOLETA/'.$filename);
+            Storage::disk('xml')->delete('envioBOLETA/'.$filename);
             return response()->json([
                 'message' => 'Error al enviar el DTE al SII',
                 'error' => $response,
@@ -129,7 +129,7 @@ class SetPruebaFEController extends DteController
             $filename = str_replace(' ', 'T', $filename);
             $filename = str_replace(':', '-', $filename);
             //$file = env('DTES_PATH', "")."EnvioBOLETA/".$filename;
-            Storage::disk('dtes')->put('EnvioRcof/'.$filename, $ConsumoFolio->generar());
+            Storage::disk('xml')->put('EnvioRcof/'.$filename, $ConsumoFolio->generar());
 
             $dte_id = DB::table('envio_dte')->where('xml_filename', '=', $dte_filename)->latest()->first()->id;
             // Guardar en base de datos
@@ -279,7 +279,7 @@ class SetPruebaFEController extends DteController
         $config_file = json_decode(file_get_contents(base_path('config.json')));
         $config_file->token = $token;
         $config_file->token_timestamp = Carbon::now('America/Santiago')->timestamp;;
-        file_put_contents(base_path('config.json'), json_encode($config_file), JSON_PRETTY_PRINT);
+        $this->guardarConfigFile($config_file);
     }
 
     protected function getTokenDte() {
@@ -289,7 +289,7 @@ class SetPruebaFEController extends DteController
         $config_file = json_decode(file_get_contents(base_path('config.json')));
         $config_file->token_dte = $token;
         $config_file->token_dte_timestamp = Carbon::now('America/Santiago')->timestamp;;
-        file_put_contents(base_path('config.json'), json_encode($config_file), JSON_PRETTY_PRINT);
+        $this->guardarConfigFile($config_file);
     }
 
     protected function isToken() {

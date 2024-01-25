@@ -48,7 +48,7 @@ class SetPruebaBEController extends DteController
             $filename = str_replace(':', '-', $filename);
             $file = env('DTES_PATH', "") . "EnvioBOLETA\\" . $filename;
         } while (file_exists($file));
-        Storage::disk('dtes')->put('EnvioBOLETA\\' . $filename, $dte);
+        Storage::disk('xml')->put('EnvioBOLETA\\' . $filename, $dte);
         $data = [
             'rutSender' => $rutSender,
             'dvSender' => $dvSender,
@@ -60,7 +60,7 @@ class SetPruebaBEController extends DteController
 
         // crear sesión curl con sus opciones
         $curl = curl_init();
-        $url = 'https://pangal.sii.cl/recursos/v1/boleta.electronica.envio';
+        $url = self::$url;
         curl_setopt($curl, CURLOPT_POST, true);
         curl_setopt($curl, CURLOPT_POSTFIELDS, $data);
         curl_setopt($curl, CURLOPT_HTTPHEADER, $header);
@@ -87,7 +87,7 @@ class SetPruebaBEController extends DteController
                 Log::write(Estado::ENVIO_ERROR_500, Estado::get(Estado::ENVIO_ERROR_500));
             }
             // Borrar xml guardado anteriormente
-            Storage::disk('dtes')->delete('EnvioBOLETA\\' . $filename);
+            Storage::disk('xml')->delete('EnvioBOLETA\\' . $filename);
             return response()->json([
                 'message' => 'Error al enviar el DTE al SII',
                 'error' => $response,
