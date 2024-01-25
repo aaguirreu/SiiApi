@@ -20,11 +20,10 @@ class ApiAdminController extends DteController
     }
 
     /**
-     * Agregar una empresa
-     *
      * @param Request $request
      * @return JsonResponse
      * @throws ValidationException
+     * Agregar una empresa
      */
     public function agregarEmpresa(Request $request): JsonResponse
     {
@@ -99,6 +98,11 @@ class ApiAdminController extends DteController
         ], 200);
     }
 
+    /**
+     * @param Request $request
+     * @return JsonResponse
+     * Función para agregar un cliente con el id de la empresa
+     */
     public function agregarCliente(Request $request): JsonResponse {
         // Leer string como json
         $body = json_decode(json_encode($request->json()->all()));
@@ -149,7 +153,7 @@ class ApiAdminController extends DteController
      * @throws \Exception
      * Función para subir caf relacionado al id de la empresa
      */
-    public function subirCaf(Request $request, $ambiente, $id, string $forzar = null): JsonResponse
+    public function subirCaf(Request $request, $ambiente, int $id, string $forzar = null): JsonResponse
     {
         // Leer string como xml
         $rbody = $request->getContent();
@@ -220,5 +224,4 @@ class ApiAdminController extends DteController
         else
             return $this->uploadCaf($request, $folio_caf, $filename, $id, $fecha_vencimiento, true);
     }
-
 }

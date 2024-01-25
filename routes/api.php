@@ -48,6 +48,14 @@ Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1', 'm
     Route::post('administrar/cliente.agregar', 'ApiAdminController@agregarCliente');
         // Empresa
     Route::post('administrar/empresa.agregar', 'ApiAdminController@agregarEmpresa');
+        // Obtener datos usuario según id
+
+    // Usuarios
+        // Obtener dtes usuario según id
+    Route::post('usuario/dtes/', 'ApiUserController@obtenerDtes');
+        //
+    Route::get('usuario/{id}', 'ApiUserController@obtenerEmpresa')
+        ->whereNumber('id');
         // Caf & subircaf.forzar
     Route::post('{ambiente}/{id}/subircaf{forzar?}', 'ApiAdminController@subirCaf')
         ->whereNumber('id')
