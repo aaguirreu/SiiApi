@@ -15,6 +15,8 @@ class CreateSecuenciaFolioTable extends Migration
     {
         Schema::create('secuencia_folio', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('empresa_id')->constrained('empresa')->onUpdate('cascade')->onDelete('cascade');;
+            $table->integer('tipo');
             $table->integer('cant_folios');
             $table->timestamps();
         });

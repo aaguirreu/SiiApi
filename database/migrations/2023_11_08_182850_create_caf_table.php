@@ -15,9 +15,12 @@ class CreateCafTable extends Migration
     {
         Schema::create('caf', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('folio_id')->constrained('secuencia_folio', );
+            $table->foreignId('empresa_id')->constrained('empresa')->onUpdate('cascade')->onDelete('cascade');
+            $table->foreignId('secuencia_id')->constrained('secuencia_folio');
+            $table->integer('tipo');
             $table->integer('folio_inicial');
             $table->integer('folio_final');
+            $table->timestamp('fecha_vencimiento');
             $table->string('xml_filename');
             $table->timestamps();
         });

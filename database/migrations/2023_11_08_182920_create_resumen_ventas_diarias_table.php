@@ -17,7 +17,7 @@ class CreateResumenVentasDiariasTable extends Migration
             $table->id();
             $table->foreignId('envio_id')->constrained('envio_dte');
             $table->integer('secuencia');
-            $table->foreignId('empresa_id')->constrained('empresa');
+            $table->foreignId('empresa_id')->constrained('empresa')->onUpdate('cascade')->onDelete('cascade');;
             $table->integer('monto_total');
             $table->timestamps();
         });

@@ -15,7 +15,7 @@ class CreateDocumentoTable extends Migration
     {
         Schema::create('documento', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('caf_id')->constrained('caf');
+            $table->foreignId('caf_id')->constrained('caf')->onUpdate('cascade')->onDelete('cascade');;
             $table->foreignId('dte_id')->constrained('dte')->onUpdate('cascade')->onDelete('cascade');
             $table->foreignId('receptor_id')->constrained('empresa'); // null en boletas
             $table->integer('ref_id')->nullable();

@@ -15,9 +15,9 @@ class CreateCaratulaTable extends Migration
     {
         Schema::create('caratula', function (Blueprint $table) {
             $table->id();
-            $table->integer('emisor_id')->constrained('empresa');
+            $table->foreignId('emisor_id')->constrained('empresa')->onUpdate('cascade')->onDelete('cascade');
+            $table->foreignId('receptor_id')->constrained('empresa')->onUpdate('cascade');
             $table->string('rut_envia');
-            $table->string('rut_receptor');
             $table->timestamps();
         });
     }

@@ -1,5 +1,6 @@
 <?php
 
+use Carbon\Carbon;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -28,6 +29,13 @@ class CreateEmpresaTable extends Migration
             $table->string('telefono')->nullable();
             $table->timestamps();
         });
+
+        DB::table('empresa')->insert([
+            'rut' => '60803000-K',
+            'razon_social' => 'Servicio de Impuestos Internos',
+            'created_at' => Carbon::now('America/Santiago'),
+            'updated_at' => Carbon::now('America/Santiago'),
+        ]);
     }
 
     /**
