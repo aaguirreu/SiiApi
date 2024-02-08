@@ -5,9 +5,12 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use Carbon\Carbon;
 use Exception;
+use GuzzleHttp\Client;
+use GuzzleHttp\Exception\GuzzleException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use InvalidArgumentException;
 use sasco\LibreDTE\FirmaElectronica;
 use sasco\LibreDTE\Log;
 use sasco\LibreDTE\Sii;
@@ -17,6 +20,7 @@ use sasco\LibreDTE\Sii\EnvioDte;
 use sasco\LibreDTE\Sii\Folios;
 use sasco\LibreDTE\XML;
 use SimpleXMLElement;
+use Symfony\Component\DomCrawler\Crawler;
 
 class DteController extends Controller
 {
@@ -41,21 +45,18 @@ class DteController extends Controller
     }
 
     /**
+     * @param SimpleXMLElement $caf_xml
      * @throws Exception
      * ARREGLAR: el mismo caf se puede almacenar más de una vez.
      */
-    protected function uploadCaf($request, $folio_caf, $filename, $id, $fecha_vencimiento, ?bool $forzar = false): JsonResponse
+    protected function uploadCaf($caf_xml, $tipo_folio, $filename, $id, $fecha_vencimiento, ?bool $forzar = false): JsonResponse
     {
-        // Leer string como xml
-        $rbody = $request->getContent();
-        $caf_xml = new simpleXMLElement($rbody);
-
         /**
          * Consulta si existe el folio en la base de datos
          * Si existe, se obtiene el último folio final y se compara con el folio inicial del caf
          * Si no existe, se guarda el caf
          */
-        $folio = DB::table('caf')->where('empresa_id', '=', $id)->where('folio_id', '=', $folio_caf);
+        $folio = DB::table('caf')->where('empresa_id', '=', $id)->where('folio_id', '=', $tipo_folio);
         if ($folio) {
             if (!$forzar) {
                 $folio_final = $folio->folio_final;
@@ -66,7 +67,7 @@ class DteController extends Controller
             if ($folio_final + 1 != intval($caf_xml->CAF->DA->RNG->D[0])) {
                 // Si el caf no sigue el orden de folios correspondiente, no se sube.
                 return response()->json([
-                    'message' => 'El caf no sigue el orden de folios correspondiente. Deben ser consecutivos.',
+                    'error' => 'El caf no sigue el orden de folios correspondiente. Deben ser consecutivos.',
                     'registro' => 'Último folio registrado: '.$folio_final,
                     'envio' => 'Caf recibido: '.intval($caf_xml->CAF->DA->RNG->D[0]),
                 ], 400);
@@ -74,12 +75,12 @@ class DteController extends Controller
         }
 
         // Si no existe la secuencia para el caf, se crea antes de ingresar el caf
-        $secuencia = DB::table('secuencia_folio')->where('empresa_id', '=', $id)->where('tipo', '=', $folio_caf)->latest()->first();
+        $secuencia = DB::table('secuencia_folio')->where('empresa_id', '=', $id)->where('tipo', '=', $tipo_folio)->latest()->first();
         if (!$secuencia) {
             $cant_folios = intval($caf_xml->CAF->DA->RNG->D[0]);
             $secuencia_id = DB::table('secuencia_folio')->insertGetId([
                 'empresa_id' => $id,
-                'tipo' => $folio_caf,
+                'tipo' => $tipo_folio,
                 'cant_folios' => --$cant_folios,
                 'created_at' => $this->timestamp,
                 'updated_at' => $this->timestamp
@@ -88,13 +89,13 @@ class DteController extends Controller
 
         try {
             //Guardar caf en storage
-            Storage::disk('xml')->put("/{$caf_xml->CAF->DA->RE[0]}/Cafs/$filename", $rbody);
+            Storage::disk('xml')->put("/{$caf_xml->CAF->DA->RE[0]}/Cafs/$filename", $caf_xml->asXML());
 
             // Guardar en base de datos
             DB::table('caf')->insert([
                 'empresa_id' => $id,
                 'secuencia_id' => $secuencia->id ?? $secuencia_id,
-                'tipo' => $folio_caf,
+                'tipo' => $tipo_folio,
                 'folio_inicial' => $caf_xml->CAF->DA->RNG->D[0],
                 'folio_final' => $caf_xml->CAF->DA->RNG->H[0],
                 'fecha_vencimiento' => $fecha_vencimiento,
@@ -104,8 +105,8 @@ class DteController extends Controller
             ]);
         } catch (Exception $e) {
             return response()->json([
-                'message' => 'Error al subir caf',
-                'error' => $e->getMessage(),
+                'error' => 'Error al subir caf',
+                'message' => $e->getMessage(),
             ], 400);
         }
 
@@ -485,7 +486,7 @@ class DteController extends Controller
             $cant_folio = DB::table('secuencia_folio')->where('id', '=', $caf->secuencia_id)->latest()->first()->cant_folios;
             $folios_restantes = $folio_final - $cant_folio;
             $folios_documentos = self::$folios[$key] - self::$folios_inicial[$key] + 1;
-            if ($folios_documentos > $folios_restantes) {
+            if ($folios_documentos > $folios_restantes && $folios_restantes != 0) {
                 $response = [
                     'error' => 'No hay folios suficientes para generar el/los documento(s)',
                     'tipo_folio' => $tipo_dte,
@@ -494,6 +495,33 @@ class DteController extends Controller
                     'último_folio_caf' => $folio_final,
                     'último_folio_utilizado' => $cant_folio,
                 ];
+                // Si no quedan folios y la secuencia de folios está correcta, obtener nuevo caf del SII
+            } elseif ($folios_restantes == 0 && $folio_final == $cant_folio) {
+                try {
+                    // Obtener nuevo caf del SII
+                    list($rut_emp, $dv_emp) = explode('-', str_replace('.', '', $dte->Caratula->RutEmisor));
+                    $caf_xml = $this->generarNuevoCaf($rut_emp, $dv_emp, $tipo_dte);
+                    $caf_xml = new SimpleXMLElement($caf_xml);
+
+                    // Calcular fecha de vencimiento a 6 meses de la fecha de autorización
+                    $fecha_vencimiento = Carbon::parse($caf_xml->CAF->DA->FA[0], 'America/Santiago')->addMonths(6)->format('Y-m-d');
+
+                    // Nombre caf tipodte_timestamp.xml
+                    $filename = "F{$tipo_dte}_RNG{$caf_xml->CAF->DA->RNG->D[0]}-{$caf_xml->CAF->DA->RNG->H[0]}_FA{$caf_xml->CAF->DA->FA[0]}.xml";
+
+                    $response = $this->uploadCaf($caf_xml, $tipo_dte, $filename, $id, $fecha_vencimiento);
+
+                } catch (GuzzleException $e) {
+                    $response = [
+                        'error' => 'Error al obtener un nuevo caf del SII',
+                        'message' => $e->getMessage(),
+                    ];
+                } catch (Exception $e) {
+                    $response = [
+                        'error' => 'Error al guardar nuevo caf obtenido del SII',
+                        'message' => $e->getMessage(),
+                    ];
+                }
             }
         }
         return $response ?? $documentos;
@@ -576,10 +604,10 @@ class DteController extends Controller
                 try {
                     $folios[$tipo] = new Folios(Storage::disk('xml')->get("$rut/Cafs/$caf->xml_filename"));
                 } catch (Exception $e) {
-                    $error['error'][] = "$e\nNo existe el caf para el folio $tipo_dte en storage";
+                    $error['error'][] = "$e\nNo existe el caf para el dte de tipo $tipo_dte en storage";
                 }
             } else {
-                $error['error'][] = "No existe el caf para el folio $tipo_dte en la base de datos";
+                $error['error'][] = "No existe el caf para el dte de tipo $tipo_dte en la base de datos";
             }
 
         }
@@ -595,6 +623,193 @@ class DteController extends Controller
         $filename = str_replace(':', '-', $filename);
         $file = Storage::disk('xml')->path("$rut_emisor/Envios/$rut_receptor/$filename");
         return [$file, $filename];
+    }
+
+    /**
+     * @throws GuzzleException
+     * @throws Exception
+     */
+    protected function generarNuevoCaf($rut_emp, $dv_emp, $tipo_folio): string
+    {
+        $header = [
+            //'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 OPR/106.0.0.0',
+            'Cookie' => json_decode(file_get_contents(base_path('cookies.json')))->cookies,
+        ];
+
+        // Guzzle client que guarda las cookies de la sesión
+        $client = new Client(array(
+            'cookies' => true,
+        ));
+
+        // Solicitar folios
+        $data_solicitar_folios = $this->getDataSolicitarFolios($rut_emp, $dv_emp, $tipo_folio);
+        $response = $client->request('POST', 'https://maullin.sii.cl/cvc_cgi/dte/of_solicita_folios_dcto', [
+            'headers' => $header,
+            'form_params' => $data_solicitar_folios,
+            'verify' => false
+        ]);
+
+        //echo $response->getBody()->getContents();
+
+        if(!$this->verificarRespuestaCaf($response->getBody()->getContents()))
+            throw new Exception(Log::read());
+
+        // Confirmar folio
+        try {
+            $data_confirmar_folio = $this->getDataConfirmarFolio($rut_emp, $dv_emp, $tipo_folio, $response->getBody()->getContents());
+        } catch (InvalidArgumentException $e) {
+            throw new Exception("Rut incorrecto o no autorizado");
+        }
+        $response = $client->request('POST', 'https://maullin.sii.cl/cvc_cgi/dte/of_confirma_folio', [
+            'headers' => $header,
+            'form_params' => $data_confirmar_folio,
+        ]);
+
+        $data_obtener_folio = $this->getDataObtenerFolio($response->getBody()->getContents());
+
+        // Generar folios. Necesario para que el SII genere el archivo xml (caf)
+        $response = $client->request('POST', 'https://maullin.sii.cl/cvc_cgi/dte/of_genera_folio', [
+            'headers' => $header,
+            'form_params' => $data_obtener_folio,
+        ]);
+
+        // Generar archivo xml (caf)
+        $data_generar_archivo = $this->getDataGenerarArchivo($rut_emp, $dv_emp, $data_obtener_folio);
+        $response = $client->request('POST', 'https://maullin.sii.cl/cvc_cgi/dte/of_genera_archivo', [
+            'headers' => $header,
+            'form_params' => $data_generar_archivo,
+        ]);
+
+        return $response->getBody()->getContents();
+    }
+
+    protected function getDataSolicitarFolios($rut_emp, $dv_emp, $tipo_folio): array
+    {
+        return [
+            'RUT_EMP' => $rut_emp,
+            'DV_EMP' => $dv_emp,
+            'COD_DOCTO' => $tipo_folio,
+            'ACEPTAR' => 'Continuar',
+        ];
+    }
+
+    protected function getDataConfirmarFolio($rut_emp, $dv_emp, $tipo_folio, $html): array
+    {
+        // Obtener el contenido HTML de la respuesta
+        $crawler = new Crawler($html);
+        $max_autor = $crawler->filter('input[name="MAX_AUTOR"]')->attr('value');
+        $afecto_iva = $crawler->filter('input[name="AFECTO_IVA"]')->attr('value');
+        $anotacion = $crawler->filter('input[name="ANOTACION"]')->attr('value');
+        $con_credito = $crawler->filter('input[name="CON_CREDITO"]')->attr('value');
+        $con_ajuste = $crawler->filter('input[name="CON_AJUSTE"]')->attr('value');
+        $factor = $crawler->filter('input[name="FACTOR"]')->attr('value');
+        $ult_timbraje = $crawler->filter('input[name="ULT_TIMBRAJE"]')->attr('value');
+        $con_historia = $crawler->filter('input[name="CON_HISTORIA"]')->attr('value');
+        $folio_ini_cre = $crawler->filter('input[name="FOLIO_INICRE"]')->attr('value');
+        $folio_fin_cre = $crawler->filter('input[name="FOLIO_FINCRE"]')->attr('value');
+        $fecha_ant = $crawler->filter('input[name="FECHA_ANT"]')->attr('value');
+        $estado_timbraje = $crawler->filter('input[name="ESTADO_TIMBRAJE"]')->attr('value');
+        $control = $crawler->filter('input[name="CONTROL"]')->attr('value');
+        $cant_timbrajes = $crawler->filter('input[name="CANT_TIMBRAJES"]')->attr('value');
+        $folio_inicial = $crawler->filter('input[name="FOLIO_INICIAL"]')->attr('value');
+        $folios_disp = $crawler->filter('input[name="FOLIOS_DISP"]')->attr('value');
+
+        // Agregar el valor de 'MAX_AUTOR' al array de datos
+        return [
+            'RUT_EMP' => $rut_emp,
+            'DV_EMP' => $dv_emp,
+            'FOLIO_INICIAL' => $folio_inicial,
+            'COD_DOCTO' => $tipo_folio,
+            'AFECTO_IVA' => $afecto_iva,
+            'ANOTACION' => $anotacion,
+            'CON_CREDITO' => $con_credito,
+            'CON_AJUSTE' => $con_ajuste,
+            'FACTOR' => $factor,
+            'MAX_AUTOR' => $max_autor,
+            'ULT_TIMBRAJE' => $ult_timbraje,
+            'CON_HISTORIA' => $con_historia,
+            'FOLIO_INICRE' => $folio_ini_cre,
+            'FOLIO_FINCRE' => $folio_fin_cre,
+            'FECHA_ANT' => $fecha_ant,
+            'ESTADO_TIMBRAJE' => $estado_timbraje,
+            'CONTROL' => $control,
+            'CANT_TIMBRAJES' => $cant_timbrajes,
+            'CANT_DOCTOS' => $max_autor,
+            'ACEPTAR' => 'Solicitar Numeración',
+            'FOLIOS_DISP' => $folios_disp
+        ];
+    }
+
+    private function getDataObtenerFolio($html): array
+    {
+        // Obtener el contenido HTML de la respuesta
+        $crawler = new Crawler($html);
+        $nomusu = $crawler->filter('input[name="NOMUSU"]')->attr('value');
+        $con_credito = $crawler->filter('input[name="CON_CREDITO"]')->attr('value');
+        $con_ajuste = $crawler->filter('input[name="CON_AJUSTE"]')->attr('value');
+        $folios_disp = $crawler->filter('input[name="FOLIOS_DISP"]')->attr('value');
+        $max_autor = $crawler->filter('input[name="MAX_AUTOR"]')->attr('value');
+        $ult_timbraje = $crawler->filter('input[name="ULT_TIMBRAJE"]')->attr('value');
+        $con_historia = $crawler->filter('input[name="CON_HISTORIA"]')->attr('value');
+        $cant_timbrajes = $crawler->filter('input[name="CANT_TIMBRAJES"]')->attr('value');
+        $folio_ini_cre = $crawler->filter('input[name="FOLIO_INICRE"]')->attr('value');
+        $folio_fin_cre = $crawler->filter('input[name="FOLIO_FINCRE"]')->attr('value');
+        $fecha_ant = $crawler->filter('input[name="FECHA_ANT"]')->attr('value');
+        $estado_timbraje = $crawler->filter('input[name="ESTADO_TIMBRAJE"]')->attr('value');
+        $control = $crawler->filter('input[name="CONTROL"]')->attr('value');
+        $folio_ini = $crawler->filter('input[name="FOLIO_INI"]')->attr('value');
+        $folio_fin = $crawler->filter('input[name="FOLIO_FIN"]')->attr('value');
+        $dia = $crawler->filter('input[name="DIA"]')->attr('value');
+        $mes = $crawler->filter('input[name="MES"]')->attr('value');
+        $ano = $crawler->filter('input[name="ANO"]')->attr('value');
+        $hora = $crawler->filter('input[name="HORA"]')->attr('value');
+        $minuto = $crawler->filter('input[name="MINUTO"]')->attr('value');
+        $rut_emp = $crawler->filter('input[name="RUT_EMP"]')->attr('value');
+        $dv_emp = $crawler->filter('input[name="DV_EMP"]')->attr('value');
+        $cod_docto = $crawler->filter('input[name="COD_DOCTO"]')->attr('value');
+        $cant_doctos = $crawler->filter('input[name="CANT_DOCTOS"]')->attr('value');
+
+        return [
+            'NOMUSU' => $nomusu,
+            'CON_CREDITO' => $con_credito,
+            'CON_AJUSTE' => $con_ajuste,
+            'FOLIOS_DISP' => $folios_disp,
+            'MAX_AUTOR' => $max_autor,
+            'ULT_TIMBRAJE' => $ult_timbraje,
+            'CON_HISTORIA' => $con_historia,
+            'CANT_TIMBRAJES' => $cant_timbrajes,
+            'CON_AJUSTE' => $con_ajuste,
+            'FOLIO_INICRE' => $folio_ini_cre,
+            'FOLIO_FINCRE' => $folio_fin_cre,
+            'FECHA_ANT' => $fecha_ant,
+            'ESTADO_TIMBRAJE' => $estado_timbraje,
+            'CONTROL' => $control,
+            'FOLIO_INI' => $folio_ini,
+            'FOLIO_FIN' => $folio_fin,
+            'DIA' => $dia,
+            'MES' => $mes,
+            'ANO' => $ano,
+            'HORA' => $hora,
+            'MINUTO' => $minuto,
+            'RUT_EMP' => $rut_emp,
+            'DV_EMP' => $dv_emp,
+            'COD_DOCTO' => $cod_docto,
+            'CANT_DOCTOS' => $cant_doctos,
+            'ACEPTAR' => 'Obtener Folios'
+        ];
+    }
+
+    private function getDataGenerarArchivo($rut_emp, $dv_emp, $data): array
+    {
+        return [
+            'RUT_EMP' => $rut_emp,
+            'DV_EMP' => $dv_emp,
+            'COD_DOCTO' => $data['cod_docto'],
+            'FOLIO_INI' => $data['folio_ini'],
+            'FOLIO_FIN' => $data['folio_fin'],
+            'FECHA' => $data['ano'] . '-' . $data['mes'] . '-' . $data['dia'],
+            'ACEPTAR' => 'AQUI'
+        ];
     }
 
     /**
@@ -644,5 +859,20 @@ class DteController extends Controller
             }
             else abort(404);
         }
+    }
+
+    private function verificarRespuestaCaf($html): bool
+    {
+        // Obtener el contenido HTML de la respuesta
+        $crawler = new Crawler($html);
+
+        echo $crawler->filter('font[class="texto"]')->last()->text();
+
+        if (stristr($crawler->filter('font[class="texto"]')->last()->text(), "NO SE AUTORIZA TIMBRAJE ELECTRÓNICO")){
+            Log::write($crawler->filter('font[class="texto"]')->last()->text());
+            return false;
+        }
+
+        return true;
     }
 }

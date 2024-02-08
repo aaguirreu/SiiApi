@@ -7,8 +7,10 @@
     "require": {
         "php": "^8.0",
         "ext-curl": "*",
+        "ext-dom": "*",
         "ext-json": "*",
         "ext-libxml": "*",
+        "ext-openssl": "*",
         "ext-simplexml": "*",
         "beyondcode/laravel-mailbox": "^3.1",
         "fruitcake/laravel-cors": "^2.0",
@@ -20,6 +22,7 @@
         "phpseclib/phpseclib": "^2.0",
         "sasco/libredte": "^21.10",
         "swaggest/json-schema": "^0.12.41",
+        "symfony/dom-crawler": "^7.0",
         "webklex/laravel-imap": "*"
     },
     "require-dev": {

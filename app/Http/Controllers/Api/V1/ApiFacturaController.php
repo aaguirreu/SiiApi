@@ -19,7 +19,7 @@ class ApiFacturaController extends FacturaController
 {
     public function __construct()
     {
-        parent::__construct([33, 34, 56, 61]);
+        parent::__construct([33, 34, 52, 56, 61]);
         $this->timestamp = Carbon::now('America/Santiago');
     }
 
