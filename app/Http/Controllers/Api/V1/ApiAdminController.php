@@ -2,13 +2,14 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use GuzzleHttp\Client;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
-use PHPUnit\Exception;
+use Exception;
 use SimpleXMLElement;
 
 class ApiAdminController extends DteController
@@ -163,9 +164,9 @@ class ApiAdminController extends DteController
         $this->setAmbiente($ambiente);
 
         // Si el ambiente es de certificación agregar un 0 al id
-        $folio_caf = $caf_xml->CAF->DA->TD[0];
+        $tipo_folio = $caf_xml->CAF->DA->TD[0];
         if(self::$ambiente == 0)
-            $folio_caf = -$folio_caf;
+            $tipo_folio = -$tipo_folio;
 
         // Verificar si existe el id de la empresa en DB
         $empresa = DB::table('empresa')->where('id', '=', $id)->first();
@@ -188,7 +189,7 @@ class ApiAdminController extends DteController
         $fecha_vencimiento = Carbon::parse($caf_xml->CAF->DA->FA[0], 'America/Santiago')->addMonths(6)->format('Y-m-d');
 
         // Nombre caf tipodte_timestamp.xml
-        $filename = "F{$folio_caf}_RNG{$caf_xml->CAF->DA->RNG->D[0]}-{$caf_xml->CAF->DA->RNG->H[0]}_FA{$caf_xml->CAF->DA->FA[0]}.xml";
+        $filename = "F{$tipo_folio}_RNG{$caf_xml->CAF->DA->RNG->D[0]}-{$caf_xml->CAF->DA->RNG->H[0]}_FA{$caf_xml->CAF->DA->FA[0]}.xml";
 
         // Verificar si existe el caf en DB
         $caf_duplicado = DB::table('caf')
@@ -220,8 +221,90 @@ class ApiAdminController extends DteController
 
         // Si existe '.forzar' al final del url se fuerza la subida del caf
         if (!$forzar)
-            return $this->uploadCaf($request, $folio_caf, $filename, $id, $fecha_vencimiento);
+            return $this->uploadCaf($caf_xml, $tipo_folio, $filename, $id, $fecha_vencimiento);
         else
-            return $this->uploadCaf($request, $folio_caf, $filename, $id, $fecha_vencimiento, true);
+            return $this->uploadCaf($caf_xml, $tipo_folio, $filename, $id, $fecha_vencimiento, true);
+    }
+
+    public function testCaLogin()
+    {
+        $header = [
+            'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 OPR/106.0.0.0',
+            //'Cookie' => 's_cc=true',
+            //'Connection' => 'keep-alive',
+        ];
+
+        $pfxPath = env('CERT_PATH');
+        $password = env('CERT_PASS');
+
+        // Obtener el nombre del archivo sin extensión
+        $fileNameWithoutExtension = pathinfo($pfxPath, PATHINFO_FILENAME);
+
+        // Construir las rutas para los archivos .key.pem y .crt.pem
+        $crtPath = dirname($pfxPath) . DIRECTORY_SEPARATOR . $fileNameWithoutExtension . '.crt';
+        $keyPath = dirname($pfxPath) . DIRECTORY_SEPARATOR . $fileNameWithoutExtension . '.key';
+
+        // Convertir el archivo .pfx a .key y .crt si no existen
+        file_exists($crtPath) ?: shell_exec("openssl pkcs12 -in $pfxPath -out $crtPath -clcerts -nokeys -password pass:$password");
+        file_exists($keyPath) ?: shell_exec("openssl pkcs12 -in $pfxPath -out $keyPath -nocerts -nodes -password pass:$password");
+
+        //return json_encode(curl_version());
+
+        $url = 'https://herculesr.sii.cl/cgi_AUT2000/CAutInicio.cgi?https://misiir.sii.cl/cgi_misii/siihome.cgi';
+        $body = 'referencia=' . urlencode('https://misiir.sii.cl/cgi_misii/siihome.cgi');
+
+        $ch = curl_init();
+        //echo json_encode(curl_version());
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
+        curl_setopt($ch, CURLOPT_VERBOSE, true);
+        curl_setopt($ch, CURLOPT_SSLCERT, $crtPath);
+        curl_setopt($ch, CURLOPT_SSLCERTPASSWD, $password);
+        curl_setopt($ch, CURLOPT_SSLKEY, $keyPath);
+
+        $result = curl_exec($ch);
+
+        if (curl_errno($ch)) {
+            echo 'Error: ' . curl_error($ch);
+        }
+
+        curl_close($ch);
+
+        echo $result;
+        /*
+        $client = new Client([
+            'debug' => fopen('php://stderr', 'w'),
+        ]);
+
+        $response = $client->request('POST', $url, [
+            //'headers' => $header,
+            'form_params' => [
+                'referencia' => urlencode('https://misiir.sii.cl/cgi_misii/siihome.cgi'),
+            ],
+            'allow_redirects' => true,
+            'verify' => true,
+            'cert' => $crtPath,
+            'ssl_key' => $keyPath,
+        ]);
+
+        echo $response->getBody()->getContents();*/
+
+        /*
+        try {
+            $this->generarNuevoCaf('', '', '');
+        } catch (GuzzleException $e) {
+            return response()->json([
+                'error' => 'Error en la consulta al obtener un nuevo caf del SII',
+                'message' => $e->getMessage(),
+            ], 400);
+        } catch (Exception $e) {
+            return response()->json([
+                'error' => 'Error al pedir nuevo caf obtenido del SII',
+                'message' => $e->getMessage(),
+            ], 400);
+        }
+        */
     }
 }

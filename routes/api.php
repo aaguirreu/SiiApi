@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\Route;
 Route::post('/tokens/create', 'App\Http\Controllers\UserAuthController@login');
 
 // Api/V1
-Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1', 'middleware' => ['auth:sanctum']], function () {
+Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1'/*, 'middleware' => ['auth:sanctum']*/], function () {
 
     // Rcof
     Route::post('rcof/{dte_filename}', 'ApiSetPruebaBEController@enviarRcofOnly');
@@ -44,19 +44,20 @@ Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1', 'm
     Route::post('/dte/pdf', 'ApiBoletaController@generarPdf');
 
     // Administración
-        // Cliente
+    // Cliente
     Route::post('administrar/cliente.agregar', 'ApiAdminController@agregarCliente');
-        // Empresa
+    // Empresa
     Route::post('administrar/empresa.agregar', 'ApiAdminController@agregarEmpresa');
-        // Obtener datos usuario según id
+    // test CA Login
+    Route::get('administrar/testca/login', 'ApiAdminController@testCaLogin');
 
     // Usuarios
-        // Obtener dtes usuario según id
+    // Obtener dtes usuario según id
     Route::post('usuario/dtes/', 'ApiUserController@obtenerDtes');
-        //
+    //
     Route::get('usuario/{id}', 'ApiUserController@obtenerEmpresa')
         ->whereNumber('id');
-        // Caf & subircaf.forzar
+    // Caf & subircaf.forzar
     Route::post('{ambiente}/{id}/subircaf{forzar?}', 'ApiAdminController@subirCaf')
         ->whereNumber('id')
         ->where('forzar', '.forzar');
