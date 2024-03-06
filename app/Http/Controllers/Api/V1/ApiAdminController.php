@@ -248,32 +248,22 @@ class ApiAdminController extends DteController
         file_exists($crtPath) ?: shell_exec("openssl pkcs12 -in $pfxPath -out $crtPath -clcerts -nokeys -password pass:$password");
         file_exists($keyPath) ?: shell_exec("openssl pkcs12 -in $pfxPath -out $keyPath -nocerts -nodes -password pass:$password");
 
-        //return json_encode(curl_version());
+        /*
+        // Construir las rutas para los archivos .key.pem y .crt.pem
+        $pfx_sha2 = dirname($pfxPath) . DIRECTORY_SEPARATOR . "SHA2" . $fileNameWithoutExtension . '.pfx';
+
+        // Convertir el archivo .pfx a .key y .crt si no existen
+        if (!file_exists($pfx_sha2)) {
+            return response()->json([
+                'error' => 'Error al encontrar certificado .pfx codificado con SHA2',
+                'message' => "el archivo SHA2$fileNameWithoutExtension.pfx no existe",
+            ], 400);
+        }
+        */
 
         $url = 'https://herculesr.sii.cl/cgi_AUT2000/CAutInicio.cgi?https://misiir.sii.cl/cgi_misii/siihome.cgi';
         $body = 'referencia=' . urlencode('https://misiir.sii.cl/cgi_misii/siihome.cgi');
 
-        $ch = curl_init();
-        //echo json_encode(curl_version());
-        curl_setopt($ch, CURLOPT_URL, $url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
-        curl_setopt($ch, CURLOPT_VERBOSE, true);
-        curl_setopt($ch, CURLOPT_SSLCERT, $crtPath);
-        curl_setopt($ch, CURLOPT_SSLCERTPASSWD, $password);
-        curl_setopt($ch, CURLOPT_SSLKEY, $keyPath);
-
-        $result = curl_exec($ch);
-
-        if (curl_errno($ch)) {
-            echo 'Error: ' . curl_error($ch);
-        }
-
-        curl_close($ch);
-
-        echo $result;
-        /*
         $client = new Client([
             'debug' => fopen('php://stderr', 'w'),
         ]);
@@ -283,13 +273,17 @@ class ApiAdminController extends DteController
             'form_params' => [
                 'referencia' => urlencode('https://misiir.sii.cl/cgi_misii/siihome.cgi'),
             ],
+            'curl' => [
+                CURLOPT_SSLCERTTYPE => 'P12',
+                CURLOPT_SSL_CIPHER_LIST => CURLOPT_TLS13_CIPHERS,
+                CURLOPT_SSLCERT => $pfxPath,
+                CURLOPT_SSLCERTPASSWD => $password,
+            ],
             'allow_redirects' => true,
-            'verify' => true,
-            'cert' => $crtPath,
-            'ssl_key' => $keyPath,
+            //'cert' => [$pfxPath, $password],
         ]);
 
-        echo $response->getBody()->getContents();*/
+        echo $response->getBody()->getContents();
 
         /*
         try {

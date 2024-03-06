@@ -2,6 +2,7 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\UserAuthController;
 
 /*
 
@@ -16,7 +17,7 @@ use Illuminate\Support\Facades\Route;
 */
 
 // Auth: obtener token
-Route::post('/tokens/create', 'App\Http\Controllers\UserAuthController@login');
+Route::post('/tokens/create', [UserAuthController::class, 'createToken']);
 
 // Api/V1
 Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1'/*, 'middleware' => ['auth:sanctum']*/], function () {
