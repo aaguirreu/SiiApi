@@ -116,7 +116,7 @@ class SetPruebaBEController extends DteController
         return $response;
     }
 
-    protected function parseDte($dte): array
+    protected function parseDte($dte, $id): array
     {
         // Contador Casos (número de documentos a enviar)
         // SOLO PARA SET DE PRUEBAS
