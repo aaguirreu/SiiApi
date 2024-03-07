@@ -41,7 +41,7 @@ class ApiBoletaController extends BoletaController
         if (!$cliente) {
             return response()->json([
                 'message' => "Error al encontrar el cliente",
-                'error' => "No existe cliente con el rut " . $dte->Encabezado->Receptor->RUTRecep,
+                'error' => "No existe cliente con el rut " . $empresa->rut,
             ], 400);
         }
 
@@ -117,10 +117,7 @@ class ApiBoletaController extends BoletaController
         $this->actualizarFolios($empresa->id);
         return response()->json([
             'message' => "Boleta electronica enviada correctamente",
-            'response' => [
-                "EnvioBoleta" => $envio_response,
-                //'EnvioRcof' => json_decode(json_encode(["trackid" => $rcofreponse]))
-            ],
+            'response' => $envio_response
         ], 200);
     }
 
@@ -156,8 +153,15 @@ class ApiBoletaController extends BoletaController
         ));
 
         $response = curl_exec($curl);
-
         curl_close($curl);
+
+        if (!$response || !json_decode($response)) {
+            return response()->json([
+                'message' => 'Error al consultar estado DTE. Verifique rut, dv y trackd_id',
+                'error' => $response,
+            ], 400);
+        }
+
         return response()->json([
             'response' => json_decode($response),
         ], 200);
@@ -212,8 +216,15 @@ class ApiBoletaController extends BoletaController
         ));
 
         $response = curl_exec($curl);
-
         curl_close($curl);
+
+        if (!$response || !json_decode($response)) {
+            return response()->json([
+                'message' => 'Error al consultar estado DTE. Verifique rut, dv y trackd_id',
+                'error' => $response,
+            ], 400);
+        }
+
         return response()->json([
             'response' => json_decode($response),
         ], 200);

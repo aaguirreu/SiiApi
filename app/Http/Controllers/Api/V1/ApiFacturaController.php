@@ -78,12 +78,7 @@ class ApiFacturaController extends FacturaController
         $correo = $this->obtenerCorreoDB($dte->Documentos[0]->Encabezado->Receptor->RUTRecep);
         if(!isset($correo)) {
             // Verificar si existe correo electrónico en el envío
-            if (!isset($dte->Documentos[0]->Encabezado->Receptor->CorreoRecep)) {
-                return response()->json([
-                    'errores' => "No se ha encontrado el correo electrónico del receptor",
-                    'message' => "Agregue CorreoRecep en el envío o agregue/actualice al receptor en la base de datos"
-                ], 400);
-            } else {
+            if (isset($dte->Documentos[0]->Encabezado->Receptor->CorreoRecep)) {
                 $correo = $dte->Documentos[0]->Encabezado->Receptor->CorreoRecep;
                 $this->actualizarCorreoDB($dte->Documentos[0]->Encabezado->Receptor->RUTRecep, $correo);
             }
@@ -150,7 +145,18 @@ class ApiFacturaController extends FacturaController
         $caratula['RutReceptor'] = $dte->Documentos[0]->Encabezado->Receptor->RUTRecep;
 
         // Enviar DTE a receptor
-        return $this->enviarDteReceptor($documentos, $dte->Documentos[0], $firma, $folios, $caratula, $correo, $envio_response);
+        if($correo)
+            return $this->enviarDteReceptor($documentos, $dte->Documentos[0], $firma, $folios, $caratula, $correo, $envio_response);
+        else
+            return response()->json([
+                'message' => "DTE enviado correctamente al SII pero NO al receptor",
+                'response' => [
+                    'envio_sii' => $envio_response,
+                    'envio_receptor' => [
+                        'message' => "No se ha encontrado el correo del receptor",
+                    ]
+                ],
+            ], 200);
     }
 
     /**
@@ -172,8 +178,8 @@ class ApiFacturaController extends FacturaController
             return response()->json([
                 'message' => "DTE enviado correctamente al SII pero NO al receptor",
                 'response' => [
-                    'EnvioSii' => $envio_response,
-                    'EnvioReceptor' => [
+                    'envio_sii' => $envio_response,
+                    'envio_receptor' => [
                         'message' => "Error al generar el envio de DTEs",
                         'errores' => json_decode(json_encode($envio_dte_xml)),
                     ]
@@ -194,8 +200,8 @@ class ApiFacturaController extends FacturaController
             return response()->json([
                 'message' => "DTE enviado correctamente al SII pero NO al receptor",
                 'response' => [
-                    'EnvioSii' => $envio_response,
-                    'EnvioReceptor' => [
+                    'envio_sii' => $envio_response,
+                    'envio_receptor' => [
                         'message' => "Error al guardar el DTE en el Storage",
                     ]
                 ],
@@ -219,8 +225,8 @@ class ApiFacturaController extends FacturaController
             return response()->json([
                 'message' => "DTE enviado correctamente al SII pero NO al receptor",
                 'response' => [
-                    'EnvioSii' => $envio_response,
-                    'EnvioReceptor' => [
+                    'envio_sii' => $envio_response,
+                    'envio_receptor' => [
                         'message' => "Error al enviar dte por correo",
                     ]
                 ],
@@ -235,9 +241,9 @@ class ApiFacturaController extends FacturaController
         return response()->json([
             'message' => "DTE enviado correctamente",
             'response' => [
-                'EnvioSii' => $envio_response,
-                'EnvioReceptor' => [
-                    'Estado' => "Enviado"
+                'envio_sii' => $envio_response,
+                'envio_receptor' => [
+                    'message' => "Enviado"
                 ]
             ],
         ], 200);
@@ -342,11 +348,11 @@ class ApiFacturaController extends FacturaController
         // Obtener id de caratula.rut_receptor si existe
         try {
             $receptor = DB::table('empresa')
-                ->where('rut', '=', $caratula->rut_receptor)->first();
+                ->where('id', '=', $caratula->receptor_id)->first();;
         } catch (\Exception $e) {
             return response()->json([
                 'message' => "Error al enviar respuesta de documento",
-                'error' => "No existe el receptor $caratula->rut_receptor en base de datos",
+                'error' => "No existe el receptor de id $caratula->receptor_id en base de datos",
             ], 400);
         }
 
@@ -400,7 +406,7 @@ class ApiFacturaController extends FacturaController
 
         $respuesta_xml = new SimpleXMLElement($dte_xml);
         // Enviar respuesta por correo
-        Mail::to($body->correo)->send(new DteResponse($respuesta_xml->children()->SetDTE->DTE->Documento[0]->Encabezado->Emisor->RznSoc, $respuesta));
+        //Mail::to($body->correo)->send(new DteResponse($respuesta_xml->children()->SetDTE->DTE->Documento[0]->Encabezado->Emisor->RznSoc, $respuesta));
 
         // Enviar respuesta al SII
         list($envio_response, $filename) = $this->envioRecibos($body->dteId, $body->estado, $motivo, $dte_xml);

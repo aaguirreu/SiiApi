@@ -416,7 +416,7 @@ class FacturaController extends DteController
         curl_setopt($curl, CURLOPT_POST, true);
         curl_setopt($curl, CURLOPT_POSTFIELDS, $data);
         curl_setopt($curl, CURLOPT_HTTPHEADER, $header);
-        curl_setopt($curl, CURLOPT_URL, 'https://maullin.sii.cl/cgi_dte/UPL/DTEUpload');
+        curl_setopt($curl, CURLOPT_URL, self::$url);
         curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
 
         // enviar XML al SII

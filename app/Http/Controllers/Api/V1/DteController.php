@@ -31,7 +31,7 @@ class DteController extends Controller
     protected static array $tipos_dte = [];
     protected static string $url = '';
     protected static string $url_api = ''; // se utiliza solo en boleta electronica para consultas de estado
-    protected static int $ambiente = 0; // 1 Producción, 0 Certificación
+    protected static int $ambiente = 0; // 0 Producción, 1 Certificación
     protected static string $token = '';
     protected static string $token_api; // se utiliza solo en boleta electronica para consultas de estado
 
@@ -69,7 +69,7 @@ class DteController extends Controller
                 return response()->json([
                     'error' => 'El caf no sigue el orden de folios correspondiente. Deben ser consecutivos.',
                     'registro' => 'Último folio registrado: '.$folio_final,
-                    'envio' => 'Caf recibido: '.intval($caf_xml->CAF->DA->RNG->D[0]),
+                    'envío' => 'Caf recibido: '.intval($caf_xml->CAF->DA->RNG->D[0]),
                 ], 400);
             }
         }
@@ -105,7 +105,7 @@ class DteController extends Controller
             ]);
         } catch (Exception $e) {
             return response()->json([
-                'error' => 'Error al subir caf',
+                'error' => 'Error al insertar caf en base de datos',
                 'message' => $e->getMessage(),
             ], 400);
         }
@@ -824,7 +824,7 @@ class DteController extends Controller
         // Servicio Boleta Electronica
         if(in_array("39", self::$tipos_dte) || in_array("41", self::$tipos_dte)) {
             if ($ambiente == "certificacion") {
-                self::$ambiente = 0;
+                self::$ambiente = 1;
                 self::$url = 'https://pangal.sii.cl/recursos/v1/boleta.electronica.envio'; // url certificación ENVIO BOLETAS
                 self::$url_api = 'https://apicert.sii.cl/recursos/v1/boleta.electronica'; // url certificación CONSULTAS BOLETAS
 
@@ -836,7 +836,7 @@ class DteController extends Controller
                 // Token para consultas de estado de boletas
                 self::$token_api = json_decode(file_get_contents(base_path('config.json')))->be->cert->token;
             } else if ($ambiente == "produccion") {
-                self::$ambiente = 1;
+                self::$ambiente = 0;
                 self::$url = 'https://rahue.sii.cl/recursos/v1/boleta.electronica.envio'; // url producción ENVIO BOLETAS
                 self::$url_api = 'https://api.sii.cl/recursos/v1/boleta.electronica'; // url producción CONSULTAS BOLETAS
                 // IMPORTANTE: token debería ser el obtenido desde la api de boletas electronicas:
@@ -849,11 +849,11 @@ class DteController extends Controller
             else abort(404);
         } else { // Servicio DTEs
             if ($ambiente == "certificacion") {
-                self::$ambiente = 0;
+                self::$ambiente = 1;
                 self::$url = 'https://maullin.sii.cl/cgi_dte/UPL/DTEUpload'; // url certificación
                 self::$token = json_decode(file_get_contents(base_path('config.json')))->dte->cert->token;
             } else if ($ambiente == "produccion") {
-                self::$ambiente = 1;
+                self::$ambiente = 0;
                 self::$url = 'https://palena.sii.cl/cgi_dte/UPL/DTEUpload'; // url producción
                 self::$token = json_decode(file_get_contents(base_path('config.json')))->dte->prod->token;
             }

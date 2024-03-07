@@ -88,7 +88,7 @@ class ApiAdminController extends DteController
             $id = $this->guardarEmpresa($empresa->rut, $empresa);
         } catch (Exception $e) {
             return response()->json([
-                'message' => "Error al agregar empresa",
+                'message' => "Error al insertar empresa en base de datos",
                 'error' => $e->getMessage(),
             ], 400);
         }
@@ -138,7 +138,7 @@ class ApiAdminController extends DteController
 
             } catch (Exception $e) {
                 return response()->json([
-                    'message' => "Error al agregar cliente",
+                    'message' => "Error al insertar cliente en base de datos",
                     'error' => $e->getMessage(),
                 ], 400);
             }
