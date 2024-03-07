@@ -20,10 +20,10 @@ use App\Http\Controllers\UserAuthController;
 Route::post('/tokens/create', [UserAuthController::class, 'createToken']);
 
 // Api/V1
-Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1'/*, 'middleware' => ['auth:sanctum']*/], function () {
+Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1', 'middleware' => ['auth:sanctum']], function () {
 
     // Rcof
-    Route::post('rcof/{dte_filename}', 'ApiSetPruebaBEController@enviarRcofOnly');
+    Route::post('rcof/{dte_filename}', 'ApiSetPruebaController@enviarRcofOnly');
 
     // Envio de Boletas
     Route::post('{ambiente}/boletas/envio', 'ApiBoletaController@boletaElectronica');
@@ -35,11 +35,6 @@ Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1'/*, 
     Route::post('{ambiente}/dte/estado.envio', 'ApiFacturaController@estadoEnvioDte');
     Route::post('{ambiente}/dte/estado.dte', 'ApiFacturaController@estadoDte');
     Route::post('{ambiente}/dte/respuesta', 'ApiFacturaController@enviarRespuestaDocumento');
-
-    // Envio de Set de Prueba
-    Route::post('setdeprueba/envio', 'ApiSetPruebaBEController@setPrueba');
-    Route::post('setdeprueba/estado.envio', 'ApiSetPruebaBEController@estadoDteEnviado');
-    Route::post('setdeprueba/estado.dte', 'ApiSetPruebaBEController@estadoDte');
 
     // Generar PDF
     Route::post('/dte/pdf', 'ApiBoletaController@generarPdf');
