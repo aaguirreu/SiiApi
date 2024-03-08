@@ -146,6 +146,23 @@ class ApiAdminController extends DteController
     }
 
     /**
+     * Obtiene id, rut y nombre de todos los clientes
+     */
+    public function obtenerClientes(): JsonResponse
+    {
+        $data = DB::table('cliente')
+            ->join('empresa', 'cliente.empresa_id', '=', 'empresa.id')
+            ->select(
+                'empresa.id',
+                'empresa.rut',
+                'empresa.razon_social'
+            )
+            ->get();
+
+        return response()->json($data);
+    }
+
+    /**
      * @param Request $request
      * @param $ambiente
      * @param $id
@@ -228,6 +245,8 @@ class ApiAdminController extends DteController
 
     public function testCaLogin()
     {
+        echo $user =  auth('sanctum')->user();
+
         $header = [
             'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 OPR/106.0.0.0',
             //'Cookie' => 's_cc=true',

@@ -42,6 +42,7 @@ Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1', 'm
     // Administración
     // Cliente
     Route::post('administrar/cliente.agregar', 'ApiAdminController@agregarCliente');
+    Route::get('administrar/clientes', 'ApiAdminController@obtenerClientes');
     // Empresa
     Route::post('administrar/empresa.agregar', 'ApiAdminController@agregarEmpresa');
     // test CA Login
