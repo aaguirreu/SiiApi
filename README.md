@@ -102,13 +102,11 @@ chmod -R 774 storage/framework/
 php artisan cache:clear
 ```
 
-### Obtener Token para consumir la API
+### Cambiar la contraseña con Tinker
 
-Para esta api se utiliza Sanctum. Usando los siguientes comandos obtendrás el token para consumir la api. Es importante haber utilizado la flag --seed al migrar para poder obtener el usuario.
+Es importante haber utilizado la flag --seed al migrar, ya que, genera el usuario.
 ```
 php artisan tinker
 $user = User::find(1);
-$token = $user->createToken('token')->plainTextToken;
+$user->update(['password' => Hash::make('secret')]);
 ```
-
-El string que se imprima al final será tu token bearer.
