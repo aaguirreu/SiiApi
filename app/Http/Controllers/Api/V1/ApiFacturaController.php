@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
+use Exception;
 use sasco\LibreDTE\Log;
 use sasco\LibreDTE\Sii;
 use SimpleXMLElement;
@@ -406,7 +407,7 @@ class ApiFacturaController extends FacturaController
 
         $respuesta_xml = new SimpleXMLElement($dte_xml);
         // Enviar respuesta por correo
-        //Mail::to($body->correo)->send(new DteResponse($respuesta_xml->children()->SetDTE->DTE->Documento[0]->Encabezado->Emisor->RznSoc, $respuesta));
+        Mail::to($body->correo)->send(new DteResponse($respuesta_xml->children()->SetDTE->DTE->Documento[0]->Encabezado->Emisor->RznSoc, $respuesta));
 
         // Enviar respuesta al SII
         list($envio_response, $filename) = $this->envioRecibos($body->dteId, $body->estado, $motivo, $dte_xml);
@@ -425,9 +426,16 @@ class ApiFacturaController extends FacturaController
         }
 
         // Actualizar estado del dte en base de datos
-        DB::table('dte')
-            ->where('id', '=', $body->dteId)
-            ->update(['estado' => $body->estado]);
+        try {
+            DB::table('dte')
+                ->where('id', '=', $body->dteId)
+                ->update(['estado' => $body->estado]);
+        }catch (Exception $e){
+            return response()->json([
+                'message' => "Error al enviar respuesta de documento",
+                'error' => $e->getMessage()
+            ], 200);
+        }
 
         return response()->json([
             'message' => "Respuesta de documento enviada correctamente",
