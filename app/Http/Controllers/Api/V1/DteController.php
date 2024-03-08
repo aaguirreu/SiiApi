@@ -154,14 +154,17 @@ class DteController extends Controller
             $receptor_id = $this->getEmpresa($caratula['RutReceptor'], $Xml->children()->SetDTE->DTE->Documento[0]->Encabezado->Receptor->RUTRecep);
             $caratula_id = $this->getCaratula($caratula, $emisor_id, $receptor_id);
             $dte_id = $this->guardarDte($filename, $envio_dte_id, $caratula_id);
-            foreach ($Xml->children()->SetDTE->DTE->Documento as $documento) {
-                // Si el ambiente es de certificación transformar tipo dte a negativo.
-                self::$ambiente == 0 ? $tipo_dte = -$documento->Encabezado->IdDoc->TipoDTE : $tipo_dte = $documento->Encabezado->IdDoc->TipoDTE;
-                $cafId = DB::table('caf')->where('empresa_id', '=', $emisor_id)->where('tipo', '=', $tipo_dte)->latest()->first()->id;
-                $receptorId = $this->getEmpresa($documento->Encabezado->Receptor->RUTRecep, $documento);
-                $documentoId = $this->guardarDocumento($dte_id, $cafId, $receptorId, $documento);
-                foreach ($documento->Detalle as $detalle) {
-                    $this->guardarDetalle($detalle, $documentoId);
+            foreach ($Xml->children()->SetDTE->DTE as $dte) {
+                foreach ($dte->Documento as $documento) {
+                    // Si el ambiente es de certificación transformar tipo dte a negativo.
+                    self::$ambiente == 0 ? $tipo_dte = -$documento->Encabezado->IdDoc->TipoDTE : $tipo_dte = $documento->Encabezado->IdDoc->TipoDTE;
+                    $cafId = DB::table('caf')->where('empresa_id', '=', $emisor_id)->where('tipo', '=', $tipo_dte)->latest()->first()->id;
+                    $receptorId = $this->getEmpresa($documento->Encabezado->Receptor->RUTRecep, $documento);
+                    $documentoId = $this->guardarDocumento($dte_id, $cafId, $receptorId, $documento);
+
+                    foreach ($documento->Detalle as $detalle) {
+                        $this->guardarDetalle($detalle, $documentoId);
+                    }
                 }
             }
             DB::commit(); // <= Commit the changes
