@@ -1,10 +1,7 @@
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
-<head>
-    <meta charset="utf-8">
-    <title>{{$name}}</title>
 <body>
-        <p>Respuesta de envío a {{$name}}</p>
+        <p>Respuesta automática. No responder.</p>
         <p class="MsoNormal" style=""><b style=""><span style="font-size: 12pt; color: rgb(254, 127, 0);">Logiciel Chile S.A.</span></b><span style="font-size: 10.5pt; color: black;">&nbsp; </span><b style=""><span style="font-size: 10.5pt; color: rgb(47, 84, 150);">- &nbsp;1<sup style="">st</sup> </span></b><b style=""><span style="font-size: 12pt; color: rgb(47, 84, 150);">KEMP Partner Center LATAM</span></b><span lang="ES" style="font-size: 12pt;"></span></p>
         <p class="MsoNormal" style=""><span style="font-size: 10.5pt; color: rgb(47, 84, 150);">Av. Pedro de Valdivia 5841, Macul, Santiago – Cod.Postal: 7810356</span><span style="font-size: 10.5pt; color: black;"><br style=""></span><span style="font-size: 10.5pt; color: rgb(47, 84, 150);">Oficina: <span class="Object" role="link" id="OBJ_PREFIX_DWT139_com_zimbra_phone"><a href="callto:+56.2.2694.3900" onclick="window.top.Com_Zimbra_Phone.unsetOnbeforeunload()">+56.2.2694.3900</a></span>&nbsp;<b style="">|</b> Correo: </span><u style=""></u><span lang="EN-US" style="font-size: 10.5pt; color: rgb(5, 99, 193);"><span class="Object" role="link" id="OBJ_PREFIX_DWT140_ZmEmailObjectHandler"><a href="mailto:soporte@logiciel.cl" target="_blank" style=""><span style="color: rgb(5, 99, 193);">soporte@logiciel.cl</span></a></span></span><span lang="EN-US" style="font-size: 12pt;"></span></p>
         <p class="MsoNormal" style=""><b style=""><u style=""><span lang="EN-US" style="font-size: 10.5pt; color: rgb(5, 99, 193);"><span class="Object" role="link" id="OBJ_PREFIX_DWT141_com_zimbra_url"><a href="http://www.logiciel.cl/" target="_blank" style=""><span style="color: rgb(5, 99, 193);">www.Logiciel.cl</span></a></span></span></u></b><span lang="EN-US" style="font-size: 12pt;"></span></p>

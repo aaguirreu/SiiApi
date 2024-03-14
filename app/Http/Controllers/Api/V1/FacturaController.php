@@ -11,6 +11,7 @@ use sasco\LibreDTE\Estado;
 use sasco\LibreDTE\Log;
 use sasco\LibreDTE\Sii\EnvioDte;
 use SimpleXMLElement;
+use Webklex\PHPIMAP\Attachment;
 
 class FacturaController extends DteController
 {
@@ -117,8 +118,9 @@ class FacturaController extends DteController
     /**
      * Generar DTE de respuesta sobre la recepción de un envío de DTE
      * @throws Exception
+     * @var $attachment Attachment
      */
-    public function respuestaEnvio($attachment): bool|array
+    public function respuestaEnvio($attachment): array|bool
     {
         $this->timestamp = Carbon::now('America/Santiago');
 
@@ -128,11 +130,11 @@ class FacturaController extends DteController
         $caratula = $EnvioDte->getCaratula();
         $Documentos = $EnvioDte->getDocumentos();
 
-        // Verificar si RutReceptor está en la base de datos como cliente con join
+        // Verificar si RutReceptor está en la base de datos como cliente
         $cliente = DB::table('empresa')
             ->join('cliente', 'empresa.id', '=', 'cliente.empresa_id')
             ->where('empresa.rut', '=', $EnvioDte->getReceptor())
-            ->select('empresa.rut') // Seleccionar solo el campo que necesitas
+            ->select('empresa.rut', 'empresa.id')
             ->first();
 
         if ($cliente) {
@@ -142,7 +144,6 @@ class FacturaController extends DteController
             // RutReceptor en el DTE.xml recibido
             $rut_receptor_esperado = '000-0';
         }
-
 
         // Obtener el codigo de envio de la respuesta
         $respuesta = DB::table('secuencia_respuesta')->first();
@@ -214,10 +215,20 @@ class FacturaController extends DteController
             // Guardar DTE en la base de datos
             // envioDteId null significa que un dte es de tipo recibido, de compra en este caso
             if($rut_receptor_esperado != '000-0'){
+                // Si el dte ya fue guardado en la base de datos, no se guarda de nuevo
+                $dte_exists = DB::table('dte')
+                    ->join('caratula', 'dte.caratula_id', '=', 'caratula.id')
+                    ->where('caratula.receptor_id', '=', $cliente->id)
+                    ->where('dte.xml_filename', '=', $attachment->getName())
+                    ->exists();
+
+                if ($dte_exists) {
+                    return ['error' => 'El dte ya existe en la base de datos'];
+                }
                 $dbresponse = $this->guardarXmlDB(null, $attachment->getName(), $caratula, $attachment->getContent());
                 if (isset($dbresponse['error'])) {
                     Log::write(0, $dbresponse['error']);
-                    return false;
+                    return $dbresponse;
                 }
                 Storage::disk('xml')->put("$rut_receptor_esperado/Recibidos/$rut_emisor_esperado/".$attachment->getName(), $attachment->getContent());
                 Storage::disk('xml')->put("$rut_receptor_esperado/Respuestas/$rut_emisor_esperado/$filename", $xml);

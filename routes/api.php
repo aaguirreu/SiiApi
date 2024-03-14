@@ -47,15 +47,19 @@ Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1', 'm
     Route::post('administrar/empresa.agregar', 'ApiAdminController@agregarEmpresa');
     // test CA Login
     Route::get('administrar/testca/login', 'ApiAdminController@testCaLogin');
-
-    // Usuarios
-    // Obtener dtes usuario según id
-    Route::post('usuario/dtes/', 'ApiUserController@obtenerDtes');
-    //
-    Route::get('usuario/{id}', 'ApiUserController@obtenerEmpresa')
-        ->whereNumber('id');
     // Caf & subircaf.forzar
     Route::post('{ambiente}/{id}/subircaf{forzar?}', 'ApiAdminController@subirCaf')
         ->whereNumber('id')
         ->where('forzar', '.forzar');
+
+    // Usuarios
+    // Obtener dtes de usuario según id
+    Route::post('usuario/dtes', 'ApiUserController@obtenerDtes');
+    // Obtener empresa según id
+    Route::get('usuario/{id}', 'ApiUserController@obtenerEmpresa')
+        ->whereNumber('id');
+    // Obtener dtes desde correo
+    Route::get('usuario/dtes/correos', 'ApiUserController@obtenerDtesCorreo');
+    // Importar dtes desde correo
+    Route::get('usuario/dtes/correos.importar', 'ApiUserController@importarDte');
 });

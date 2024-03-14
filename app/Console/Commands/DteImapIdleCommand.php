@@ -97,6 +97,10 @@ class DteImapIdleCommand extends ImapIdleCommand {
 
                                 // Obtener respuesta del Dte
                                 $fileRpta = $rpta->respuestaEnvio($attachment);
+                                if (isset($respuesta['error'])) {
+                                    Log::channel('default')->info("El dte ya existe en la base de datos");
+                                    return;
+                                }
 
                                 // Enviar respuesta por correo
                                 Mail::to($message->from[0]->mail)->send(new DteResponse($message->getFrom()[0]->personal, $fileRpta));
