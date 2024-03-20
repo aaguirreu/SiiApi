@@ -104,8 +104,8 @@ class ApiBoletaController extends BoletaController
         // los dte recibidos (compras) no tienen envio_id
         $envioDteId = $this->guardarEnvioDte($envio_response);
 
-        // Guardar en base de datos envio, xml, etc
-        $dbresponse = $this->guardarXmlDB($envioDteId, $filename, $caratula, $envio_dte_xml);
+        // Guardar en base de datos envio, xml, etc. Venta (1)
+        $dbresponse = $this->guardarXmlDB($envioDteId, $filename, $caratula, $envio_dte_xml, 1);
         if (isset($dbresponse['error'])) {
             return response()->json([
                 'message' => "Error al guardar el DTE en la base de datos",

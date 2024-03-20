@@ -20,7 +20,7 @@ class CreateDocumentoTable extends Migration
             $table->foreignId('receptor_id')->constrained('empresa'); // null en boletas
             $table->integer('ref_id')->nullable();
             $table->integer('folio');
-            $table->integer('tipo_transaccion');
+            $table->integer('compra_venta')->nullable(); // 0: Compra, 1: Venta, null: No Aplica
             $table->integer('monto_total');
             $table->timestamps();
         });

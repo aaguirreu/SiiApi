@@ -225,7 +225,8 @@ class FacturaController extends DteController
                 if ($dte_exists) {
                     return ['error' => 'El dte ya existe en la base de datos'];
                 }
-                $dbresponse = $this->guardarXmlDB(null, $attachment->getName(), $caratula, $attachment->getContent());
+                // Guardar como venta (0)
+                $dbresponse = $this->guardarXmlDB(null, $attachment->getName(), $caratula, $attachment->getContent(), 0);
                 if (isset($dbresponse['error'])) {
                     Log::write(0, $dbresponse['error']);
                     return $dbresponse;

@@ -145,7 +145,16 @@ class DteController extends Controller
         return $id;
     }
 
-    protected function guardarXmlDB($envio_dte_id, $filename, $caratula, $dte_xml): array|int
+    /**
+     * @param $envio_dte_id
+     * @param $filename
+     * @param $caratula
+     * @param $dte_xml
+     * @return array|int
+     * Función que guarda DTE en la base de datos
+     * IMPORTANTE: $compra_venta = 0: Compra, 1: Venta, null: No aplica
+     */
+    protected function guardarXmlDB($envio_dte_id, $filename, $caratula, $dte_xml, $compra_venta): array|int
     {
         try {
             DB::beginTransaction(); // <= Starting the transaction
@@ -158,12 +167,16 @@ class DteController extends Controller
                 foreach ($dte->Documento as $documento) {
                     // Si el ambiente es de certificación transformar tipo dte a negativo.
                     self::$ambiente == 0 ? $tipo_dte = -$documento->Encabezado->IdDoc->TipoDTE : $tipo_dte = $documento->Encabezado->IdDoc->TipoDTE;
-                    $cafId = DB::table('caf')->where('empresa_id', '=', $emisor_id)->where('tipo', '=', $tipo_dte)->latest()->first()->id;
-                    $receptorId = $this->getEmpresa($documento->Encabezado->Receptor->RUTRecep, $documento);
-                    $documentoId = $this->guardarDocumento($dte_id, $cafId, $receptorId, $documento);
+                    // si envio_dte_id es null (dte recibido) no existe caf en base de datos, por lo tanto caf_id es null
+                    $compra_venta == 1 ? $caf_id = DB::table('caf')
+                            ->where('empresa_id', '=', $emisor_id)
+                            ->where('tipo', '=', $tipo_dte)
+                            ->latest()->first()->id : $caf_id = null;
+                    $receptor_id = $this->getEmpresa($documento->Encabezado->Receptor->RUTRecep, $documento);
+                    $documento_id = $this->guardarDocumento($dte_id, $caf_id, $receptor_id, $documento);
 
                     foreach ($documento->Detalle as $detalle) {
-                        $this->guardarDetalle($detalle, $documentoId);
+                        $this->guardarDetalle($detalle, $documento_id);
                     }
                 }
             }
@@ -258,7 +271,7 @@ class DteController extends Controller
             // solo en caso de que el documento sea una nota de crédito o débito
             'ref_id' => $refId,
             'folio' => $documento->Encabezado->IdDoc->Folio ?? null,
-            'tipo_transaccion' => $documento->Encabezado->IdDoc->TpoTranVenta ?? 1,
+            'compra_venta' => $compra_venta ?? null,
             'monto_total' => $documento->Encabezado->Totales->MntTotal ?? 0,
             'created_at' => $this->timestamp,
             'updated_at' => $this->timestamp
