@@ -2,7 +2,10 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Jobs\ProcessEnvioDteSii;
+use App\Models\Dte;
 use GuzzleHttp\Client;
+use GuzzleHttp\Exception\GuzzleException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
@@ -245,7 +248,9 @@ class ApiAdminController extends DteController
 
     public function testCaLogin()
     {
-        echo $user =  auth('sanctum')->user();
+        ProcessEnvioDteSii::dispatch(Dte::query()->where('id', 1)->first());
+        return Dte::query()->where('id', 1)->first();
+        //echo $user =  auth('sanctum')->user();
 
         $header = [
             'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 OPR/106.0.0.0',
@@ -256,53 +261,34 @@ class ApiAdminController extends DteController
         $pfxPath = env('CERT_PATH');
         $password = env('CERT_PASS');
 
-        // Obtener el nombre del archivo sin extensión
-        $fileNameWithoutExtension = pathinfo($pfxPath, PATHINFO_FILENAME);
-
-        // Construir las rutas para los archivos .key.pem y .crt.pem
-        $crtPath = dirname($pfxPath) . DIRECTORY_SEPARATOR . $fileNameWithoutExtension . '.crt';
-        $keyPath = dirname($pfxPath) . DIRECTORY_SEPARATOR . $fileNameWithoutExtension . '.key';
-
-        // Convertir el archivo .pfx a .key y .crt si no existen
-        file_exists($crtPath) ?: shell_exec("openssl pkcs12 -in $pfxPath -out $crtPath -clcerts -nokeys -password pass:$password");
-        file_exists($keyPath) ?: shell_exec("openssl pkcs12 -in $pfxPath -out $keyPath -nocerts -nodes -password pass:$password");
-
-        /*
-        // Construir las rutas para los archivos .key.pem y .crt.pem
-        $pfx_sha2 = dirname($pfxPath) . DIRECTORY_SEPARATOR . "SHA2" . $fileNameWithoutExtension . '.pfx';
-
-        // Convertir el archivo .pfx a .key y .crt si no existen
-        if (!file_exists($pfx_sha2)) {
-            return response()->json([
-                'error' => 'Error al encontrar certificado .pfx codificado con SHA2',
-                'message' => "el archivo SHA2$fileNameWithoutExtension.pfx no existe",
-            ], 400);
-        }
-        */
-
         $url = 'https://herculesr.sii.cl/cgi_AUT2000/CAutInicio.cgi?https://misiir.sii.cl/cgi_misii/siihome.cgi';
-        $body = 'referencia=' . urlencode('https://misiir.sii.cl/cgi_misii/siihome.cgi');
 
         $client = new Client([
             'debug' => fopen('php://stderr', 'w'),
         ]);
 
-        $response = $client->request('POST', $url, [
-            //'headers' => $header,
-            'form_params' => [
-                'referencia' => urlencode('https://misiir.sii.cl/cgi_misii/siihome.cgi'),
-            ],
-            'curl' => [
-                CURLOPT_SSLCERTTYPE => 'P12',
-                CURLOPT_SSL_CIPHER_LIST => CURLOPT_TLS13_CIPHERS,
-                CURLOPT_SSLCERT => $pfxPath,
-                CURLOPT_SSLCERTPASSWD => $password,
-            ],
-            'allow_redirects' => true,
-            //'cert' => [$pfxPath, $password],
-        ]);
+        try {
+            $response = $client->request('POST', $url, [
+                //'headers' => $header,
+                'form_params' => [
+                    'referencia' => urlencode('https://misiir.sii.cl/cgi_misii/siihome.cgi'),
+                ],
+                'curl' => [
+                    CURLOPT_SSLCERTTYPE => 'P12',
+                    CURLOPT_SSLCERT => $pfxPath,
+                    CURLOPT_SSLCERTPASSWD => $password,
+                ],
+                'allow_redirects' => true,
+            ]);
+        } catch (GuzzleException $e) {
+            return response()->json([
+                'error' => 'Error en la consulta al obtener un nuevo caf del SII',
+                'message' => $e->getMessage(),
+                'curl_version' => curl_version(),
+            ], 400);
+        }
 
-        echo $response->getBody()->getContents();
+        return $response->getHeader('Set-Cookie');
 
         /*
         try {

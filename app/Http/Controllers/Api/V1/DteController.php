@@ -630,10 +630,13 @@ class DteController extends Controller
         return $error ?? $folios;
     }
 
-    protected function parseFileName($rut_emisor, $rut_receptor): array
+    protected function parseFileName($rut_emisor, $rut_receptor, $dte): array
     {
-        $tipo_dte = key(array_filter(self::$folios));
-        $folio = self::$folios[$tipo_dte];
+        $Xml = new SimpleXMLElement($dte);
+        //$tipo_dte = key(array_filter(self::$folios));
+        $tipo_dte = $Xml->children()->SetDTE->DTE->Documento[0]->Encabezado->TipoDTE;
+        //$folio = self::$folios[$tipo_dte];
+        $folio = $Xml->children()->SetDTE->DTE->Documento[0]->Encabezado->Folio;
         $filename = "DTE_$tipo_dte" . "_$folio" . "_$this->timestamp.xml";
         $filename = str_replace(' ', 'T', $filename);
         $filename = str_replace(':', '-', $filename);
@@ -835,7 +838,7 @@ class DteController extends Controller
      * Tanto el envío de boleta electronica como DTEs utilizan el token obtenido desde el servicio de DTEs por algún error en el SII
      * En el caso de consultas de estado de boletas electronicas se utiliza el token obtenido desde el servicio de boletas electronicas
      */
-    protected function setAmbiente($ambiente): void
+    public function setAmbiente($ambiente): void
     {
         // Servicio Boleta Electronica
         if(in_array("39", self::$tipos_dte) || in_array("41", self::$tipos_dte)) {
@@ -890,5 +893,14 @@ class DteController extends Controller
         }
 
         return true;
+    }
+
+    public function getTokenMethod(?string $tipo_dte): string
+    {
+        if ($tipo_dte == "39" || $tipo_dte == "41") {
+            return self::$token_api;
+        } else {
+            return self::$token;
+        }
     }
 }

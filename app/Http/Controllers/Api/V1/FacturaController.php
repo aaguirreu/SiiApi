@@ -32,7 +32,7 @@ class FacturaController extends DteController
             $dte = '<?xml version="1.0" encoding="ISO-8859-1"?>' . "\n" . $dte;
         }
 
-        list($file, $filename) = $this->parseFileName($rutEmisor, $rutReceptor);
+        list($file, $filename) = $this->parseFileName($rutEmisor, $rutReceptor, $dte);
         try {
             Storage::disk('xml')->put("$rutEmisor/Envios/$rutReceptor/$filename", $dte);
         } catch (Exception $e) {

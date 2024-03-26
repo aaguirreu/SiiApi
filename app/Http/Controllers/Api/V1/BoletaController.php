@@ -28,7 +28,7 @@ class BoletaController extends DteController
         self::$tipos_dte = $tipos_dte;
         self::isToken();
     }
-    protected function enviar($rut_envia, $rut_emisor, $dte): bool|array
+    public function enviar($rut_envia, $rut_emisor, $dte): bool|array
     {
         // definir datos que se usarán en el envío
         list($rutSender, $dvSender) = explode('-', str_replace('.', '', $rut_envia));
@@ -36,7 +36,7 @@ class BoletaController extends DteController
         if (strpos($dte, '<?xml') === false) {
             $dte = '<?xml version="1.0" encoding="ISO-8859-1"?>' . "\n" . $dte;
         }
-        list($file, $filename) = $this->parseFileName($rut_emisor, '60803000-K');
+        list($file, $filename) = $this->parseFileName($rut_emisor, '60803000-K', $dte);
         try {
             Storage::disk('xml')->put("$rut_emisor/Envios/60803000-K/$filename", $dte);
         } catch (Exception $e) {
