@@ -91,7 +91,7 @@ class ApiBoletaController extends BoletaController
         // Enviar DTE e insertar en base de datos de ser exitoso
         $rut_envia = $Firma->getID(); // RUT autorizado para enviar DTEs
         $rut_emisor = $boletas[0]['Encabezado']['Emisor']['RUTEmisor']; // RUT del emisor del DTE
-        list($envio_response, $filename) = $this->enviar($rut_envia, $rut_emisor, $envio_dte_xml);
+        list($envio_response, $filename) = $this->enviar($envio_dte_xml, $rut_envia, $rut_emisor);
         if (!$envio_response) {
             return response()->json([
                 'message' => "Error al enviar la boleta",
@@ -121,7 +121,7 @@ class ApiBoletaController extends BoletaController
         ], 200);
     }
 
-    public function estadoDteEnviado(Request $request, $ambiente): JsonResponse
+    public function estadoEnvioDte(Request $request, $ambiente): JsonResponse
     {
         // Set ambiente certificacón
         $this->setAmbiente($ambiente);

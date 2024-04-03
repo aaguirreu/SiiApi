@@ -110,7 +110,7 @@ class ApiFacturaController extends FacturaController
         }
 
         // Enviar DTE al SII e insertar en base de datos de ser exitoso
-        list($envio_response, $filename) = $this->enviar($caratula['RutEnvia'], $caratula['RutEmisor'], "60803000-K", $envio_dte_xml);
+        list($envio_response, $filename) = $this->enviar($envio_dte_xml, $caratula['RutEnvia'], $caratula['RutEmisor'], "60803000-K");
         if (!$envio_response) {
             return response()->json([
                 'message' => "Error al enviar el DTE",

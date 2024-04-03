@@ -24,7 +24,7 @@ class FacturaController extends DteController
     /**
      * Enviar DTE al SII
      */
-    protected function enviar($rutEnvia, $rutEmisor, $rutReceptor, $dte) {
+    public function enviar($dte, $rutEnvia, $rutEmisor, ?string $rutReceptor) {
         // definir datos que se usarán en el envío
         list($rutSender, $dvSender) = explode('-', str_replace('.', '', $rutEnvia));
         list($rutCompany, $dvCompany) = explode('-', str_replace('.', '', $rutEmisor));

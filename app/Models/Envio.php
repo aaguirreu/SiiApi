@@ -11,15 +11,6 @@ use Illuminate\Database\Eloquent\Builder;
  */
 class Envio extends Model
 {
-    public mixed $rut_emisor;
-    /**
-     * @var \Illuminate\Support\HigherOrderCollectionProxy|mixed|string
-     */
-    public mixed $estado;
-    /**
-     * @var \Illuminate\Support\HigherOrderCollectionProxy|mixed|null
-     */
-    public mixed $track_id;
     /**
      * The table associated with the model.
      *
@@ -27,7 +18,7 @@ class Envio extends Model
      */
     protected $table = 'envio_pasarela';
 
-    protected $fillable = ['estado', 'trackid'];
+    protected $fillable = ['estado', 'track_id'];
 
     use HasFactory;
 }

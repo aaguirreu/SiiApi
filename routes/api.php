@@ -20,14 +20,14 @@ use App\Http\Controllers\UserAuthController;
 Route::post('/tokens/create', [UserAuthController::class, 'createToken']);
 
 // Api/V1
-Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1'/*, 'middleware' => ['auth:sanctum']*/], function () {
+Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1', 'middleware' => ['auth:sanctum']], function () {
 
     // Rcof
     Route::post('rcof/{dte_filename}', 'ApiSetPruebaController@enviarRcofOnly');
 
     // Envio de Boletas
     Route::post('{ambiente}/boletas/envio', 'ApiBoletaController@boletaElectronica');
-    Route::post('{ambiente}/boletas/estado.envio', 'ApiBoletaController@estadoDteEnviado');
+    Route::post('{ambiente}/boletas/estado.envio', 'ApiBoletaController@estadoEnvioDte');
     Route::post('{ambiente}/boletas/estado.dte', 'ApiBoletaController@estadoDte');
 
     // Envio de Factura
@@ -65,7 +65,7 @@ Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1'/*, 
 
     // Pasarela
     // Envio de DTE y Boletas
-    Route::post('{ambiente}/pasarela/dte/envio', 'ApiPasarelaController@generarDte');
-    // Consulta de estado de envio
-    Route::post('{ambiente}/pasarela/dte/estado.envio', 'ApiPasarelaController@estadoEnvioDte');
+    Route::post('pasarela/{ambiente}/dte/envio', 'ApiPasarelaController@generarDte');
+    // Consulta de trackid
+    Route::post('pasarela/{ambiente}/dte/estado.envio', 'ApiPasarelaController@estadoEnvioDte');
 });

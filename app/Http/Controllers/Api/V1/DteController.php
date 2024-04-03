@@ -38,7 +38,7 @@ class DteController extends Controller
     protected function actualizarFolios($id): void
     {
         foreach (self::$folios as $key => $value) {
-            self::$ambiente == 0 ? $tipo = -$key : $tipo = $key;
+            self::$ambiente == 0 ? $tipo = $key : $tipo = -$key;
             if (self::$folios_inicial[$key] <= self::$folios[$key])
                 DB::table('secuencia_folio')->where('empresa_id', '=', $id)->where('tipo', '=', $tipo)->update(['cant_folios' => self::$folios[$key], 'updated_at' => $this->timestamp]);
         }

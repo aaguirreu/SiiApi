@@ -53,7 +53,7 @@ class ApiAdminController extends DteController
         if ($validator->fails()) {
             return response()->json([
                 'message' => "Error al agregar empresa",
-                'error' => $validator->errors()->first(),
+                'error' => $validator->errors()->all(),
             ], 400);
         }
 

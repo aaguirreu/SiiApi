@@ -28,7 +28,7 @@ class BoletaController extends DteController
         self::$tipos_dte = $tipos_dte;
         self::isToken();
     }
-    public function enviar($rut_envia, $rut_emisor, $dte): bool|array
+    public function enviar($dte, $rut_envia, $rut_emisor, ?string $rutReceptor): bool|array
     {
         // definir datos que se usarán en el envío
         list($rutSender, $dvSender) = explode('-', str_replace('.', '', $rut_envia));
