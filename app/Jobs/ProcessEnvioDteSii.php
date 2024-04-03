@@ -53,13 +53,11 @@ class ProcessEnvioDteSii implements ShouldQueue
             $controller = new ApiFacturaController();
             $controller->setAmbiente($this->arr['ambiente']);
         }
-
-
         $envio = Envio::find($this->arr['id']);
-        echo $envio->toJson() . "\n";
+        //echo $envio->toJson() . "\n";
 
         // enviar al SII
-        $envio_response = $controller->enviar($caratula['RutEnvia'], $caratula['RutEmisor'], $xml);
+        list($envio_response, $filename) = $controller->enviar($xml, $caratula['RutEnvia'], $caratula['RutEmisor'], $envio->rut_receptor);
         if (!$envio_response) {
             DB::table('envio_pasarela')
                 ->where('id', $this->arr['id'])
@@ -73,7 +71,7 @@ class ProcessEnvioDteSii implements ShouldQueue
                 ->where('id', $this->arr['id'])
                 ->update([
                     'estado' => 'enviado',
-                    'track_id' => $envio_response[0]->trackid ?? null,
+                    'track_id' => $envio_response->trackid ?? $envio_response->TRACKID,
                     'updated_at' => Carbon::now('America/Santiago')->toDateTimeString(),
                 ]);
         }
