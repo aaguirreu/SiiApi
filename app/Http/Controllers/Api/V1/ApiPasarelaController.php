@@ -205,12 +205,16 @@ class ApiPasarelaController extends PasarelaController
                 'error' => $validator->errors()->all(),
             ], 400);
         }
+
+        // Set ambiente certificacón
+        $this->setAmbiente($ambiente);
+
         $Envio = new Envio();
         /* @var Model $envio */
         $envio = $Envio->where('rut_emisor', '=', "{$request['rut_emisor']}-{$request['dv_emisor']}")
             ->where('rut_receptor','=',  "{$request['rut_receptor']}-{$request['dv_receptor']}")
             ->where('tipo_dte','=',  $request['tipo_dte'])
-            ->where('folio','=',  $ambiente == 0 ? $request['folio'] : -$request['folio'])
+            ->where('folio','=',  self::$ambiente == 0 ? $request['folio'] : -$request['folio'])
             ->latest()->first();
         if (!$envio)
             return response()->json([
