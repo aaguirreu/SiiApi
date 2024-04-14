@@ -166,7 +166,7 @@ class DteController extends Controller
             foreach ($Xml->children()->SetDTE->DTE as $dte) {
                 foreach ($dte->Documento as $documento) {
                     // Si el ambiente es de certificación transformar tipo dte a negativo.
-                    self::$ambiente == 0 ? $tipo_dte = -$documento->Encabezado->IdDoc->TipoDTE : $tipo_dte = $documento->Encabezado->IdDoc->TipoDTE;
+                    self::$ambiente == 0 ? $tipo_dte = $documento->Encabezado->IdDoc->TipoDTE : $tipo_dte = -$documento->Encabezado->IdDoc->TipoDTE;
                     // si envio_dte_id es null (dte recibido) no existe caf en base de datos, por lo tanto caf_id es null
                     $compra_venta == 1 ? $caf_id = DB::table('caf')
                             ->where('empresa_id', '=', $emisor_id)
@@ -346,7 +346,7 @@ class DteController extends Controller
         ));
         $response = curl_exec($curl);
         curl_close($curl);
-
+        //echo $response;
         $responseXml = simplexml_load_string($response);
 
         // Guardar Token con su timestamp en config.json
@@ -496,7 +496,7 @@ class DteController extends Controller
 
         // Compara si el número de folios restante en el caf es mayor o igual al número de documentos a enviar
         foreach (self::$folios as $key => $value) {
-            self::$ambiente == 0 ? $tipo_dte = -$key : $tipo_dte = $key;
+            self::$ambiente == 0 ? $tipo_dte = $key : $tipo_dte = -$key;
             $caf = DB::table('caf')->where('empresa_id', '=', $id)->where('tipo', '=', $tipo_dte)->latest()->first();
             $folio_final = $caf->folio_final;
             $cant_folio = DB::table('secuencia_folio')->where('id', '=', $caf->secuencia_id)->latest()->first()->cant_folios;
@@ -594,7 +594,7 @@ class DteController extends Controller
                     $tipo_dte = $documento->Encabezado->IdDoc->TipoDTE;
                     if (!in_array($tipo_dte, self::$tipos_dte))
                         $error['error'][] = "El TipoDTE no es válido. Debe ser $tipos_str. Encontrado: $tipo_dte";
-                    self::$ambiente == 0 ? $tipo = -$tipo_dte : $tipo = $tipo_dte;
+                    self::$ambiente == 0 ? $tipo = $tipo_dte : $tipo = -$tipo_dte;
                     try {
                         self::$folios[$tipo_dte] = DB::table('secuencia_folio')->where('empresa_id', '=', $id)->where('tipo', '=', $tipo)->value('cant_folios');
                     } catch (Exception $e){
@@ -614,7 +614,7 @@ class DteController extends Controller
     {
         $folios = [];
         foreach (self::$folios as $tipo => $cantidad) {
-            self::$ambiente == 0 ? $tipo_dte = -$tipo : $tipo_dte = $tipo;
+            self::$ambiente == 0 ? $tipo_dte = $tipo : $tipo_dte = -$tipo;
             $caf = DB::table('caf')->where('empresa_id', '=', $id)->where('tipo', '=', $tipo_dte)->latest()->first();
             if ($caf) {
                 try {
