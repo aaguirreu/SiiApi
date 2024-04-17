@@ -339,7 +339,7 @@ class ApiPasarelaController extends PasarelaController
                 $correos[] = [
                     "uid" => $message->uid,
                     "from" => $message->from[0]->mail,
-                    "subject" => $message->subject->get(),
+                    "subject" => mb_decode_mimeheader($message->subject),
                     "date" => $message->date->get(),
                     "xmlb64" => base64_encode($xml[0]->getContent()),
                     "pdfb64" => isset($pdf[0]) ? base64_encode($pdf[0]->getContent()) : null,
