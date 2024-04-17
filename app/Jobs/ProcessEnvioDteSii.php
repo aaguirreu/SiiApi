@@ -32,6 +32,7 @@ class ProcessEnvioDteSii implements ShouldQueue
      * @return void
      */
     public function __construct(
+        public Envio $envio,
         public array $arr
     ) {}
 
@@ -46,34 +47,28 @@ class ProcessEnvioDteSii implements ShouldQueue
         $caratula = $this->arr['caratula'];
 
         // Set ambiente certificacón y obtener token
-        if($this->arr['tipo'] == 'boleta'){
+        if($this->envio->tipo_dte == 39 || $this->envio->tipo_dte == 41){
             $controller = new ApiBoletaController();
-            $controller->setAmbiente($this->arr['ambiente']);
+            $controller->setAmbiente($this->envio->ambiente);
         } else {
             $controller = new ApiFacturaController();
-            $controller->setAmbiente($this->arr['ambiente']);
+            $controller->setAmbiente($this->envio->ambiente);
         }
-        $envio = Envio::find($this->arr['id']);
-        //echo $envio->toJson() . "\n";
 
         // enviar al SII
-        list($envio_response, $filename) = $controller->enviar($xml, $caratula['RutEnvia'], $caratula['RutEmisor'], $envio->rut_receptor);
+        list($envio_response, $filename) = $controller->enviar($xml, $caratula['RutEnvia'], $caratula['RutEmisor'], $this->envio->rut_receptor);
         if (!$envio_response) {
-            DB::table('envio_pasarela')
-                ->where('id', $this->arr['id'])
-                ->update([
-                    'estado' => 'error',
-                    'updated_at' => Carbon::now('America/Santiago')->toDateTimeString(),
-                ]);
+            $this->envio->estado = 'error';
+            $this->envio->glosa = \sasco\LibreDTE\Log::read()->msg;
+            $this->envio->updated_at = Carbon::now('America/Santiago')->toDateTimeString();
+            $this->envio->save();
         }
         else {
-            DB::table('envio_pasarela')
-                ->where('id', $this->arr['id'])
-                ->update([
-                    'estado' => 'enviado',
-                    'track_id' => $envio_response->trackid ?? $envio_response->TRACKID,
-                    'updated_at' => Carbon::now('America/Santiago')->toDateTimeString(),
-                ]);
+            $this->envio->estado = 'enviado';
+            $this->envio->glosa = 'Upload OK';
+            $this->envio->track_id = $envio_response->trackid ?? $envio_response->TRACKID;
+            $this->envio->updated_at = Carbon::now('America/Santiago')->toDateTimeString();
+            $this->envio->save();
         }
     }
 }

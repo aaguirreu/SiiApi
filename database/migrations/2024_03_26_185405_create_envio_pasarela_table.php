@@ -16,11 +16,13 @@ class CreateEnvioPasarelaTable extends Migration
         Schema::create('envio_pasarela', function (Blueprint $table) {
             $table->id();
             $table->string('estado')->nullable();
+            $table->string('glosa')->nullable();
             $table->string('rut_emisor');
             $table->string('rut_receptor');
             $table->integer('tipo_dte');
             $table->unsignedInteger('folio');
             $table->integer('track_id')->nullable();
+            $table->integer('ambiente');
             $table->timestamps();
         });
     }

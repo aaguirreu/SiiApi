@@ -20,7 +20,7 @@ use App\Http\Controllers\UserAuthController;
 Route::post('/tokens/create', [UserAuthController::class, 'createToken']);
 
 // Api/V1
-Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1', 'middleware' => ['auth:sanctum']], function () {
+Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1'/*, 'middleware' => ['auth:sanctum']*/], function () {
 
     // Rcof
     Route::post('rcof/{dte_filename}', 'ApiSetPruebaController@enviarRcofOnly');
@@ -28,12 +28,12 @@ Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1', 'm
     // Envio de Boletas
     Route::post('{ambiente}/boletas/envio', 'ApiBoletaController@boletaElectronica');
     Route::post('{ambiente}/boletas/estado.envio', 'ApiBoletaController@estadoEnvioDte');
-    Route::post('{ambiente}/boletas/estado.dte', 'ApiBoletaController@estadoDte');
+    Route::post('{ambiente}/boletas/estado.documento', 'ApiBoletaController@estadoDocumento');
 
     // Envio de Factura
     Route::post('{ambiente}/dte/envio', 'ApiFacturaController@envioDte');
     Route::post('{ambiente}/dte/estado.envio', 'ApiFacturaController@estadoEnvioDte');
-    Route::post('{ambiente}/dte/estado.dte', 'ApiFacturaController@estadoDte');
+    Route::post('{ambiente}/dte/estado.documento', 'ApiFacturaController@estadoDocumento');
     Route::post('{ambiente}/dte/respuesta', 'ApiFacturaController@enviarRespuestaDocumento');
 
     // Generar PDF
@@ -66,6 +66,8 @@ Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1', 'm
     // Pasarela
     // Envio de DTE y Boletas
     Route::post('pasarela/{ambiente}/dte/envio', 'ApiPasarelaController@generarDte');
-    // Consulta de trackid
-    Route::post('pasarela/{ambiente}/dte/estado.envio', 'ApiPasarelaController@estadoEnvioDte');
+    // Consulta de estado de envio
+    Route::post('pasarela/{ambiente}/dte/estado.envio', 'ApiPasarelaController@estadoEnvio');
+    // Consulta de estado de documento
+    Route::post('pasarela/{ambiente}/dte/estado.documento', 'ApiPasarelaController@estadoDocumento');
 });

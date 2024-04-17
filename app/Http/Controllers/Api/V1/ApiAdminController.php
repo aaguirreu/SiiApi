@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Jobs\ProcessEnvioDteSii;
 use App\Models\Dte;
+use App\Models\Envio;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
 use Illuminate\Http\JsonResponse;
@@ -13,6 +14,10 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 use Exception;
+use sasco\LibreDTE\Log;
+use sasco\LibreDTE\Sii;
+use sasco\LibreDTE\Sii\Autenticacion;
+use sasco\LibreDTE\XML;
 use SimpleXMLElement;
 
 class ApiAdminController extends DteController
@@ -248,17 +253,11 @@ class ApiAdminController extends DteController
 
     public function testCaLogin()
     {
-        ProcessEnvioDteSii::dispatch(Dte::query()->where('id', 1)->first());
-        return Dte::query()->where('id', 1)->first();
+        ProcessEnvioDteSii::dispatch(Envio::query()->where('id', 13)->first());
+        return Envio::query()->where('id', 13)->first();
         //echo $user =  auth('sanctum')->user();
 
-        $header = [
-            'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 OPR/106.0.0.0',
-            //'Cookie' => 's_cc=true',
-            //'Connection' => 'keep-alive',
-        ];
-
-        $pfxPath = env('CERT_PATH');
+        $pfx_path = env('CERT_PATH');
         $password = env('CERT_PASS');
 
         $url = 'https://herculesr.sii.cl/cgi_AUT2000/CAutInicio.cgi?https://misiir.sii.cl/cgi_misii/siihome.cgi';
@@ -275,7 +274,7 @@ class ApiAdminController extends DteController
                 ],
                 'curl' => [
                     CURLOPT_SSLCERTTYPE => 'P12',
-                    CURLOPT_SSLCERT => $pfxPath,
+                    CURLOPT_SSLCERT => $pfx_path,
                     CURLOPT_SSLCERTPASSWD => $password,
                 ],
                 'allow_redirects' => true,
