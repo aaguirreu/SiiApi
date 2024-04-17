@@ -274,7 +274,7 @@ class ApiPasarelaController extends PasarelaController
             $controller->setAmbiente($ambiente);
         }
 
-        return $controller->estadoDte($request, $ambiente);
+        return $controller->estadoDocumento($request, $ambiente);
 
     }
 }
