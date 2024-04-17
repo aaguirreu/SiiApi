@@ -20,7 +20,7 @@ use App\Http\Controllers\UserAuthController;
 Route::post('/tokens/create', [UserAuthController::class, 'createToken']);
 
 // Api/V1
-Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1'/*, 'middleware' => ['auth:sanctum']*/], function () {
+Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1', 'middleware' => ['auth:sanctum']], function () {
 
     // Rcof
     Route::post('rcof/{dte_filename}', 'ApiSetPruebaController@enviarRcofOnly');
