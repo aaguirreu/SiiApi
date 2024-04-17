@@ -59,9 +59,9 @@ Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1'/*, 
     Route::get('usuario/{id}', 'ApiUserController@obtenerEmpresa')
         ->whereNumber('id');
     // Obtener dtes desde correo
-    Route::get('usuario/dtes/correos', 'ApiUserController@obtenerDtesCorreo');
+    Route::post('usuario/dtes/correos', 'ApiUserController@obtenerDtesCorreo');
     // Importar dtes desde correo
-    Route::get('usuario/dtes/correos.importar', 'ApiUserController@importarDte');
+    Route::post('usuario/dtes/correos.importar', 'ApiUserController@importarDte');
 
     // Pasarela
     // Envio de DTE y Boletas

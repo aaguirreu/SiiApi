@@ -138,8 +138,9 @@ class ApiUserController extends Controller
             }
         }
 
-        $client->disconnect();
-        $cm->disconnect();
+        # Revisar error
+        //$client->disconnect();
+        //$cm->disconnect();
 
         return response()->json(json_decode(json_encode($correos, true)), 200);
     }
@@ -236,8 +237,9 @@ class ApiUserController extends Controller
             $message->setFlag('Seen');
         }
 
-        $client->disconnect();
-        $cm->disconnect();
+        # Revisar error
+        //$client->disconnect();
+        //$cm->disconnect();
 
         return response()->json($correos, 200);
     }
