@@ -345,7 +345,7 @@ class ApiPasarelaController extends PasarelaController
                     "pdfb64" => isset($pdf[0]) ? base64_encode($pdf[0]->getContent()) : null,
                     "content" => $attachments[0]['content'],
                 ];
-                //$message->setFlag('Seen');
+                $message->setFlag('Seen');
             }
         }
 
