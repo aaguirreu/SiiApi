@@ -22,6 +22,8 @@ use sasco\LibreDTE\Sii\Folios;
 use SimpleXMLElement;
 use Webklex\PHPIMAP\Attachment;
 use Webklex\PHPIMAP\ClientManager;
+use Webklex\PHPIMAP\Folder;
+use Webklex\PHPIMAP\Message;
 use Webklex\PHPIMAP\Support\MessageCollection;
 
 /**
@@ -295,10 +297,12 @@ class ApiPasarelaController extends PasarelaController
 
     }
 
-    public function importarDte(Request $request, $ambiente): JsonResponse
+    /**
+     * Importa los DTEs desde el correo
+     */
+    public function importarDtesCorreo(Request $request): JsonResponse
     {
-        $body = $request->only(['mail', 'password', 'host', 'port', 'protocol', 'folder', 'correos']);
-
+        $body = $request->only(['mail', 'password', 'host', 'port', 'protocol', 'folder']);
         $cm = new ClientManager(base_path().'/config/imap.php');
         $client = $cm->make([
             'host'          => $body['host'],
@@ -316,75 +320,46 @@ class ApiPasarelaController extends PasarelaController
             return Response::json(['error' => $e->getMessage()], 500);
         }
 
+        // Obtener todos los correos no leídos en el folder INBOX
+        /* @var Folder $folder */
+        $folder = $client->getFolder($body['folder'] ?? 'INBOX');
+        $unseenMessages = $folder->query()->unseen()->get();
+
+        // Procesar cada mensaje no leído
         $correos = [];
-        foreach ($body['correos'] as $correo) {
-            try {
-                $folder = $client->getFolder($body['folder'] ?? 'INBOX');
-                $query = $folder->messages();
-                $message = $query->getMessage($correo['uid']);
-            } catch (Exception $e) {
+        /* @var Message $message */
+        foreach ($unseenMessages as $message) {
+            if ($message->hasAttachments()) {
+                // Verificar si adjunto es un DTE
+                list($xml, $pdf) = $this->procesarAttachments($message);
+
+                // Quitar firmas a adjuntos
+                $attachments = $this->quitarFirmas($xml);
+
                 $correos[] = [
-                    'uid' => $correo['uid'],
-                    'error' => $e->getMessage()
+                    "uid" => $message->uid,
+                    "from" => $message->from[0]->mail,
+                    "subject" => $message->subject->get(),
+                    "date" => $message->date->get(),
+                    "xmlb64" => base64_encode($xml[0]->getContent()),
+                    "pdfb64" => isset($pdf[0]) ? base64_encode($pdf[0]->getContent()) : null,
+                    "content" => $attachments[0]['content'],
                 ];
+                //$message->setFlag('Seen');
             }
-            if(!empty($message->getFlags()->toArray())) {
-                $correos[] = [
-                    'uid' => $correo['uid'],
-                    'message' => 'Este correo ya ha sido leído'
-                ];
-            }
-
-            if(empty($message->getFlags()->toArray()))
-                if ($message->hasAttachments()) {
-                    // Verificar si adjunto es un DTE
-                    $attachments = $this->procesarAttachments($message);
-
-                    /* @var  Attachment $Attachment*/
-                    foreach ($attachments as $Attachment) {
-                        try {
-                            // Revisar si el DTE es válido y enviar respuesta al correo emisor
-                            $rpta = new FacturaController([33, 34, 46, 52, 56, 61, 110, 111, 112]);
-
-                            // Obtener respuesta del Dte
-                            $respuesta = $rpta->respuestaEnvio($Attachment);
-                            if (isset($respuesta['error'])) {
-                                $correos[] = [
-                                    'uid' => $correo['uid'],
-                                    'error' => $respuesta['error']
-                                ];
-                                break;
-                            }
-
-                            // Enviar respuesta por correo
-                            //Mail::to($message->from[0]->mail)->send(new DteResponse($Attachment->getName(), $respuesta));
-
-                            $correos[] = [
-                                'uid' => $correo['uid'],
-                                'message' => 'DTE importado correctamente'
-                            ];
-
-                        } catch (Exception $e) {
-                            $correos[] = [
-                                'uid' => $correo['uid'],
-                                'error' => $e->getMessage()
-                            ];
-                        }
-                    }
-                }
-            $message->setFlag('Seen');
         }
 
         # Revisar error
         //$client->disconnect();
         //$cm->disconnect();
 
-        return response()->json($correos, 200);
+        return response()->json(json_decode(json_encode($correos, true)), 200);
     }
 
     protected function procesarAttachments($message): array
     {
         $attachments_arr = [];
+        $pdf_arr = [];
         /* @var  MessageCollection $Attachments*/
         $Attachments = $message->getAttachments();
         if (!$Attachments->isEmpty()) {
@@ -403,10 +378,12 @@ class ApiPasarelaController extends PasarelaController
                     if($tipoXml == 'EnvioDTE') {
                         $attachments_arr[] = $Attachment;
                     }
+                } elseif (str_ends_with($Attachment->getName(), '.pdf')){
+                    $pdf_arr[] = $Attachment;
                 }
             }
         }
-        return $attachments_arr;
+        return [$attachments_arr, $pdf_arr];
     }
 
     protected function quitarFirmas($attachments): array

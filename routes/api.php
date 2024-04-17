@@ -70,4 +70,7 @@ Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1', 'm
     Route::post('pasarela/{ambiente}/dte/estado.envio', 'ApiPasarelaController@estadoEnvio');
     // Consulta de estado de documento
     Route::post('pasarela/{ambiente}/dte/estado.documento', 'ApiPasarelaController@estadoDocumento');
+    // Importar Dtes Correo
+    Route::post('pasarela/dtes/correos.importar', 'ApiPasarelaController@importarDtesCorreo');
+
 });
