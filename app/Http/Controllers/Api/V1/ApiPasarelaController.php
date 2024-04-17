@@ -42,11 +42,12 @@ class ApiPasarelaController extends PasarelaController
     public function generarDte(Request $request, $ambiente)//: SimpleXMLElement
     {
         //return base64_decode($request->json()->all()['base64']);
-
         /*return response()->json([
             'xml' => base64_encode($request->json()->get('xml'))
         ], 200);*/
-
+        /*return response()->json([
+            'xml' => base64_encode($request->getContent())
+        ], 200);*/
 
         $validator = Validator::make($request->all(), [
             'Caratula' => 'required',
@@ -137,51 +138,51 @@ class ApiPasarelaController extends PasarelaController
         $envio = $Envio->where('rut_emisor', '=', $caratula['RutEmisor'])
             ->where('rut_receptor', '=', $caratula['RutReceptor'])
             ->where('tipo_dte', '=', $dte['Documentos'][0]['Encabezado']['IdDoc']['TipoDTE'])
-            ->where('folio', '=', self::$ambiente == 0 ? $dte['Documentos'][0]['Encabezado']['IdDoc']['Folio'] : -(int)$dte['Documentos'][0]['Encabezado']['IdDoc']['Folio'])
+            ->where('folio', '=', $dte['Documentos'][0]['Encabezado']['IdDoc']['Folio'])
+            ->where('ambiente', '=', self::$ambiente)
             ->latest()->first();
 
         // Si no existe, crear
         if ($envio) {
             $envio_id = $envio->id;
         } else {
-            $envio_id = $Envio->insertGetId([
-                'estado' => null,
-                'rut_emisor' => $caratula['RutEmisor'],
-                'rut_receptor' => $caratula['RutReceptor'],
-                'tipo_dte' => $dte['Documentos'][0]['Encabezado']['IdDoc']['TipoDTE'],
-                // Folio negativo para ambiente certificación
-                'folio' => self::$ambiente == 0 ? $dte['Documentos'][0]['Encabezado']['IdDoc']['Folio'] : -(int)$dte['Documentos'][0]['Encabezado']['IdDoc']['Folio'],
-                'track_id' => null,
-                'created_at' => $this->timestamp,
-                'updated_at' => $this->timestamp,
-            ]);
-        }
-
-        // Si Documento es de tipo 39 o 41 es Boleta
-        if (in_array(39, $tipos_dte) || in_array(41, $tipos_dte)) {
-            $tipo = 'boleta';
-        } else {
-            $tipo = 'dte';
+            try {
+                $envio_id = $Envio->insertGetId([
+                    'estado' => null,
+                    'rut_emisor' => $caratula['RutEmisor'],
+                    'rut_receptor' => $caratula['RutReceptor'],
+                    'tipo_dte' => $dte['Documentos'][0]['Encabezado']['IdDoc']['TipoDTE'],
+                    // Folio negativo para ambiente certificación
+                    'folio' => $dte['Documentos'][0]['Encabezado']['IdDoc']['Folio'],
+                    'track_id' => null,
+                    'ambiente' => self::$ambiente,
+                    'created_at' => $this->timestamp,
+                    'updated_at' => $this->timestamp,
+                ]);
+                $envio = $Envio->find($envio_id);
+            } catch (Exception $e) {
+                return response()->json([
+                    'error' => "Error al guardar en la base de datos",
+                    'message' => $e->getMessage(),
+                ], 400);
+            }
         }
 
         $base64_xml = base64_encode($envio_dte_xml);
         $envio_arr = [
-            'id' => $envio_id,
             'caratula' => $caratula,
             'xml' => $base64_xml,
-            'tipo' => $tipo,
-            'ambiente' => self::$ambiente == 0 ? 'produccion' : 'certificacion',
         ];
 
         // Dispatch job para enviar a SII de manera asincrónica
-        ProcessEnvioDteSii::dispatch($envio_arr);
+        ProcessEnvioDteSii::dispatch($envio, $envio_arr);
 
         return response()->json([
             'dte_xml' => $base64_xml,
         ], 200);
     }
 
-    public function estadoEnvioDte(Request $request, $ambiente)
+    public function estadoEnvio(Request $request, $ambiente)
     {
         $validator = Validator::make($request->all(), [
             'rut_emisor' => 'required|string',
@@ -206,23 +207,8 @@ class ApiPasarelaController extends PasarelaController
             ], 400);
         }
 
-        // Set ambiente certificacón
-        $this->setAmbiente($ambiente);
-
-        $Envio = new Envio();
-        /* @var Model $envio */
-        $envio = $Envio->where('rut_emisor', '=', "{$request['rut_emisor']}-{$request['dv_emisor']}")
-            ->where('rut_receptor','=',  "{$request['rut_receptor']}-{$request['dv_receptor']}")
-            ->where('tipo_dte','=',  $request['tipo_dte'])
-            ->where('folio','=',  self::$ambiente == 0 ? $request['folio'] : -$request['folio'])
-            ->latest()->first();
-        if (!$envio)
-            return response()->json([
-                'error' => "No se encontró el envío",
-            ], 404);
-
         // Si es boleta o DTE
-        if($request->tipo_dte == 39 || $request->tipo_dte == 41){
+        if($request->tipo_dte == 39 || $request->tipo_dte == 41) {
             $controller = new ApiBoletaController();
             $controller->setAmbiente($ambiente);
         } else {
@@ -230,10 +216,65 @@ class ApiPasarelaController extends PasarelaController
             $controller->setAmbiente($ambiente);
         }
 
+        $Envio = new Envio();
+        /* @var Model $envio */
+        $envio = $Envio->where('rut_emisor', '=', "{$request['rut_emisor']}-{$request['dv_emisor']}")
+            ->where('rut_receptor','=',  "{$request['rut_receptor']}-{$request['dv_receptor']}")
+            ->where('tipo_dte','=',  $request['tipo_dte'])
+            ->where('folio','=',  $request['folio'])
+            ->where('ambiente','=',  self::$ambiente)
+            ->latest()->first();
+        if (!$envio)
+            return response()->json([
+                'error' => "No se encontró el envío",
+            ], 404);
+
         $request['rut'] = $request['rut_emisor'];
         $request['dv'] = $request['dv_emisor'];
         $request['track_id'] = $envio->track_id;
 
         return $controller->estadoEnvioDte($request, $ambiente);
+    }
+
+    public function estadoDocumento(Request $request, $ambiente)
+    {
+        $validator = Validator::make($request->all(), [
+            'rut' => 'required|string',
+            'dv' => 'required|string',
+            'tipo' => 'required|integer',
+            'folio' => 'required|integer',
+            'rut_receptor' => 'required|string',
+            'dv_receptor' => 'required|string',
+            'monto' => 'required|numeric',
+            'fecha_emision' => 'required|date_format:d-m-Y',
+        ], [
+            'rut.required' => 'Rut Emisor es requerido',
+            'dv.required' => 'Dv Emisor es requerido',
+            'tipo.required' => 'Tipo DTE es requerido',
+            'folio.required' => 'Folio es requerido',
+            'rut_receptor.required' => 'Rut Receptor es requerido',
+            'dv_receptor.required' => 'Dv Receptor es requerido',
+            'monto.required' => 'Monto es requerido',
+            'fecha_emision.required' => 'Fecha de emisión es requerida',
+        ]);
+
+        // Si falla la validación, retorna una respuesta Json con el error
+        if ($validator->fails()) {
+            return response()->json([
+                'error' => $validator->errors()->all(),
+            ], 400);
+        }
+
+        // Si es boleta o DTE
+        if($request->tipo == 39 || $request->tipo == 41) {
+            $controller = new ApiBoletaController();
+            $controller->setAmbiente($ambiente);
+        } else {
+            $controller = new ApiFacturaController();
+            $controller->setAmbiente($ambiente);
+        }
+
+        return $controller->estadoDte($request, $ambiente);
+
     }
 }

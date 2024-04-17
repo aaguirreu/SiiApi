@@ -285,7 +285,7 @@ class ApiFacturaController extends FacturaController
      * @return bool|string
      * Estado de DTE
      */
-    public function estadoDte(Request $request, $ambiente)
+    public function estadoDocumento(Request $request, $ambiente)
     {
         // Leer string como json
         $body = json_decode(json_encode($request->json()->all()));

@@ -167,7 +167,7 @@ class ApiBoletaController extends BoletaController
         ], 200);
     }
 
-    public function estadoDte(Request $request, $ambiente): JsonResponse
+    public function estadoDocumento(Request $request, $ambiente): JsonResponse
     {
         // setear timestamp
         $this->timestamp = Carbon::now('America/Santiago');
