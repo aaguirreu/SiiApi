@@ -332,6 +332,9 @@ class ApiPasarelaController extends PasarelaController
             if ($message->hasAttachments()) {
                 // Verificar si adjunto es un DTE
                 list($xml, $pdf) = $this->procesarAttachments($message);
+                if (!isset($xml[0])) {
+                    continue;
+                }
 
                 // Quitar firmas a adjuntos
                 $attachments = $this->quitarFirmas($xml);
@@ -378,7 +381,7 @@ class ApiPasarelaController extends PasarelaController
                     if($tipoXml == 'EnvioDTE') {
                         $attachments_arr[] = $Attachment;
                     }
-                } elseif (str_ends_with($Attachment->getName(), '.pdf')){
+                } elseif (str_ends_with($Attachment->getName(), '.pdf')) {
                     $pdf_arr[] = $Attachment;
                 }
             }
