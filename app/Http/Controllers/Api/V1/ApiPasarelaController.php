@@ -142,7 +142,6 @@ class ApiPasarelaController extends PasarelaController
 
         // Verificar si ya existe el envío
         $envio = $Envio->where('rut_emisor', '=', $caratula['RutEmisor'])
-            ->where('rut_receptor', '=', $caratula['RutReceptor'])
             ->where('tipo_dte', '=', $dte['Documentos'][0]['Encabezado']['IdDoc']['TipoDTE'])
             ->where('folio', '=', $dte['Documentos'][0]['Encabezado']['IdDoc']['Folio'])
             ->where('ambiente', '=', self::$ambiente)
@@ -156,9 +155,7 @@ class ApiPasarelaController extends PasarelaController
                 $envio_id = $Envio->insertGetId([
                     'estado' => null,
                     'rut_emisor' => $caratula['RutEmisor'],
-                    'rut_receptor' => $caratula['RutReceptor'],
                     'tipo_dte' => $dte['Documentos'][0]['Encabezado']['IdDoc']['TipoDTE'],
-                    // Folio negativo para ambiente certificación
                     'folio' => $dte['Documentos'][0]['Encabezado']['IdDoc']['Folio'],
                     'track_id' => null,
                     'ambiente' => self::$ambiente,
