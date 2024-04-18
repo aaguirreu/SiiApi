@@ -42,7 +42,7 @@ class ApiPasarelaController extends PasarelaController
 
     /**
      * Genera un DTE
-     *
+     * Envío Async (Jobs)
      * @param Request $request
      */
     public function generarDte(Request $request, $ambiente)//: SimpleXMLElement
@@ -188,20 +188,20 @@ class ApiPasarelaController extends PasarelaController
         ], 200);
     }
 
-    public function estadoEnvio(Request $request, $ambiente)
+    /**
+     * Consulta estado de envío de un DTE
+     * @param Request $request
+     */
+    public function estadoEnvio(Request $request, $ambiente) : JsonResponse|string
     {
         $validator = Validator::make($request->all(), [
             'rut_emisor' => 'required|string',
             'dv_emisor' => 'required|string',
-            'rut_receptor' => 'required|string',
-            'dv_receptor' => 'required|string',
             'tipo_dte' => 'required|integer',
             'folio' => 'required|integer',
         ], [
             'rut_emisor.required' => 'Rut Emisor es requerido',
             'dv_emisor.required' => 'Dv Emisor es requerido',
-            'rut_receptor.required' => 'Rut Receptor es requerido',
-            'dv_receptor.required' => 'Dv Receptor es requerido',
             'tipo_dte.required' => 'Tipo DTE es requerido',
             'folio.required' => 'Folio es requerido',
         ]);
@@ -222,10 +222,11 @@ class ApiPasarelaController extends PasarelaController
             $controller->setAmbiente($ambiente);
         }
 
+        echo self::$ambiente;
+
         $Envio = new Envio();
         /* @var Model $envio */
         $envio = $Envio->where('rut_emisor', '=', "{$request['rut_emisor']}-{$request['dv_emisor']}")
-            ->where('rut_receptor','=',  "{$request['rut_receptor']}-{$request['dv_receptor']}")
             ->where('tipo_dte','=',  $request['tipo_dte'])
             ->where('folio','=',  $request['folio'])
             ->where('ambiente','=',  self::$ambiente)
@@ -255,7 +256,11 @@ class ApiPasarelaController extends PasarelaController
         return $controller->estadoEnvioDte($request, $ambiente);
     }
 
-    public function estadoDocumento(Request $request, $ambiente)
+    /**
+     * Consulta estado de un DTE (Documento)
+     * @param Request $request
+     */
+    public function estadoDocumento(Request $request, $ambiente) : JsonResponse|string
     {
         $validator = Validator::make($request->all(), [
             'rut' => 'required|string',
@@ -299,9 +304,30 @@ class ApiPasarelaController extends PasarelaController
 
     /**
      * Importa los DTEs desde el correo
+     * @param Request $request
      */
     public function importarDtesCorreo(Request $request): JsonResponse
     {
+        $validator = Validator::make($request->all(), [
+        /*'mail', 'password', 'host', 'port', 'protocol', 'folder'*/
+            'mail' => 'required|string',
+            'password' => 'required|string',
+            'host' => 'required|string',
+            'port' => 'required|integer',
+        ], [
+            'mail.required' => 'mail es requerido',
+            'password.required' => 'password es requerida',
+            'host.required' => 'host es requerido',
+            'port.required' => 'port es requerido',
+        ]);
+
+        // Si falla la validación, retorna una respuesta Json con el error
+        if ($validator->fails()) {
+            return response()->json([
+                'error' => $validator->errors()->all(),
+            ], 400);
+        }
+
         $body = $request->only(['mail', 'password', 'host', 'port', 'protocol', 'folder']);
         $cm = new ClientManager(base_path().'/config/imap.php');
         $client = $cm->make([
@@ -369,6 +395,19 @@ class ApiPasarelaController extends PasarelaController
         return response()->json(json_decode(json_encode($correos, true)), 200);
     }
 
+    /**
+     * Responder a un documento
+     * @param Request $request
+     */
+    public function respuestaDocumento() //: JsonResponse
+    {
+
+    }
+
+    /**
+     * Procesar los adjuntos del correo.
+     * Función utilizada por importarDtesCorreo()
+     */
     protected function procesarAttachments($message): array
     {
         $dte_arr = [];
@@ -399,6 +438,10 @@ class ApiPasarelaController extends PasarelaController
         return [$dte_arr, $pdf_arr];
     }
 
+    /**
+     * Quitar firmas de los DTEs
+     * Función utilizada por importarDtesCorreo()
+     */
     protected function quitarFirmas($attachments): array
     {
         $attachments_arr = [];
