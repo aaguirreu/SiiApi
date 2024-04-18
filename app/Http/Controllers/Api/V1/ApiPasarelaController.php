@@ -222,8 +222,6 @@ class ApiPasarelaController extends PasarelaController
             $controller->setAmbiente($ambiente);
         }
 
-        echo self::$ambiente;
-
         $Envio = new Envio();
         /* @var Model $envio */
         $envio = $Envio->where('rut_emisor', '=', "{$request['rut_emisor']}-{$request['dv_emisor']}")
