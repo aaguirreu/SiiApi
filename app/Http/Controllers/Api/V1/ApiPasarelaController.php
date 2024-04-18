@@ -331,23 +331,34 @@ class ApiPasarelaController extends PasarelaController
         foreach ($unseenMessages as $message) {
             if ($message->hasAttachments()) {
                 // Verificar si adjunto es un DTE
-                list($xml, $pdf) = $this->procesarAttachments($message);
-                if (!isset($xml[0])) {
+                list($dte_arr, $pdf_arr) = $this->procesarAttachments($message);
+                if (!isset($dte_arr[0])) {
                     continue;
                 }
+                // Solo se retornará el pdf si existe 1 xml y 1 pdf en el correo
+                if (!(count($dte_arr) == 1 && count($pdf_arr) == 1)) {
+                    $pdf_arr[0] = null;
+                }
 
-                // Quitar firmas a adjuntos
-                $attachments = $this->quitarFirmas($xml);
+                $attachments = $this->quitarFirmas($dte_arr);
 
-                $correos[] = [
-                    "uid" => $message->uid,
-                    "from" => $message->from[0]->mail,
-                    "subject" => mb_decode_mimeheader($message->subject),
-                    "date" => $message->date->get(),
-                    "xmlb64" => base64_encode($xml[0]->getContent()),
-                    "pdfb64" => isset($pdf[0]) ? base64_encode($pdf[0]->getContent()) : null,
-                    "content" => $attachments[0]['content'],
-                ];
+                // Si xml tiene más de un DTE, dividir en varios
+                /**
+                 * @var Attachment $dte
+                 */
+                foreach ($dte_arr as $key => $dte) {
+                    // Quitar firmas a adjuntos
+
+                    $correos[] = [
+                        "uid" => $message->uid,
+                        "from" => $message->from[0]->mail,
+                        "subject" => mb_decode_mimeheader($message->subject),
+                        "date" => $message->date->get(),
+                        "xmlb64" => base64_encode($dte->getContent()),
+                        "pdfb64" => isset($pdf_arr[0]) ? base64_encode($pdf_arr[0]->getContent()) : "",
+                        "content" => $attachments[$key]['content'],
+                    ];
+                }
                 $message->setFlag('Seen');
             }
         }
@@ -355,13 +366,12 @@ class ApiPasarelaController extends PasarelaController
         # Revisar error
         //$client->disconnect();
         //$cm->disconnect();
-
         return response()->json(json_decode(json_encode($correos, true)), 200);
     }
 
     protected function procesarAttachments($message): array
     {
-        $attachments_arr = [];
+        $dte_arr = [];
         $pdf_arr = [];
         /* @var  MessageCollection $Attachments*/
         $Attachments = $message->getAttachments();
@@ -374,19 +384,19 @@ class ApiPasarelaController extends PasarelaController
              */
             foreach ($Attachments as $Attachment) {
                 // Verificar si el adjunto es un xml
-                if(str_ends_with($Attachment->getName(), '.xml')) {
+                if(str_ends_with(strtolower($Attachment->getName()), '.xml')) {
                     // Ver si el xmles un dte o una respuesta a un dte
                     $Xml = new SimpleXMLElement($Attachment->getContent());
                     $tipoXml = $Xml[0]->getName();
                     if($tipoXml == 'EnvioDTE') {
-                        $attachments_arr[] = $Attachment;
+                        $dte_arr[] = $Attachment;
                     }
-                } elseif (str_ends_with($Attachment->getName(), '.pdf')) {
+                } elseif (str_ends_with(strtolower($Attachment->getName()), '.pdf')) {
                     $pdf_arr[] = $Attachment;
                 }
             }
         }
-        return [$attachments_arr, $pdf_arr];
+        return [$dte_arr, $pdf_arr];
     }
 
     protected function quitarFirmas($attachments): array
