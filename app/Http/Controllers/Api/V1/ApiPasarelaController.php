@@ -18,7 +18,9 @@ use Illuminate\Support\Facades\Response;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use sasco\LibreDTE\Log;
+use sasco\LibreDTE\Sii;
 use sasco\LibreDTE\Sii\Folios;
+use sasco\LibreDTE\Sii\RegistroCompraVenta;
 use SimpleXMLElement;
 use Webklex\PHPIMAP\Attachment;
 use Webklex\PHPIMAP\ClientManager;
@@ -394,9 +396,34 @@ class ApiPasarelaController extends PasarelaController
      * Responder a un documento
      * @param Request $request
      */
-    public function respuestaDocumento() //: JsonResponse
+    public function respuestaDocumento(Request $request): JsonResponse
     {
+        $validator = Validator::make($request->all(), [
+            'rut_emisor' => 'required|string',
+            'dv_emisor' => 'required|string',
+            'tipo_dte' => 'required|integer',
+            'folio' => 'required|integer',
+            'accion_doc' => 'required|string',
+        ], [
+            'rut_emisor.required' => 'Rut Emisor es requerido',
+            'dv_emisor.required' => 'Dv Emisor es requerido',
+            'tipo_dte.required' => 'Tipo DTE es requerido',
+            'folio.required' => 'Folio es requerido',
+            'accion_doc.required' => 'Acción es requerida',
+        ]);
 
+        // Si falla la validación, retorna una respuesta Json con el error
+        if ($validator->fails()) {
+            return response()->json([
+                'error' => $validator->errors()->all(),
+            ], 400);
+        }
+
+        $respuesta_doc = new RegistroCompraVenta($this->obtenerFirma());
+
+        $response = $respuesta_doc->ingresarAceptacionReclamoDoc($request->rut_emisor, $request->dv_emisor, $request->tipo_dte, $request->folio, $request->accion_doc);
+
+        return response()->json($response, 200);
     }
 
     /**

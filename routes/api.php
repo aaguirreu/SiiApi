@@ -21,7 +21,6 @@ Route::post('/tokens/create', [UserAuthController::class, 'createToken']);
 
 // Api/V1
 Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1', 'middleware' => ['auth:sanctum']], function () {
-
     // Rcof
     Route::post('rcof/{dte_filename}', 'ApiSetPruebaController@enviarRcofOnly');
 
@@ -70,7 +69,8 @@ Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1', 'm
     Route::post('pasarela/{ambiente}/dte/estado.envio', 'ApiPasarelaController@estadoEnvio');
     // Consulta de estado de documento
     Route::post('pasarela/{ambiente}/dte/estado.documento', 'ApiPasarelaController@estadoDocumento');
+    // Respuesta de Documento
+    Route::post('pasarela/{ambiente}/dte/respuesta.documento', 'ApiPasarelaController@respuestaDocumento');
     // Importar Dtes Correo
     Route::post('pasarela/dtes/correos.importar', 'ApiPasarelaController@importarDtesCorreo');
-
 });
