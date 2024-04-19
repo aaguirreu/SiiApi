@@ -17,6 +17,7 @@ class CreateEnvioPasarelaTable extends Migration
             $table->id();
             $table->string('estado')->nullable();
             $table->string('glosa')->nullable();
+            $table->string('rut_emisor');
             $table->integer('tipo_dte');
             $table->unsignedInteger('folio');
             $table->integer('track_id')->nullable();
