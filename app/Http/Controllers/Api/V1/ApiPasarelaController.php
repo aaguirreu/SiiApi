@@ -306,8 +306,7 @@ class ApiPasarelaController extends PasarelaController
     public function importarDtesCorreo(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-        /*'mail', 'password', 'host', 'port', 'protocol', 'folder'*/
-            'mail' => 'required|string',
+            'mail' => 'required|email',
             'password' => 'required|string',
             'host' => 'required|string',
             'port' => 'required|integer',
@@ -396,21 +395,45 @@ class ApiPasarelaController extends PasarelaController
      * Responder a un documento
      * @param Request $request
      */
-    public function respuestaDocumento(Request $request): JsonResponse
+    public function respuestaDocumento(Request $request, $ambiente)//: JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'rut_emisor' => 'required|string',
-            'dv_emisor' => 'required|string',
-            'tipo_dte' => 'required|integer',
-            'folio' => 'required|integer',
+            'rut_receptor' => 'required|string',
+            'dte_xml' => 'required|string',
+            'estado' => 'required|integer',
             'accion_doc' => 'required|string',
         ], [
-            'rut_emisor.required' => 'Rut Emisor es requerido',
-            'dv_emisor.required' => 'Dv Emisor es requerido',
-            'tipo_dte.required' => 'Tipo DTE es requerido',
-            'folio.required' => 'Folio es requerido',
-            'accion_doc.required' => 'Acción es requerida',
+            'rut_receptor.required' => 'rut_receptor es requerido',
+            'dte_xml.required' => 'dte_xml es requerido',
+            'estado.required' => 'estado es requerido',
+            'accion_doc.required' => 'accion_doc es requerida',
         ]);
+
+        if($request->correo_receptor) {
+            $validator = Validator::make($request->all(), [
+                'correo_receptor' => 'required|email',
+                'mail' => 'required|email',
+                'password' => 'required|string',
+                'host' => 'required|string',
+                'port' => 'required|integer',
+            ], [
+                'correo_receptor' => 'correo_receptor debe ser un correo válido',
+                'mail.email' => 'mail debe ser un correo válido',
+                'mail.required' => 'mail es requerido',
+                'password.required' => 'password es requerida',
+                'host.required' => 'host es requerido',
+                'port.required' => 'port es requerido',
+            ]);
+
+            // Si falla la validación, retorna una respuesta Json con el error
+            if ($validator->fails()) {
+                $error = $validator->errors()->all();
+                $error[] = 'Rut receptor detectado. Ingrese credenciales de correo emisor.';
+                return response()->json([
+                    'error' => $error,
+                ], 400);
+            }
+        }
 
         // Si falla la validación, retorna una respuesta Json con el error
         if ($validator->fails()) {
@@ -419,9 +442,85 @@ class ApiPasarelaController extends PasarelaController
             ], 400);
         }
 
-        $respuesta_doc = new RegistroCompraVenta($this->obtenerFirma());
+         // Set ambiente
+        $this->setAmbiente($ambiente);
+        Sii::setAmbiente(self::$ambiente);
 
-        $response = $respuesta_doc->ingresarAceptacionReclamoDoc($request->rut_emisor, $request->dv_emisor, $request->tipo_dte, $request->folio, $request->accion_doc);
+        $glosa = match ($request->estado) {
+            0 => ".",
+            2, 1 => ". $request->glosa",
+            default => false,
+        };
+
+        if (!$glosa){
+            return response()->json([
+                'error' => "Estado no válido",
+            ], 400);
+        }
+
+        try {
+            $xml = new SimpleXMLElement(base64_decode($request->dte_xml));
+            $tipo_dte =$xml->children()->SetDTE->DTE->Documento[0]->Encabezado->IdDoc->TipoDTE;
+            $folio = $xml->children()->SetDTE->DTE->Documento[0]->Encabezado->IdDoc->Folio;
+        } catch (Exception $e) {
+            return response()->json([
+                'error' => $e->getMessage(),
+            ], 400);
+        }
+
+        // Envío de respuesta de documento a SII
+        list($rut_emisor, $dv_emisor) = explode('-', str_replace('.', '', $request->rut_receptor));
+        $respuesta_doc = new \sasco\LibreDTE\Sii\RegistroCompraVenta($this->obtenerFirma());
+        $response = $respuesta_doc->ingresarAceptacionReclamoDoc($rut_emisor, $dv_emisor, $tipo_dte, $folio, $request->accion_doc);
+        if(!$response['codigo'] != 0) {
+            return response()->json([
+                'codigo' => $response['codigo'],
+                'error' => $response['glosa'],
+            ], 400);
+        }
+
+        // Envío de respuesta de documento a emisor
+        // Obtener respuesta de documento
+        if($request->correo_receptor) {
+            $xml_respuesta = $this->generarRespuestaDocumento($request->estado, $glosa, base64_decode($request->dte_xml), $request->rut_receptor);
+            if (!$xml_respuesta) {
+                return response()->json([
+                    'error' => Log::read()->msg,
+                ], 400);
+            }
+
+            // Enviar respuesta por correo
+            $respuesta = [
+                'filename' => "RespuestaDTE_{$request->rut_receptor}_T{$tipo_dte}F{$folio}.xml",
+                'data' => $xml_respuesta
+            ];
+
+            $body = $request->only(['mail', 'password', 'host', 'port', 'protocol', 'folder']);
+            $cm = new ClientManager(base_path().'/config/imap.php');
+            $client = $cm->make([
+                'host'          => $body['host'],
+                'port'          => $body['port'],
+                'encryption'    => $body['encryption'] ?? 'ssl',
+                'validate_cert' => $body['validate_cert'] ?? true,
+                'username'      => $body['mail'],
+                'password'      => $body['password'],
+                'protocol'      => $body['protocol'] ?? 'imap'
+            ]);
+
+            try {
+                $client->connect();
+            } catch (Exception $e) {
+                return Response::json(['error' => $e->getMessage()], 500);
+            }
+
+            try {
+                Mail::to($request->correo_receptor)->send(new DteResponse($xml->children()->SetDTE->DTE->Documento[0]->Encabezado->Receptor->RznSocRecep, $respuesta));
+            } catch (Exception $e) {
+                return response()->json([
+                    'error' => $e->getMessage(),
+                ], 400);
+            }
+        }
 
         return response()->json($response, 200);
     }
@@ -502,5 +601,71 @@ class ApiPasarelaController extends PasarelaController
             ];
         }
         return $attachments_arr;
+    }
+
+    /**
+     * Generar DTE de respuesta sobre la aceptación o rechazo de un dte
+     */
+    protected function generarRespuestaDocumento($estado, $glosa, $dte_xml, $rut_receptor_esperado)
+    {
+        $this->timestamp = Carbon::now('America/Santiago');
+
+        // Cargar EnvioDTE y extraer arreglo con datos de carátula y DTEs
+        $EnvioDte = new \sasco\LibreDTE\Sii\EnvioDte();
+        $EnvioDte->loadXML($dte_xml);
+        $caratula = $EnvioDte->getCaratula();
+        $Documentos = $EnvioDte->getDocumentos();
+
+        $id_respuesta = 1; // se debe administrar
+        $cod_envio = 1; // Secuencia de envío, se debe administrar
+
+        // caratula
+        $rut_emisor_esperado = $EnvioDte->getEmisor();
+        $caratula_respuesta = [
+            'RutResponde' => $rut_receptor_esperado,
+            'RutRecibe' => $rut_emisor_esperado,
+            'IdRespuesta' => $id_respuesta,
+            //'NmbContacto' => '',
+            //'MailContacto' => '',
+        ];
+
+        // objeto para la respuesta
+        $RespuestaEnvio = new \sasco\LibreDTE\Sii\RespuestaEnvio();
+
+        // procesar cada DTE
+        foreach ($Documentos as $DTE) {
+            $RespuestaEnvio->agregarRespuestaDocumento([
+                'TipoDTE' => $DTE->getTipo(),
+                'Folio' => $DTE->getFolio(),
+                'FchEmis' => $DTE->getFechaEmision(),
+                'RUTEmisor' => $DTE->getEmisor(),
+                'RUTRecep' => $DTE->getReceptor(),
+                'MntTotal' => $DTE->getMontoTotal(),
+                'CodEnvio' => $cod_envio, // Secuencia de envío
+                'EstadoDTE' => $estado,
+                'EstadoDTEGlosa' => \sasco\LibreDTE\Sii\RespuestaEnvio::$estados['respuesta_documento'][$estado].$glosa,
+            ]);
+        }
+
+        // asignar carátula y Firma
+        $RespuestaEnvio->setCaratula($caratula_respuesta);
+        $RespuestaEnvio->setFirma($this->obtenerFirma());
+
+        // generar XML
+        $xml = $RespuestaEnvio->generar();
+
+        // validar schema del XML que se generó
+        if ($RespuestaEnvio->schemaValidate()) {
+            // Guardar respuesta en la base de datos
+            return $xml;
+        }
+        return false;
+    }
+
+    public function base64(Request $request)
+    {
+        return response()->json([
+            'base64' => base64_encode($request->getContent())
+        ], 200);
     }
 }
