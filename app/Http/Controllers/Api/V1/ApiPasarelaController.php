@@ -395,7 +395,7 @@ class ApiPasarelaController extends PasarelaController
      * Responder a un documento
      * @param Request $request
      */
-    public function respuestaDocumento(Request $request, $ambiente)//: JsonResponse
+    public function respuestaDocumento(Request $request, $ambiente): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'rut_receptor' => 'required|string',
@@ -442,7 +442,7 @@ class ApiPasarelaController extends PasarelaController
             ], 400);
         }
 
-         // Set ambiente
+        // Set ambiente
         $this->setAmbiente($ambiente);
         Sii::setAmbiente(self::$ambiente);
 
