@@ -391,7 +391,6 @@ class ApiFacturaController extends FacturaController
 
         if (!$motivo){
             return response()->json([
-                'message' => "Error al enviar respuesta de documento",
                 'error' => "Estado no válido",
             ], 400);
         }
@@ -409,6 +408,8 @@ class ApiFacturaController extends FacturaController
         // Enviar respuesta por correo
         Mail::to($body->correo)->send(new DteResponse($respuesta_xml->children()->SetDTE->DTE->Documento[0]->Encabezado->Emisor->RznSoc, $respuesta));
 
+        // Esto no va
+        /*
         // Enviar respuesta al SII
         list($envio_response, $filename) = $this->envioRecibos($body->dteId, $body->estado, $motivo, $dte_xml);
         if (!$envio_response) {
@@ -423,7 +424,7 @@ class ApiFacturaController extends FacturaController
                 'message' => "Error en la respuesta del SII al enviar respuesta",
                 'errores' => $envio_response,
             ], 400);
-        }
+        }*/
 
         // Actualizar estado del dte en base de datos
         try {
