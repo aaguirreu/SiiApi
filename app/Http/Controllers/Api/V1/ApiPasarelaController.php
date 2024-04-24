@@ -472,7 +472,7 @@ class ApiPasarelaController extends PasarelaController
         list($rut_emisor, $dv_emisor) = explode('-', str_replace('.', '', $request->rut_receptor));
         $respuesta_doc = new \sasco\LibreDTE\Sii\RegistroCompraVenta($this->obtenerFirma());
         $response = $respuesta_doc->ingresarAceptacionReclamoDoc($rut_emisor, $dv_emisor, $tipo_dte, $folio, $request->accion_doc);
-        if(!$response['codigo'] != 0) {
+        if($response['codigo'] != 0) {
             return response()->json([
                 'codigo' => $response['codigo'],
                 'error' => $response['glosa'],
