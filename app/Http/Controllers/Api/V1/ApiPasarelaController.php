@@ -9,6 +9,8 @@ use App\Mail\DteResponse;
 use App\Models\Envio;
 use Carbon\Carbon;
 use Exception;
+use GuzzleHttp\Client;
+use GuzzleHttp\Exception\GuzzleException;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -22,6 +24,7 @@ use sasco\LibreDTE\Sii;
 use sasco\LibreDTE\Sii\Folios;
 use sasco\LibreDTE\Sii\RegistroCompraVenta;
 use SimpleXMLElement;
+use Symfony\Component\DomCrawler\Crawler;
 use Webklex\PHPIMAP\Attachment;
 use Webklex\PHPIMAP\ClientManager;
 use Webklex\PHPIMAP\Folder;
@@ -49,14 +52,6 @@ class ApiPasarelaController extends PasarelaController
      */
     public function generarDte(Request $request, $ambiente)//: SimpleXMLElement
     {
-        //return base64_decode($request->json()->all()['base64']);
-        /*return response()->json([
-            'xml' => base64_encode($request->json()->get('xml'))
-        ], 200);*/
-        /*return response()->json([
-            'xml' => base64_encode($request->getContent())
-        ], 200);*/
-
         $validator = Validator::make($request->all(), [
             'Caratula' => 'required',
             'Documentos' => 'required|array',
@@ -470,7 +465,13 @@ class ApiPasarelaController extends PasarelaController
 
         // Envío de respuesta de documento a SII
         list($rut_emisor, $dv_emisor) = explode('-', str_replace('.', '', $request->rut_receptor));
-        $respuesta_doc = new \sasco\LibreDTE\Sii\RegistroCompraVenta($this->obtenerFirma());
+        try {
+            $respuesta_doc = new \sasco\LibreDTE\Sii\RegistroCompraVenta($this->obtenerFirma());
+        } catch (Exception $e) {
+            return response()->json([
+                'error' => $e->getMessage(),
+            ], 400);
+        }
         $response = $respuesta_doc->ingresarAceptacionReclamoDoc($rut_emisor, $dv_emisor, $tipo_dte, $folio, $request->accion_doc);
         if($response['codigo'] != 0) {
             return response()->json([
@@ -525,141 +526,50 @@ class ApiPasarelaController extends PasarelaController
         return response()->json($response, 200);
     }
 
-    /**
-     * Procesar los adjuntos del correo.
-     * Función utilizada por importarDtesCorreo()
-     */
-    protected function procesarAttachments($message): array
+    public function obtenerCaf(Request $request, $ambiente)//: JsonResponse
     {
-        $dte_arr = [];
-        $pdf_arr = [];
-        /* @var  MessageCollection $Attachments*/
-        $Attachments = $message->getAttachments();
-        if (!$Attachments->isEmpty()) {
-            /**
-             * Obtener el contenido del adjunto
-             *
-             * @var Attachment $Attachment
-             * @var string $content
-             */
-            foreach ($Attachments as $Attachment) {
-                // Verificar si el adjunto es un xml
-                if(str_ends_with(strtolower($Attachment->getName()), '.xml')) {
-                    // Ver si el xmles un dte o una respuesta a un dte
-                    $Xml = new SimpleXMLElement($Attachment->getContent());
-                    $tipoXml = $Xml[0]->getName();
-                    if($tipoXml == 'EnvioDTE') {
-                        $dte_arr[] = $Attachment;
-                    }
-                } elseif (str_ends_with(strtolower($Attachment->getName()), '.pdf')) {
-                    $pdf_arr[] = $Attachment;
-                }
-            }
-        }
-        return [$dte_arr, $pdf_arr];
-    }
-
-    /**
-     * Quitar firmas de los DTEs
-     * Función utilizada por importarDtesCorreo()
-     */
-    protected function quitarFirmas($attachments): array
-    {
-        $attachments_arr = [];
-        /**
-         * Obtener el contenido del adjunto
-         *
-         * @var Attachment $Attachment
-         * @var string $content
-         */
-        foreach ($attachments as $Attachment) {
-            $Xml = new SimpleXMLElement($Attachment->getContent());
-
-            // Eliminar las firmas del XML si existen
-            if (isset($Xml->Signature)) {
-                unset($Xml->Signature);
-            }
-
-            if (isset($Xml->SetDTE->Signature)) {
-                unset($Xml->SetDTE->Signature);
-            }
-
-            foreach ($Xml->SetDTE->DTE as $Dte) {
-                if (isset($Dte->Signature)) {
-                    unset($Dte->Signature);
-                }
-                foreach ($Dte->Documento as $Documento) {
-                    if (isset($Documento->TED)) {
-                        unset($Documento->TED);
-                    }
-                }
-            }
-
-            $attachments_arr[] = [
-                "filename" => $Attachment->getName(),
-                "content" =>  json_decode(json_encode($Xml), true),
-            ];
-        }
-        return $attachments_arr;
-    }
-
-    /**
-     * Generar DTE de respuesta sobre la aceptación o rechazo de un dte
-     */
-    protected function generarRespuestaDocumento($estado, $glosa, $dte_xml, $rut_receptor_esperado)
-    {
-        $this->timestamp = Carbon::now('America/Santiago');
-
-        // Cargar EnvioDTE y extraer arreglo con datos de carátula y DTEs
-        $EnvioDte = new \sasco\LibreDTE\Sii\EnvioDte();
-        $EnvioDte->loadXML($dte_xml);
-        $caratula = $EnvioDte->getCaratula();
-        $Documentos = $EnvioDte->getDocumentos();
-
-        $id_respuesta = 1; // se debe administrar
-        $cod_envio = 1; // Secuencia de envío, se debe administrar
-
-        // caratula
-        $rut_emisor_esperado = $EnvioDte->getEmisor();
-        $caratula_respuesta = [
-            'RutResponde' => $rut_receptor_esperado,
-            'RutRecibe' => $rut_emisor_esperado,
-            'IdRespuesta' => $id_respuesta,
-            //'NmbContacto' => '',
-            //'MailContacto' => '',
-        ];
-
-        // objeto para la respuesta
-        $RespuestaEnvio = new \sasco\LibreDTE\Sii\RespuestaEnvio();
-
-        // procesar cada DTE
-        foreach ($Documentos as $DTE) {
-            $RespuestaEnvio->agregarRespuestaDocumento([
-                'TipoDTE' => $DTE->getTipo(),
-                'Folio' => $DTE->getFolio(),
-                'FchEmis' => $DTE->getFechaEmision(),
-                'RUTEmisor' => $DTE->getEmisor(),
-                'RUTRecep' => $DTE->getReceptor(),
-                'MntTotal' => $DTE->getMontoTotal(),
-                'CodEnvio' => $cod_envio, // Secuencia de envío
-                'EstadoDTE' => $estado,
-                'EstadoDTEGlosa' => \sasco\LibreDTE\Sii\RespuestaEnvio::$estados['respuesta_documento'][$estado].$glosa,
-            ]);
+        $validator = Validator::make($request->all(), [
+            'rut' => 'required|string',
+            'dv' => 'required|string',
+            'tipo' => 'required|integer',
+            'cant_doctos' => 'required|integer',
+        ], [
+            'rut.required' => 'Rut Emisor es requerido',
+            'dv.required' => 'Dv Emisor es requerido',
+            'tipo.required' => 'Tipo de Folio es requerido',
+            'cant_doctos.required' => 'Cantidad de documentos es requerida',
+        ]);
+        if ($validator->fails()) {
+            return response()->json([
+                'error' => $validator->errors()->all(),
+            ], 400);
         }
 
-        // asignar carátula y Firma
-        $RespuestaEnvio->setCaratula($caratula_respuesta);
-        $RespuestaEnvio->setFirma($this->obtenerFirma());
+        // Set ambiente
+        $this->setAmbiente($ambiente);
 
-        // generar XML
-        $xml = $RespuestaEnvio->generar();
-
-        // validar schema del XML que se generó
-        if ($RespuestaEnvio->schemaValidate()) {
-            // Guardar respuesta en la base de datos
-            return $xml;
+        $caf_xml = $this->generarNuevoCaf($request->rut, $request->dv, $request->tipo, $request->cant_doctos);
+        if (!$caf_xml) {
+            return response()->json([
+                'error' => Log::read()->msg,
+            ], 400);
         }
-        return false;
+
+        try {
+            $xml = new SimpleXMLElement($caf_xml);
+        } catch (Exception $e) {
+            return response()->json([
+                'error' => $e->getMessage(),
+            ], 400);
+        }
+
+        // Calcular fecha de vencimiento a 6 meses de la fecha de autorización
+        $fecha_vencimiento = Carbon::parse($xml->CAF->DA->FA[0], 'America/Santiago')->addMonths(6)->format('Y-m-d');
+
+        return response()->json([
+            'caf_xml' => base64_encode($caf_xml),
+            'fecha_vencimiento' => $fecha_vencimiento,
+        ], 200);
     }
 
     public function base64(Request $request)

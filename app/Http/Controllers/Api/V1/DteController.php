@@ -516,7 +516,7 @@ class DteController extends Controller
                 try {
                     // Obtener nuevo caf del SII
                     list($rut_emp, $dv_emp) = explode('-', str_replace('.', '', $dte->Caratula->RutEmisor));
-                    $caf_xml = $this->generarNuevoCaf($rut_emp, $dv_emp, $tipo_dte);
+                    $caf_xml = $this->generarNuevoCaf($rut_emp, $dv_emp, $tipo_dte, null);
                     $caf_xml = new SimpleXMLElement($caf_xml);
 
                     // Calcular fecha de vencimiento a 6 meses de la fecha de autorización
@@ -648,7 +648,7 @@ class DteController extends Controller
      * @throws GuzzleException
      * @throws Exception
      */
-    protected function generarNuevoCaf($rut_emp, $dv_emp, $tipo_folio): string
+    protected function generarNuevoCaf($rut_emp, $dv_emp, $tipo_folio, $cant_doctos)
     {
         $header = [
             //'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 OPR/106.0.0.0',
@@ -675,7 +675,7 @@ class DteController extends Controller
 
         // Confirmar folio
         try {
-            $data_confirmar_folio = $this->getDataConfirmarFolio($rut_emp, $dv_emp, $tipo_folio, $response->getBody()->getContents());
+            $data_confirmar_folio = $this->getDataConfirmarFolio($rut_emp, $dv_emp, $tipo_folio, $cant_doctos, $response->getBody()->getContents());
         } catch (InvalidArgumentException $e) {
             throw new Exception("Rut incorrecto o no autorizado");
         }
@@ -712,7 +712,7 @@ class DteController extends Controller
         ];
     }
 
-    protected function getDataConfirmarFolio($rut_emp, $dv_emp, $tipo_folio, $html): array
+    protected function getDataConfirmarFolio($rut_emp, $dv_emp, $tipo_folio, $cant_doctos, $html): array
     {
         // Obtener el contenido HTML de la respuesta
         $crawler = new Crawler($html);
