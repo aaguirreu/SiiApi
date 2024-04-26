@@ -403,7 +403,11 @@ class ApiPasarelaController extends PasarelaController
             'estado.required' => 'estado es requerido',
             'accion_doc.required' => 'accion_doc es requerida',
         ]);
-
+        if ($validator->fails()) {
+            return response()->json([
+                'error' => $validator->errors()->all(),
+            ], 400);
+        }
         if($request->correo_receptor) {
             $validator = Validator::make($request->all(), [
                 'correo_receptor' => 'required|email',
@@ -441,7 +445,7 @@ class ApiPasarelaController extends PasarelaController
         $this->setAmbiente($ambiente);
         Sii::setAmbiente(self::$ambiente);
 
-        $glosa = match ($request->estado) {
+        $glosa = match ((int)$request->estado) {
             0 => ".",
             2, 1 => ". $request->glosa",
             default => false,
@@ -449,7 +453,7 @@ class ApiPasarelaController extends PasarelaController
 
         if (!$glosa){
             return response()->json([
-                'error' => "Estado no válido",
+                'error' => "estado no válido",
             ], 400);
         }
 
@@ -483,7 +487,7 @@ class ApiPasarelaController extends PasarelaController
         // Envío de respuesta de documento a emisor
         // Obtener respuesta de documento
         if($request->correo_receptor) {
-            $xml_respuesta = $this->generarRespuestaDocumento($request->estado, $glosa, base64_decode($request->dte_xml), $request->rut_receptor);
+            $xml_respuesta = $this->generarRespuestaDocumento((int)$request->estado, $glosa, base64_decode($request->dte_xml), $request->rut_receptor);
             if (!$xml_respuesta) {
                 return response()->json([
                     'error' => Log::read()->msg,
