@@ -563,7 +563,7 @@ class ApiPasarelaController extends PasarelaController
             $xml = new SimpleXMLElement($caf_xml);
         } catch (Exception $e) {
             return response()->json([
-                'error' => $e->getMessage(),
+                'error' => "No se pudo transformar caf a xml. ".$e->getMessage(),
             ], 400);
         }
 

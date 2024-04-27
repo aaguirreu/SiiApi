@@ -54,7 +54,12 @@ class PasarelaController extends DteController
             return false;
         }
 
-        $solicita_folios = $client->request('POST', 'https://maullin.sii.cl/cvc_cgi/dte/of_solicita_folios_dcto', [
+        if(self::$ambiente == 0)
+            $servidor = 'palena';
+        else
+            $servidor = 'maullin';
+
+        $solicita_folios = $client->request('POST', "https://$servidor.sii.cl/cvc_cgi/dte/of_solicita_folios_dcto", [
             'form_params' => [
                 'RUT_EMP' => '76974300',
                 'DV_EMP' => '6',
@@ -64,8 +69,11 @@ class PasarelaController extends DteController
             'verify' => false,
             'allow_redirects' => true,
         ]);
+
         $html = $solicita_folios->getBody()->getContents();
-        //echo $html;
+        if(!$this->verificarRespuestaCaf($html))
+            return false;
+
         // Confirmar folio
         try {
             $data_confirmar_folio = $this->getDataConfirmarFolio($rut_emp, $dv_emp, $tipo_folio, $cant_doctos, $html);
@@ -74,15 +82,7 @@ class PasarelaController extends DteController
             return false;
         }
 
-        if (isset($data_confirmar_folio['MAX_AUTOR'])) {
-            // Si máximo autorizado es menor a la cantidad de documentos a solicitar
-            if ($data_confirmar_folio['MAX_AUTOR'] < $cant_doctos) {
-                Log::write(0, 'Máximo de folios superado. No se pueden solicitar más folios.');
-                return false;
-            }
-        }
-
-        $confirma_folio = $client->request('POST', 'https://maullin.sii.cl/cvc_cgi/dte/of_confirma_folio', [
+        $confirma_folio = $client->request('POST', "https://$servidor.sii.cl/cvc_cgi/dte/of_confirma_folio", [
             'form_params' => $data_confirmar_folio,
         ]);
 
@@ -90,18 +90,21 @@ class PasarelaController extends DteController
         $data_obtener_folio = $this->getDataObtenerFolio($html);
 
         // Generar folios. Necesario para que el SII genere el archivo xml (caf)
-        return true;
-        $response = $client->request('POST', 'https://maullin.sii.cl/cvc_cgi/dte/of_genera_folio', [
+        $response = $client->request('POST', "https://$servidor.sii.cl/cvc_cgi/dte/of_genera_folio", [
             'form_params' => $data_obtener_folio,
         ]);
 
-        // Generar archivo xml (caf)
+        $html = $response->getBody()->getContents();
+        if(!$this->verificarHtmlCaf($html, $data_obtener_folio))
+            return false;
+
+        // Descargar archivo xml (caf)
         $data_generar_archivo = $this->getDataGenerarArchivo($rut_emp, $dv_emp, $data_obtener_folio);
-        $response = $client->request('POST', 'https://maullin.sii.cl/cvc_cgi/dte/of_genera_archivo', [
+        $response = $client->request('POST', "https://$servidor.sii.cl/cvc_cgi/dte/of_genera_archivo", [
             'form_params' => $data_generar_archivo,
         ]);
-
-        return $response->getBody()->getContents();
+        $html = $response->getBody()->getContents();
+        return $html;
     }
 
     private function verificarCookies($html): bool
@@ -184,30 +187,31 @@ class PasarelaController extends DteController
     {
         // Obtener el contenido HTML de la respuesta
         $crawler = new Crawler($html);
-        $nomusu = $crawler->filter('input[name="NOMUSU"]')->attr('value');
-        $con_credito = $crawler->filter('input[name="CON_CREDITO"]')->attr('value');
-        $con_ajuste = $crawler->filter('input[name="CON_AJUSTE"]')->attr('value');
-        $folios_disp = $crawler->filter('input[name="FOLIOS_DISP"]')->attr('value');
-        $max_autor = $crawler->filter('input[name="MAX_AUTOR"]')->attr('value');
-        $ult_timbraje = $crawler->filter('input[name="ULT_TIMBRAJE"]')->attr('value');
-        $con_historia = $crawler->filter('input[name="CON_HISTORIA"]')->attr('value');
-        $cant_timbrajes = $crawler->filter('input[name="CANT_TIMBRAJES"]')->attr('value');
-        $folio_ini_cre = $crawler->filter('input[name="FOLIO_INICRE"]')->attr('value');
-        $folio_fin_cre = $crawler->filter('input[name="FOLIO_FINCRE"]')->attr('value');
-        $fecha_ant = $crawler->filter('input[name="FECHA_ANT"]')->attr('value');
-        $estado_timbraje = $crawler->filter('input[name="ESTADO_TIMBRAJE"]')->attr('value');
-        $control = $crawler->filter('input[name="CONTROL"]')->attr('value');
-        $folio_ini = $crawler->filter('input[name="FOLIO_INI"]')->attr('value');
-        $folio_fin = $crawler->filter('input[name="FOLIO_FIN"]')->attr('value');
-        $dia = $crawler->filter('input[name="DIA"]')->attr('value');
-        $mes = $crawler->filter('input[name="MES"]')->attr('value');
-        $ano = $crawler->filter('input[name="ANO"]')->attr('value');
-        $hora = $crawler->filter('input[name="HORA"]')->attr('value');
-        $minuto = $crawler->filter('input[name="MINUTO"]')->attr('value');
-        $rut_emp = $crawler->filter('input[name="RUT_EMP"]')->attr('value');
-        $dv_emp = $crawler->filter('input[name="DV_EMP"]')->attr('value');
-        $cod_docto = $crawler->filter('input[name="COD_DOCTO"]')->attr('value');
-        $cant_doctos = $crawler->filter('input[name="CANT_DOCTOS"]')->attr('value');
+        // $max_autor = $crawler->filter('input[name="MAX_AUTOR"]')->count() > 0 ? $crawler->filter('input[name="MAX_AUTOR"]')->attr('value') : null;
+        $nomusu = $crawler->filter('input[name="NOMUSU"]')->count() > 0 ? $crawler->filter('input[name="NOMUSU"]')->attr('value') : null;
+        $con_credito = $crawler->filter('input[name="CON_CREDITO"]')->count() > 0 ? $crawler->filter('input[name="CON_CREDITO"]')->attr('value') : null;
+        $con_ajuste = $crawler->filter('input[name="CON_AJUSTE"]')->count() > 0 ? $crawler->filter('input[name="CON_AJUSTE"]')->attr('value') : null;
+        $folios_disp = $crawler->filter('input[name="FOLIOS_DISP"]')->count() > 0 ? $crawler->filter('input[name="FOLIOS_DISP"]')->attr('value') : null;
+        $max_autor = $crawler->filter('input[name="MAX_AUTOR"]')->count() > 0 ? $crawler->filter('input[name="MAX_AUTOR"]')->attr('value') : null;
+        $ult_timbraje = $crawler->filter('input[name="ULT_TIMBRAJE"]')->count() > 0 ? $crawler->filter('input[name="ULT_TIMBRAJE"]')->attr('value') : null;
+        $con_historia = $crawler->filter('input[name="CON_HISTORIA"]')->count() > 0 ? $crawler->filter('input[name="CON_HISTORIA"]')->attr('value') : null;
+        $cant_timbrajes = $crawler->filter('input[name="CANT_TIMBRAJES"]')->count() > 0 ? $crawler->filter('input[name="CANT_TIMBRAJES"]')->attr('value') : null;
+        $folio_ini_cre = $crawler->filter('input[name="FOLIO_INICRE"]')->count() > 0 ? $crawler->filter('input[name="FOLIO_INICRE"]')->attr('value') : null;
+        $folio_fin_cre = $crawler->filter('input[name="FOLIO_FINCRE"]')->count() > 0 ? $crawler->filter('input[name="FOLIO_FINCRE"]')->attr('value') : null;
+        $fecha_ant = $crawler->filter('input[name="FECHA_ANT"]')->count() > 0 ? $crawler->filter('input[name="FECHA_ANT"]')->attr('value') : null;
+        $estado_timbraje = $crawler->filter('input[name="ESTADO_TIMBRAJE"]')->count() > 0 ? $crawler->filter('input[name="ESTADO_TIMBRAJE"]')->attr('value') : null;
+        $control = $crawler->filter('input[name="CONTROL"]')->count() > 0 ? $crawler->filter('input[name="CONTROL"]')->attr('value') : null;
+        $folio_ini = $crawler->filter('input[name="FOLIO_INI"]')->count() > 0 ? $crawler->filter('input[name="FOLIO_INI"]')->attr('value') : null;
+        $folio_fin = $crawler->filter('input[name="FOLIO_FIN"]')->count() > 0 ? $crawler->filter('input[name="FOLIO_FIN"]')->attr('value') : null;
+        $dia = $crawler->filter('input[name="DIA"]')->count() > 0 ? $crawler->filter('input[name="DIA"]')->attr('value') : null;
+        $mes = $crawler->filter('input[name="MES"]')->count() > 0 ? $crawler->filter('input[name="MES"]')->attr('value') : null;
+        $ano = $crawler->filter('input[name="ANO"]')->count() > 0 ? $crawler->filter('input[name="ANO"]')->attr('value') : null;
+        $hora = $crawler->filter('input[name="HORA"]')->count() > 0 ? $crawler->filter('input[name="HORA"]')->attr('value') : null;
+        $minuto = $crawler->filter('input[name="MINUTO"]')->count() > 0 ? $crawler->filter('input[name="MINUTO"]')->attr('value') : null;
+        $rut_emp = $crawler->filter('input[name="RUT_EMP"]')->count() > 0 ? $crawler->filter('input[name="RUT_EMP"]')->attr('value') : null;
+        $dv_emp = $crawler->filter('input[name="DV_EMP"]')->count() > 0 ? $crawler->filter('input[name="DV_EMP"]')->attr('value') : null;
+        $cod_docto = $crawler->filter('input[name="COD_DOCTO"]')->count() > 0 ? $crawler->filter('input[name="COD_DOCTO"]')->attr('value') : null;
+        $cant_doctos = $crawler->filter('input[name="CANT_DOCTOS"]')->count() > 0 ? $crawler->filter('input[name="CANT_DOCTOS"]')->attr('value') : null;
 
         return [
             'NOMUSU' => $nomusu,
@@ -244,10 +248,10 @@ class PasarelaController extends DteController
         return [
             'RUT_EMP' => $rut_emp,
             'DV_EMP' => $dv_emp,
-            'COD_DOCTO' => $data['cod_docto'],
-            'FOLIO_INI' => $data['folio_ini'],
-            'FOLIO_FIN' => $data['folio_fin'],
-            'FECHA' => $data['ano'] . '-' . $data['mes'] . '-' . $data['dia'],
+            'COD_DOCTO' => $data['COD_DOCTO'],
+            'FOLIO_INI' => $data['FOLIO_INI'],
+            'FOLIO_FIN' => $data['FOLIO_FIN'],
+            'FECHA' => $data['ANO'] . '-' . $data['MES'] . '-' . $data['DIA'],
             'ACEPTAR' => 'AQUI'
         ];
     }
@@ -260,14 +264,53 @@ class PasarelaController extends DteController
         // Obtener el contenido HTML de la respuesta
         $crawler = new Crawler($html);
 
-        echo $crawler->filter('font[class="texto"]')->last()->text();
+        $texto = $crawler->filter('font[class="texto"]')->last()->text();
+        if (isset($texto)) {
+            if (stristr($texto, "Mediante la presente solicitud declaro conocer y aceptar las condiciones que el SII establece para la autorización de Timbraje de Documentos Electrónicos.")) {
+                return true;
+            }
+            if (stristr($texto, "NO SE AUTORIZA TIMBRAJE ELECTRÓNICO")){
+                Log::write($texto);
+                return false;
+            }
+        }
+        Log::write($html);
+        return false;
+    }
 
-        if (stristr($crawler->filter('font[class="texto"]')->last()->text(), "NO SE AUTORIZA TIMBRAJE ELECTRÓNICO")){
-            Log::write($crawler->filter('font[class="texto"]')->last()->text());
-            return false;
+    private function verificarHtmlCaf($html, $data): bool
+    {
+        $crawler = new Crawler($html);
+
+        // Verificar si el SII autorizó el CAF
+        $texto = $crawler->filter('font.texto')->eq(0)->text(); // Obtener el segundo elemento que coincide con la clase 'texto'
+        if (isset($texto)) {
+            if (stristr($texto, "Servicio de Impuestos Internos ha autorizado")) {
+                return true;
+            }
+        }
+        // Obtener el texto dentro del elemento que contiene la clase "texto"
+        $texto = $crawler->filter('font.texto')->text();
+        // Si texto existe
+        if (isset($texto)) {
+            if(stristr($texto, "No ha sido posible completar su solicitud.")) {
+                if (stristr($texto, "La cantidad de documentos a timbrar debe ser menor o igual al máximo autorizado")) {
+                    Log::write("$texto MAX_AUTOR={$data['MAX_AUTOR']}");
+                    return false;
+                }
+
+                if (stristr($texto, "diferencia entre el rango de folios solicitado con el rango solicitado la última vez")) {
+                    Log::write($texto);
+                    return false;
+                }
+                Log::write($texto);
+                return false;
+            }
         }
 
-        return true;
+        // En caso de dar error distinto a los ya encapsulados, retornar el html en base64
+        Log::write(base64_encode($html));
+        return false;
     }
 
     private function obtenerCookies()
