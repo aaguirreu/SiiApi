@@ -10,7 +10,6 @@ use Illuminate\Support\Facades\Storage;
 use sasco\LibreDTE\Estado;
 use sasco\LibreDTE\Log;
 use sasco\LibreDTE\Sii\EnvioDte;
-use SimpleXMLElement;
 use Webklex\PHPIMAP\Attachment;
 
 class FacturaController extends DteController
@@ -18,7 +17,6 @@ class FacturaController extends DteController
     public function __construct($tipos_dte)
     {
         self::$tipos_dte = $tipos_dte;
-        self::isToken();
     }
 
     /**

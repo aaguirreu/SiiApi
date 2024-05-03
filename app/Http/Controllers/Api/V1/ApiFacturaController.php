@@ -36,7 +36,7 @@ class ApiFacturaController extends FacturaController
         // Leer string como json
         $dte = json_decode(json_encode($request->json()->all()));
 
-        // Set ambiente certificacón
+        // Set ambiente
         $this->setAmbiente($ambiente);
 
         // Verificar si existe empresa
@@ -95,7 +95,7 @@ class ApiFacturaController extends FacturaController
         }
 
         // Objetos de Firma y Folios
-        $firma = $this->obtenerFirma();
+        $firma = $this->obtenerFirma($dte->Caratula->RutEnvia);
 
         // Obtener caratula
         $caratula = $this->obtenerCaratula($dte, $documentos, $firma);
@@ -258,23 +258,14 @@ class ApiFacturaController extends FacturaController
      */
     public function estadoEnvioDte(Request $request, string $ambiente)
     {
-        // Leer string como json
-        $body = json_decode(json_encode($request->json()->all()));
-
-        // Set ambiente certificacón
-        $this->setAmbiente($ambiente);
-
-        // Set ambiente certificacón (default producción)
-        Sii::setAmbiente(self::$ambiente);
-
         $response = Sii::request('QueryEstUp', 'getEstUp', [
-            $body->rut,
-            $body->dv,
-            $body->track_id,
+            $request->rut,
+            $request->dv,
+            $request->track_id,
             self::$token
         ]);
-        // si el estado se pudo recuperar se muestra estado y glosa
 
+        // si el estado se pudo recuperar se muestra estado y glosa
         return $response->asXML();
     }
 
@@ -287,28 +278,18 @@ class ApiFacturaController extends FacturaController
      */
     public function estadoDocumento(Request $request, $ambiente)
     {
-        // Leer string como json
-        $body = json_decode(json_encode($request->json()->all()));
-
-        // Set ambiente certificacón
-        $this->setAmbiente($ambiente);
-
-        // Consulta estado dte
-        // Set ambiente certificacón (default producción)
-        Sii::setAmbiente(self::$ambiente);
-
         // consultar estado dte
         $xml = Sii::request('QueryEstDte', 'getEstDte', [
-            'RutConsultante'    => $body->rut,
-            'DvConsultante'     => $body->dv,
-            'RutCompania'       => $body->rut,
-            'DvCompania'        => $body->dv,
-            'RutReceptor'       => $body->rut_receptor,
-            'DvReceptor'        => $body->dv_receptor,
-            'TipoDte'           => $body->tipo,
-            'FolioDte'          => $body->folio,
-            'FechaEmisionDte'   => $body->fecha_emision,
-            'MontoDte'          => $body->monto,
+            'RutConsultante'    => $request->rut,
+            'DvConsultante'     => $request->dv,
+            'RutCompania'       => $request->rut,
+            'DvCompania'        => $request->dv,
+            'RutReceptor'       => $request->rut_receptor,
+            'DvReceptor'        => $request->dv_receptor,
+            'TipoDte'           => $request->tipo,
+            'FolioDte'          => $request->folio,
+            'FechaEmisionDte'   => $request->fecha_emision,
+            'MontoDte'          => $request->monto,
             'token'             => self::$token,
         ]);
 

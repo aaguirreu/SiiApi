@@ -2,31 +2,20 @@
 
 namespace App\Http\Controllers\Api\V1;
 
-use App\Http\Controllers\Controller;
-use Carbon\Carbon;
 use CURLFile;
 use Exception;
-use GuzzleHttp\Psr7\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use sasco\LibreDTE\Estado;
-use sasco\LibreDTE\FirmaElectronica;
 use sasco\LibreDTE\Log;
-use sasco\LibreDTE\Sii;
-use sasco\LibreDTE\Sii\Autenticacion;
 use sasco\LibreDTE\Sii\ConsumoFolio;
-use sasco\LibreDTE\Sii\Dte;
 use sasco\LibreDTE\Sii\EnvioDte;
-use sasco\LibreDTE\Sii\Folios;
-use sasco\LibreDTE\XML;
-use SimpleXMLElement;
 
 class BoletaController extends DteController
 {
     public function __construct($tipos_dte)
     {
         self::$tipos_dte = $tipos_dte;
-        self::isToken();
     }
     public function enviar($dte, $rut_envia, $rut_emisor, ?string $rutReceptor): bool|array
     {
@@ -144,9 +133,6 @@ class BoletaController extends DteController
     }
 
     protected function enviarRcof(ConsumoFolio $ConsumoFolio, $dte_filename) {
-        // Set ambiente certificacion
-        Sii::setAmbiente(Sii::PRODUCCION);
-
         // Enviar rcof
         $response = $ConsumoFolio->enviar(self::$retry);
 

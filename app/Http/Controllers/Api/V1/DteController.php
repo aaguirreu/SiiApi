@@ -20,6 +20,7 @@ use sasco\LibreDTE\Sii\EnvioDte;
 use sasco\LibreDTE\Sii\Folios;
 use sasco\LibreDTE\XML;
 use SimpleXMLElement;
+use Spatie\TemporaryDirectory\TemporaryDirectory;
 use Symfony\Component\DomCrawler\Crawler;
 
 class DteController extends Controller
@@ -304,7 +305,7 @@ class DteController extends Controller
         ]);
     }
 
-    protected function getTokenBE($url): void
+    protected function getTokenBE($url, $Firma): void
     {
         // Solicitar seed
         $url_seed = $url.'.semilla';
@@ -312,9 +313,6 @@ class DteController extends Controller
         $seed = simplexml_load_string($seed);
         $seed = (string)$seed->xpath('//SII:RESP_BODY/SEMILLA')[0];
         //echo "Seed = ".$seed."\n";
-
-        // Obtener Firma
-        $Firma = $this->obtenerFirma();
 
         // Generar xml de semilla firmada
         $seedSigned = $Firma->signXML(
@@ -352,118 +350,162 @@ class DteController extends Controller
         // Guardar Token con su timestamp en config.json
         $token = (string)$responseXml->xpath('//TOKEN')[0];
         $config_file = json_decode(file_get_contents(base_path('config.json')));
+        $rut = $Firma->getID();
         if ($url == 'https://apicert.sii.cl/recursos/v1/boleta.electronica') {
-            $config_file->be->cert->token = $token;
-            $config_file->be->cert->token_timestamp = Carbon::now('America/Santiago')->timestamp;
+            $config_file->$rut->be->cert->token = $token;
+            $config_file->$rut->be->cert->token_timestamp = Carbon::now('America/Santiago')->timestamp;
         }
         else if ($url == 'https://api.sii.cl/recursos/v1/boleta.electronica') {
-            $config_file->be->prod->token = $token;
-            $config_file->be->prod->token_timestamp = Carbon::now('America/Santiago')->timestamp;
+            $config_file->$rut->be->prod->token = $token;
+            $config_file->$rut->be->prod->token_timestamp = Carbon::now('America/Santiago')->timestamp;
         }
         $this->guardarConfigFile($config_file);
     }
 
-    protected function getToken($ambiente): void
+    protected function getToken($ambiente, FirmaElectronica $Firma): void
     {
-        // Set ambiente certificacion
+        // Set ambiente
         Sii::setAmbiente($ambiente);
-        $token = Autenticacion::getToken($this->obtenerFirma());
+        $token = Autenticacion::getToken($Firma);
         $config_file = json_decode(file_get_contents(base_path('config.json')));
+        $rut = $Firma->getID();
         if ($ambiente == SII::CERTIFICACION) {
-            $config_file->dte->cert->token = $token;
-            $config_file->dte->cert->token_timestamp = Carbon::now('America/Santiago')->timestamp;
+            $config_file->$rut->dte->cert->token = $token;
+            $config_file->$rut->dte->cert->token_timestamp = Carbon::now('America/Santiago')->timestamp;
         } else if ($ambiente == SII::PRODUCCION) {
-            $config_file->dte->prod->token = $token;
-            $config_file->dte->prod->token_timestamp = Carbon::now('America/Santiago')->timestamp;
+            $config_file->$rut->dte->prod->token = $token;
+            $config_file->$rut->dte->prod->token_timestamp = Carbon::now('America/Santiago')->timestamp;
         }
         $this->guardarConfigFile($config_file);
     }
 
-    protected function isToken(): void
+    protected function isToken($rut_envia, $Firma): void
     {
         if (file_exists(base_path('config.json'))) {
             // Obtener config.json
             $config_file = json_decode(file_get_contents(base_path('config.json')));
-            // Verificar token Boleta Electronica
-            if ($config_file->be->cert->token === '' || !$config_file->be->cert->token || !$config_file->be->cert->token_timestamp)
-                // Obtener token de boleta electrónica certificación
-                $this->getTokenBE('https://apicert.sii.cl/recursos/v1/boleta.electronica');
-            else if ($config_file->be->prod->token === '' || !$config_file->be->prod->token || !$config_file->be->prod->token_timestamp)
+            if (isset($config_file->$rut_envia)){
+                // Verificar token Boleta Electronica
+                if ($config_file->$rut_envia->be->cert->token === '' || !$config_file->$rut_envia->be->cert->token || !$config_file->$rut_envia->be->cert->token_timestamp)
+                    // Obtener token de boleta electrónica certificación
+                    $this->getTokenBE('https://apicert.sii.cl/recursos/v1/boleta.electronica', $Firma);
+                else if ($config_file->$rut_envia->be->prod->token === '' || !$config_file->$rut_envia->be->prod->token || !$config_file->$rut_envia->be->prod->token_timestamp)
                     // Obtener token de boleta electrónica certificación y producción
-                $this->getTokenBE('https://api.sii.cl/recursos/v1/boleta.electronica');
-            else {
-                $now = Carbon::now('America/Santiago')->timestamp;
-                $diff = $now - $config_file->be->cert->token_timestamp;
-                if ($diff > $config_file->be->cert->token_expiration) {
-                    $this->getTokenBE('https://apicert.sii.cl/recursos/v1/boleta.electronica'); // certificación
+                    $this->getTokenBE('https://api.sii.cl/recursos/v1/boleta.electronica', $Firma);
+                else {
+                    $now = Carbon::now('America/Santiago')->timestamp;
+                    $diff = $now - $config_file->$rut_envia->be->cert->token_timestamp;
+                    if ($diff > $config_file->$rut_envia->be->cert->token_expiration) {
+                        $this->getTokenBE('https://apicert.sii.cl/recursos/v1/boleta.electronica', $Firma); // certificación
+                    }
+                    $diff = $now - $config_file->$rut_envia->be->prod->token_timestamp;
+                    if ($diff > $config_file->$rut_envia->be->prod->token_expiration) {
+                        $this->getTokenBE('https://api.sii.cl/recursos/v1/boleta.electronica', $Firma); // producción
+                    }
                 }
-                $diff = $now - $config_file->be->prod->token_timestamp;
-                if ($diff > $config_file->be->prod->token_expiration) {
-                    $this->getTokenBE('https://api.sii.cl/recursos/v1/boleta.electronica'); // producción
-                }
-            }
 
-            // Verificar token DTE
-            if ($config_file->dte->cert->token === '' || !$config_file->dte->cert->token || !$config_file->dte->cert->token_timestamp)
-                $this->getToken(SII::CERTIFICACION);
-            else if ($config_file->dte->prod->token === '' || !$config_file->dte->prod->token || !$config_file->dte->prod->token_timestamp)
-                $this->getToken(SII::PRODUCCION);
-            else {
-                $now = Carbon::now('America/Santiago')->timestamp;
-                $diff = $now - $config_file->dte->cert->token_timestamp;
-                if ($diff > $config_file->dte->cert->token_expiration) {
-                    $this->getToken(SII::CERTIFICACION);
+                // Verificar token DTE
+                if ($config_file->$rut_envia->dte->cert->token === '' || !$config_file->$rut_envia->dte->cert->token || !$config_file->$rut_envia->dte->cert->token_timestamp)
+                    $this->getToken(SII::CERTIFICACION, $Firma);
+                else if ($config_file->$rut_envia->dte->prod->token === '' || !$config_file->$rut_envia->dte->prod->token || !$config_file->$rut_envia->dte->prod->token_timestamp)
+                    $this->getToken(SII::PRODUCCION, $Firma);
+                else {
+                    $now = Carbon::now('America/Santiago')->timestamp;
+                    $diff = $now - $config_file->$rut_envia->dte->cert->token_timestamp;
+                    if ($diff > $config_file->$rut_envia->dte->cert->token_expiration) {
+                        $this->getToken(SII::CERTIFICACION, $Firma);
+                    }
+                    $diff = $now - $config_file->$rut_envia->dte->prod->token_timestamp;
+                    if ($diff > $config_file->$rut_envia->dte->prod->token_expiration) {
+                        $this->getToken(SII::PRODUCCION, $Firma);
+                    }
                 }
-                $diff = $now - $config_file->dte->prod->token_timestamp;
-                if ($diff > $config_file->dte->prod->token_expiration) {
-                    $this->getToken(SII::PRODUCCION);
-                }
+            } else {
+                $config_file = json_decode(file_get_contents(base_path('config.json')), true);
+                $nuevo_rut = [
+                    'dte' => [
+                        'prod' => [
+                            'token' => '',
+                            'token_timestamp' => '',
+                            'token_expiration' => 3600
+                        ],
+                        'cert' => [
+                            'token' => '',
+                            'token_timestamp' => '',
+                            'token_expiration' => 3600
+                        ]
+                    ],
+                    'be' => [
+                        'prod' => [
+                            'token' => '',
+                            'token_timestamp' => '',
+                            'token_expiration' => 3600
+                        ],
+                        'cert' => [
+                            'token' => '',
+                            'token_timestamp' => '',
+                            'token_expiration' => 3600
+                        ]
+                    ]
+                ];
+                $config_file[$rut_envia] = $nuevo_rut;
+
+                file_put_contents(base_path('config.json'), json_encode($config_file, JSON_PRETTY_PRINT));
+
+                // Obtener token de boleta electrónica certificación y producción
+                $this->getToken(SII::CERTIFICACION, $Firma);
+                $this->getToken(SII::PRODUCCION, $Firma);
+
+                $this->getTokenBE('https://apicert.sii.cl/recursos/v1/boleta.electronica', $Firma); // certificación
+                $this->getTokenBE('https://api.sii.cl/recursos/v1/boleta.electronica', $Firma); // producción
             }
         } else {
             file_put_contents(base_path('config.json'), json_encode([
-                'dte' => [
-                    'prod' => [
-                        'token' => '',
-                        'token_timestamp' => '',
-                        'token_expiration' => 3600
+                "$rut_envia" => [
+                    'dte' => [
+                        'prod' => [
+                            'token' => '',
+                            'token_timestamp' => '',
+                            'token_expiration' => 3600
+                        ],
+                        'cert' => [
+                            'token' => '',
+                            'token_timestamp' => '',
+                            'token_expiration' => 3600
+                        ]
                     ],
-                    'cert' => [
-                        'token' => '',
-                        'token_timestamp' => '',
-                        'token_expiration' => 3600
-                    ]
-                ],
-                'be' => [
-                    'prod' => [
-                        'token' => '',
-                        'token_timestamp' => '',
-                        'token_expiration' => 3600
-                    ],
-                    'cert' => [
-                        'token' => '',
-                        'token_timestamp' => '',
-                        'token_expiration' => 3600
+                    'be' => [
+                        'prod' => [
+                            'token' => '',
+                            'token_timestamp' => '',
+                            'token_expiration' => 3600
+                        ],
+                        'cert' => [
+                            'token' => '',
+                            'token_timestamp' => '',
+                            'token_expiration' => 3600
+                        ]
                     ]
                 ]
             ], JSON_PRETTY_PRINT));
 
             // Obtener token de boleta electrónica certificación y producción
-            $this->getToken(SII::CERTIFICACION);
-            $this->getToken(SII::PRODUCCION);
+            $this->getToken(SII::CERTIFICACION, $Firma);
+            $this->getToken(SII::PRODUCCION, $Firma);
 
-            $this->getTokenBE('https://apicert.sii.cl/recursos/v1/boleta.electronica'); // certificación
-            $this->getTokenBE('https://api.sii.cl/recursos/v1/boleta.electronica'); // producción
+            $this->getTokenBE('https://apicert.sii.cl/recursos/v1/boleta.electronica', $Firma); // certificación
+            $this->getTokenBE('https://api.sii.cl/recursos/v1/boleta.electronica', $Firma); // producción
         }
     }
 
-    protected function obtenerFirma(): FirmaElectronica
+    protected function obtenerFirma($path, $password): FirmaElectronica
     {
-        // Firma .p12
+        // Firma .pfx
         $config = [
             'firma' => [
-                'file' => env("CERT_PATH"),
+                'file' => $path,
                 //'data' => '', // contenido del archivo certificado.p12
-                'pass' => env("CERT_PASS")
+                'pass' => $password
             ],
         ];
         return new FirmaElectronica($config['firma']);
@@ -516,7 +558,7 @@ class DteController extends Controller
                 try {
                     // Obtener nuevo caf del SII
                     list($rut_emp, $dv_emp) = explode('-', str_replace('.', '', $dte->Caratula->RutEmisor));
-                    $caf_xml = $this->generarNuevoCaf($rut_emp, $dv_emp, $tipo_dte, null);
+                    $caf_xml = $this->generarCaf($rut_emp, $dv_emp, $tipo_dte, null);
                     $caf_xml = new SimpleXMLElement($caf_xml);
 
                     // Calcular fecha de vencimiento a 6 meses de la fecha de autorización
@@ -648,7 +690,7 @@ class DteController extends Controller
      * @throws GuzzleException
      * @throws Exception
      */
-    protected function generarNuevoCaf($rut_emp, $dv_emp, $tipo_folio, $cant_doctos)
+    protected function generarCaf($rut_emp, $dv_emp, $tipo_folio, $cant_doctos)
     {
         $header = [
             //'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 OPR/106.0.0.0',
@@ -838,11 +880,12 @@ class DteController extends Controller
      * Tanto el envío de boleta electronica como DTEs utilizan el token obtenido desde el servicio de DTEs por algún error en el SII
      * En el caso de consultas de estado de boletas electronicas se utiliza el token obtenido desde el servicio de boletas electronicas
      */
-    public function setAmbiente($ambiente): void
+    public function setAmbiente($ambiente, $rut_envia): void
     {
         // Servicio Boleta Electronica
         if(in_array("39", self::$tipos_dte) || in_array("41", self::$tipos_dte)) {
             if ($ambiente == "certificacion" || $ambiente == 1) {
+                Sii::setAmbiente(1);
                 self::$ambiente = 1;
                 self::$url = 'https://pangal.sii.cl/recursos/v1/boleta.electronica.envio'; // url certificación ENVIO BOLETAS
                 self::$url_api = 'https://apicert.sii.cl/recursos/v1/boleta.electronica'; // url certificación CONSULTAS BOLETAS
@@ -851,30 +894,33 @@ class DteController extends Controller
                 // self::$token = json_decode(file_get_contents(base_path('config.json')))->be->cert->token;
                 // pero solo funciona con el token de DTE's certificación/produccion
                 // Esto solo sucede con el envío de boletas, no con la consulta de estado de boletas
-                self::$token = json_decode(file_get_contents(base_path('config.json')))->dte->cert->token;
+                self::$token = json_decode(file_get_contents(base_path('config.json')))->$rut_envia->dte->cert->token;
                 // Token para consultas de estado de boletas
-                self::$token_api = json_decode(file_get_contents(base_path('config.json')))->be->cert->token;
+                self::$token_api = json_decode(file_get_contents(base_path('config.json')))->$rut_envia->be->cert->token;
             } else if ($ambiente == "produccion" || $ambiente == 0) {
+                Sii::setAmbiente(0);
                 self::$ambiente = 0;
                 self::$url = 'https://rahue.sii.cl/recursos/v1/boleta.electronica.envio'; // url producción ENVIO BOLETAS
                 self::$url_api = 'https://api.sii.cl/recursos/v1/boleta.electronica'; // url producción CONSULTAS BOLETAS
                 // IMPORTANTE: token debería ser el obtenido desde la api de boletas electronicas:
                 // self::$token = json_decode(file_get_contents(base_path('config.json')))->be->prod->token;
                 // pero solo funciona con el token de DTE's certificación/produccion
-                self::$token = json_decode(file_get_contents(base_path('config.json')))->dte->prod->token;
+                self::$token = json_decode(file_get_contents(base_path('config.json')))->$rut_envia->dte->prod->token;
                 // Token para consultas de estado de boletas
-                self::$token_api = json_decode(file_get_contents(base_path('config.json')))->be->prod->token;
+                self::$token_api = json_decode(file_get_contents(base_path('config.json')))->$rut_envia->be->prod->token;
             }
             else abort(404);
         } else { // Servicio DTEs
             if ($ambiente == "certificacion"  || $ambiente == 1) {
+                Sii::setAmbiente(1);
                 self::$ambiente = 1;
                 self::$url = 'https://maullin.sii.cl/cgi_dte/UPL/DTEUpload'; // url certificación
-                self::$token = json_decode(file_get_contents(base_path('config.json')))->dte->cert->token;
+                self::$token = json_decode(file_get_contents(base_path('config.json')))->$rut_envia->dte->cert->token;
             } else if ($ambiente == "produccion" || $ambiente == 0) {
+                Sii::setAmbiente(1);
                 self::$ambiente = 0;
                 self::$url = 'https://palena.sii.cl/cgi_dte/UPL/DTEUpload'; // url producción
-                self::$token = json_decode(file_get_contents(base_path('config.json')))->dte->prod->token;
+                self::$token = json_decode(file_get_contents(base_path('config.json')))->$rut_envia->dte->prod->token;
             }
             else abort(404);
         }
@@ -902,5 +948,35 @@ class DteController extends Controller
         } else {
             return self::$token;
         }
+    }
+
+    protected function importarFirma($cert, $cert_pass)
+    {
+        // Guardar firma en tmp y que se autoelimine
+        try {
+            $tmp_dir = TemporaryDirectory::make()->deleteWhenDestroyed();
+            $cert_path = $tmp_dir->path("cert.pfx");
+            file_put_contents($cert_path, $cert);
+        } catch (Exception $e) {
+            return [null, [
+                'error' => $e->getMessage(),
+                ]
+            ];
+        }
+
+        // Verificar firma
+        $Firma = $this->obtenerFirma($cert_path, $cert_pass);
+        try {
+            $error = Log::read()->msg;
+        } catch (Exception $e) {}
+
+        if (isset($error)) {
+            return [$cert_path, [
+                'error' => $error,
+                ]
+            ];
+        }
+
+        return [$cert_path, $Firma];
     }
 }

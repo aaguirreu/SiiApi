@@ -5,22 +5,12 @@ namespace App\Jobs;
 use App\Http\Controllers\Api\V1\ApiFacturaController;
 use App\Models\Envio;
 use App\Http\Controllers\Api\V1\ApiBoletaController;
-use App\Http\Controllers\Api\V1\DteController;
-use App\Models\Dte;
 use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
-use sasco\LibreDTE\Estado;
-use sasco\LibreDTE\Sii;
-use sasco\LibreDTE\XML;
-use Throwable;
 
 class ProcessEnvioDteSii implements ShouldQueue
 {
@@ -46,7 +36,7 @@ class ProcessEnvioDteSii implements ShouldQueue
         $xml = base64_decode($this->arr['xml']);
         $caratula = $this->arr['caratula'];
 
-        // Set ambiente certificacón y obtener token
+        // Set ambiente y obtener token
         if($this->envio->tipo_dte == 39 || $this->envio->tipo_dte == 41){
             $controller = new ApiBoletaController();
             $controller->setAmbiente($this->envio->ambiente);

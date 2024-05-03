@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Jobs\ProcessEnvioDteSii;
-use App\Models\Dte;
 use App\Models\Envio;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
@@ -14,10 +13,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 use Exception;
-use sasco\LibreDTE\Log;
-use sasco\LibreDTE\Sii;
-use sasco\LibreDTE\Sii\Autenticacion;
-use sasco\LibreDTE\XML;
 use SimpleXMLElement;
 
 class ApiAdminController extends DteController
@@ -185,9 +180,6 @@ class ApiAdminController extends DteController
         $rbody = $request->getContent();
         $caf_xml = new simpleXMLElement($rbody);
 
-        // Set ambiente certificacón
-        $this->setAmbiente($ambiente);
-
         // Si el ambiente es de certificación agregar un 0 al id
         $tipo_folio = $caf_xml->CAF->DA->TD[0];
         if(self::$ambiente == 0)
@@ -249,60 +241,5 @@ class ApiAdminController extends DteController
             return $this->uploadCaf($caf_xml, $tipo_folio, $filename, $id, $fecha_vencimiento);
         else
             return $this->uploadCaf($caf_xml, $tipo_folio, $filename, $id, $fecha_vencimiento, true);
-    }
-
-    public function testCaLogin()
-    {
-        ProcessEnvioDteSii::dispatch(Envio::query()->where('id', 13)->first());
-        return Envio::query()->where('id', 13)->first();
-        //echo $user =  auth('sanctum')->user();
-
-        $pfx_path = env('CERT_PATH');
-        $password = env('CERT_PASS');
-
-        $url = 'https://herculesr.sii.cl/cgi_AUT2000/CAutInicio.cgi?https://misiir.sii.cl/cgi_misii/siihome.cgi';
-
-        $client = new Client([
-            'debug' => fopen('php://stderr', 'w'),
-        ]);
-
-        try {
-            $response = $client->request('POST', $url, [
-                //'headers' => $header,
-                'form_params' => [
-                    'referencia' => urlencode('https://misiir.sii.cl/cgi_misii/siihome.cgi'),
-                ],
-                'curl' => [
-                    CURLOPT_SSLCERTTYPE => 'P12',
-                    CURLOPT_SSLCERT => $pfx_path,
-                    CURLOPT_SSLCERTPASSWD => $password,
-                ],
-                'allow_redirects' => true,
-            ]);
-        } catch (GuzzleException $e) {
-            return response()->json([
-                'error' => 'Error en la consulta al obtener un nuevo caf del SII',
-                'message' => $e->getMessage(),
-                'curl_version' => curl_version(),
-            ], 400);
-        }
-
-        return $response->getHeader('Set-Cookie');
-
-        /*
-        try {
-            $this->generarNuevoCaf('', '', '');
-        } catch (GuzzleException $e) {
-            return response()->json([
-                'error' => 'Error en la consulta al obtener un nuevo caf del SII',
-                'message' => $e->getMessage(),
-            ], 400);
-        } catch (Exception $e) {
-            return response()->json([
-                'error' => 'Error al pedir nuevo caf obtenido del SII',
-                'message' => $e->getMessage(),
-            ], 400);
-        }
-        */
     }
 }

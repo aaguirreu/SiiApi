@@ -1,6 +1,5 @@
 <?php
 
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\UserAuthController;
 
@@ -22,7 +21,7 @@ Route::post('/tokens/create', [UserAuthController::class, 'createToken']);
 // Api/V1
 Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1', 'middleware' => ['auth:sanctum']], function () {
     // Rcof
-    Route::post('rcof/{dte_filename}', 'ApiSetPruebaController@enviarRcofOnly');
+    /*Route::post('rcof/{dte_filename}', 'ApiSetPruebaController@enviarRcofOnly');
 
     // Envio de Boletas
     Route::post('{ambiente}/boletas/envio', 'ApiBoletaController@boletaElectronica');
@@ -60,7 +59,7 @@ Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1', 'm
     // Obtener dtes desde correo
     Route::post('usuario/dtes/correos', 'ApiUserController@obtenerDtesCorreo');
     // Importar dtes desde correo
-    Route::post('usuario/dtes/correos.importar', 'ApiUserController@importarDte');
+    Route::post('usuario/dtes/correos.importar', 'ApiUserController@importarDte');*/
 
     // Pasarela
     // Envio de DTE y Boletas

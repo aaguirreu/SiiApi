@@ -24,7 +24,7 @@ class ApiBoletaController extends BoletaController
         // Leer string como json
         $dte = json_decode(json_encode($request->json()->all()));
 
-        // Set ambiente certificacón
+        // Set ambiente
         $this->setAmbiente($ambiente);
 
         // Verificar si existe empresa
@@ -75,7 +75,7 @@ class ApiBoletaController extends BoletaController
         }
 
         // Objetos de Firma y Folios
-        $Firma = $this->obtenerFirma();
+        $Firma = $this->obtenerFirma($dte->Caratula->RutEnvia);
 
         $caratula = $this->obtenerCaratula($dte, $boletas, $Firma);
 
@@ -123,19 +123,10 @@ class ApiBoletaController extends BoletaController
 
     public function estadoEnvioDte(Request $request, $ambiente): JsonResponse
     {
-        // Set ambiente certificacón
-        $this->setAmbiente($ambiente);
-
-        // Leer string como json
-        $rbody = json_encode($request->json()->all());
-
-        // Transformar a json
-        $body = json_decode($rbody);
-
         // consultar estado dte
-        $rut = $body->rut;
-        $dv = $body->dv;
-        $trackID = $body->track_id;
+        $rut = $request->rut;
+        $dv = $request->dv;
+        $trackID = $request->track_id;
         $destino = $rut . '-' . $dv . '-' . $trackID;
         $curl = curl_init();
         curl_setopt_array($curl, array(
@@ -169,33 +160,15 @@ class ApiBoletaController extends BoletaController
 
     public function estadoDocumento(Request $request, $ambiente): JsonResponse
     {
-        // setear timestamp
-        $this->timestamp = Carbon::now('America/Santiago');
-
-        // Set ambiente certificacón
-        $this->setAmbiente($ambiente);
-
-        // Leer string como json
-        $rbody = json_encode($request->json()->all());
-
-        // Transformar a json
-        $body = json_decode($rbody);
-        // Schema del json
-        //$schemaJson = file_get_contents(base_path().'\SchemasSwagger\SchemaStatusBE.json');
-
-        // Validar json
-        //$schema = Schema::import(json_decode($schemaJson));
-        //$schema->in($body);
-
         // Consulta estado dte
-        $rut = $body->rut;
-        $dv = $body->dv;
-        $tipo = $body->tipo;
-        $folio = $body->folio;
-        $rut_receptor = $body->rut_receptor;
-        $dv_receptor = $body->dv_receptor;
-        $monto = $body->monto;
-        $fechaEmision = $body->fecha_emision;
+        $rut = $request->rut;
+        $dv = $request->dv;
+        $tipo = $request->tipo;
+        $folio = $request->folio;
+        $rut_receptor = $request->rut_receptor;
+        $dv_receptor = $request->dv_receptor;
+        $monto = $request->monto;
+        $fechaEmision = $request->fecha_emision;
         $required = $rut . '-' . $dv . '-' . $tipo . '-' . $folio;
         $opcionales = '?rut_receptor=' . $rut_receptor . '&dv_receptor=' . $dv_receptor . '&monto=' . $monto . '&fechaEmision=' . $fechaEmision;
         $url = self::$url_api. "/" . $required . '/estado' . $opcionales;

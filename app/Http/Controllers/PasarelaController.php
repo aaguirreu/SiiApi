@@ -17,22 +17,18 @@ class PasarelaController extends DteController
     public function __construct($tipos_dte)
     {
         self::$tipos_dte = $tipos_dte;
-        self::isToken();
     }
 
     /**
      * @throws GuzzleException
      * @throws \Exception
      */
-    protected function generarNuevoCaf($rut_emp, $dv_emp, $tipo_folio, $cant_doctos)
+    protected function generarNuevoCaf($pfx_path, $password, $rut_emp, $dv_emp, $tipo_folio, $cant_doctos)
     {
         $client = new Client(array(
             'cookies' => true,
             'debug' => fopen('php://stderr', 'w'),
         ));
-
-        $pfx_path = env('CERT_PATH');
-        $password = env('CERT_PASS');
 
         try {
             $client->request('POST', 'https://herculesr.sii.cl/cgi_AUT2000/CAutInicio.cgi?https://misiir.sii.cl/cgi_misii/siihome.cgi', [
@@ -429,7 +425,7 @@ class PasarelaController extends DteController
     /**
      * Generar DTE de respuesta sobre la aceptación o rechazo de un dte
      */
-    protected function generarRespuestaDocumento($estado, $glosa, $dte_xml, $rut_receptor_esperado)
+    protected function generarRespuestaDocumento($estado, $glosa, $dte_xml, $rut_receptor_esperado, $Firma)
     {
         $this->timestamp = Carbon::now('America/Santiago');
 
@@ -472,7 +468,7 @@ class PasarelaController extends DteController
 
         // asignar carátula y Firma
         $RespuestaEnvio->setCaratula($caratula_respuesta);
-        $RespuestaEnvio->setFirma($this->obtenerFirma());
+        $RespuestaEnvio->setFirma($Firma);
 
         // generar XML
         $xml = $RespuestaEnvio->generar();

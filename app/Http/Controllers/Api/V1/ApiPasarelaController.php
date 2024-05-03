@@ -2,34 +2,25 @@
 
 namespace App\Http\Controllers\Api\V1;
 
-use App\Http\Controllers\Controller;
 use App\Http\Controllers\PasarelaController;
 use App\Jobs\ProcessEnvioDteSii;
 use App\Mail\DteResponse;
 use App\Models\Envio;
 use Carbon\Carbon;
 use Exception;
-use GuzzleHttp\Client;
-use GuzzleHttp\Exception\GuzzleException;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Response;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use sasco\LibreDTE\Log;
-use sasco\LibreDTE\Sii;
 use sasco\LibreDTE\Sii\Folios;
-use sasco\LibreDTE\Sii\RegistroCompraVenta;
 use SimpleXMLElement;
-use Symfony\Component\DomCrawler\Crawler;
 use Webklex\PHPIMAP\Attachment;
 use Webklex\PHPIMAP\ClientManager;
 use Webklex\PHPIMAP\Folder;
 use Webklex\PHPIMAP\Message;
-use Webklex\PHPIMAP\Support\MessageCollection;
 
 /**
  *
@@ -50,7 +41,7 @@ class ApiPasarelaController extends PasarelaController
      * Envío Async (Jobs)
      * @param Request $request
      */
-    public function generarDte(Request $request, $ambiente)//: SimpleXMLElement
+    public function generarDte(Request $request, $ambiente): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'Caratula' => 'required',
@@ -58,6 +49,8 @@ class ApiPasarelaController extends PasarelaController
             'Documentos.*.Encabezado.IdDoc.TipoDTE' => 'required|integer',
             'Documentos.*.Encabezado.IdDoc.Folio' => 'required|integer',
             'Cafs' => 'required|array',
+            'firmab64' => 'required|string',
+            'pswb64' => 'required|string',
         ], [
             'Caratula.required' => 'Caratula es requerida',
             'Documentos.required' => 'Documentos es requerido',
@@ -67,6 +60,8 @@ class ApiPasarelaController extends PasarelaController
             'Documentos.*.Encabezado.IdDoc.Folio.required' => 'Folio es requerido',
             'Cafs.required' => 'Cafs es requerido',
             'Cafs.array' => 'Cafs debe ser un arreglo',
+            'firmab64.required' => 'firmab64 es requerida',
+            'pswb64.required' => 'pswb64 es requerida',
         ]);
 
         // Si falla la validación, retorna una respuesta Json con el error
@@ -79,8 +74,20 @@ class ApiPasarelaController extends PasarelaController
         // Obtener json
         $dte = $request->json()->all();
 
-        // Set ambiente certificacón
-        $this->setAmbiente($ambiente);
+        // Obtener firma
+        list($cert_path, $Firma) = $this->importarFirma(base64_decode($request->firmab64), base64_decode($request->pswb64));
+        if (is_array($Firma)) {
+            return response()->json([
+                'error' => $Firma['error'],
+            ], 400);
+        }
+
+        // verificar Token SII
+        $rut_envia = $Firma->getID();
+        $this->isToken($rut_envia, $Firma);
+
+        // Set ambiente
+        $this->setAmbiente($ambiente, $rut_envia);
 
         // Extraer los valores de TipoDTE de cada documento
         $tipos_dte = array_map(function($documento) {
@@ -118,9 +125,6 @@ class ApiPasarelaController extends PasarelaController
                 'error' => "No hay coincidencia para TipoDTE = $tipo_dte en los CAFs obtenidos"
             ], 400);
         }
-
-        // Objetos de Firma y Folios
-        $Firma = $this->obtenerFirma();
 
         // Obtener caratula
         $caratula = $this->obtenerCaratula(json_decode(json_encode($dte)), $dte['Documentos'], $Firma);
@@ -193,11 +197,15 @@ class ApiPasarelaController extends PasarelaController
             'dv_emisor' => 'required|string',
             'tipo_dte' => 'required|integer',
             'folio' => 'required|integer',
+            'firmab64' => 'required|string',
+            'pswb64' => 'required|string',
         ], [
             'rut_emisor.required' => 'Rut Emisor es requerido',
             'dv_emisor.required' => 'Dv Emisor es requerido',
             'tipo_dte.required' => 'Tipo DTE es requerido',
             'folio.required' => 'Folio es requerido',
+            'firmab64.required' => 'firmab64 es requerida',
+            'pswb64.required' => 'pswb64 es requerida',
         ]);
 
         // Si falla la validación, retorna una respuesta Json con el error
@@ -207,13 +215,25 @@ class ApiPasarelaController extends PasarelaController
             ], 400);
         }
 
+        // Obtener firma
+        list($cert_path, $Firma) = $this->importarFirma(base64_decode($request->firmab64), base64_decode($request->pswb64));
+        if (is_array($Firma)) {
+            return response()->json([
+                'error' => $Firma['error'],
+            ], 400);
+        }
+
+        // verificar Token SII
+        $rut_envia = $Firma->getID();
+        $this->isToken($rut_envia, $Firma);
+
         // Si es boleta o DTE
         if($request->tipo_dte == 39 || $request->tipo_dte == 41) {
             $controller = new ApiBoletaController();
-            $controller->setAmbiente($ambiente);
+            $controller->setAmbiente($ambiente, $rut_envia);
         } else {
             $controller = new ApiFacturaController();
-            $controller->setAmbiente($ambiente);
+            $controller->setAmbiente($ambiente, $rut_envia);
         }
 
         $Envio = new Envio();
@@ -263,6 +283,8 @@ class ApiPasarelaController extends PasarelaController
             'dv_receptor' => 'required|string',
             'monto' => 'required|numeric',
             'fecha_emision' => 'required|date_format:d-m-Y',
+            'firmab64' => 'required|string',
+            'pswb64' => 'required|string',
         ], [
             'rut.required' => 'Rut Emisor es requerido',
             'dv.required' => 'Dv Emisor es requerido',
@@ -272,6 +294,8 @@ class ApiPasarelaController extends PasarelaController
             'dv_receptor.required' => 'Dv Receptor es requerido',
             'monto.required' => 'Monto es requerido',
             'fecha_emision.required' => 'Fecha de emisión es requerida',
+            'firmab64.required' => 'firmab64 es requerida',
+            'pswb64.required' => 'pswb64 es requerida',
         ]);
 
         // Si falla la validación, retorna una respuesta Json con el error
@@ -281,13 +305,25 @@ class ApiPasarelaController extends PasarelaController
             ], 400);
         }
 
+        // Obtener firma
+        list($cert_path, $Firma) = $this->importarFirma(base64_decode($request->firmab64), base64_decode($request->pswb64));
+        if (is_array($Firma)) {
+            return response()->json([
+                'error' => $Firma['error'],
+            ], 400);
+        }
+
+        // verificar Token SII
+        $rut_envia = $Firma->getID();
+        $this->isToken($rut_envia, $Firma);
+
         // Si es boleta o DTE
         if($request->tipo == 39 || $request->tipo == 41) {
             $controller = new ApiBoletaController();
-            $controller->setAmbiente($ambiente);
+            $controller->setAmbiente($ambiente, $rut_envia);
         } else {
             $controller = new ApiFacturaController();
-            $controller->setAmbiente($ambiente);
+            $controller->setAmbiente($ambiente, $rut_envia);
         }
 
         return $controller->estadoDocumento($request, $ambiente);
@@ -397,17 +433,22 @@ class ApiPasarelaController extends PasarelaController
             'dte_xml' => 'required|string',
             'estado' => 'required|integer',
             'accion_doc' => 'required|string',
+            'firmab64' => 'required|string',
+            'pswb64' => 'required|string',
         ], [
             'rut_receptor.required' => 'rut_receptor es requerido',
             'dte_xml.required' => 'dte_xml es requerido',
             'estado.required' => 'estado es requerido',
             'accion_doc.required' => 'accion_doc es requerida',
+            'firmab64.required' => 'firmab64 es requerida',
+            'pswb64.required' => 'pswb64 es requerida',
         ]);
         if ($validator->fails()) {
             return response()->json([
                 'error' => $validator->errors()->all(),
             ], 400);
         }
+
         if($request->correo_receptor) {
             $validator = Validator::make($request->all(), [
                 'correo_receptor' => 'required|email',
@@ -434,16 +475,20 @@ class ApiPasarelaController extends PasarelaController
             }
         }
 
-        // Si falla la validación, retorna una respuesta Json con el error
-        if ($validator->fails()) {
+        // Obtener firma
+        list($cert_path, $Firma) = $this->importarFirma(base64_decode($request->firmab64), base64_decode($request->pswb64));
+        if (is_array($Firma)) {
             return response()->json([
-                'error' => $validator->errors()->all(),
+                'error' => $Firma['error'],
             ], 400);
         }
 
+        // verificar Token SII
+        $rut_envia = $Firma->getID();
+        $this->isToken($rut_envia, $Firma);
+
         // Set ambiente
-        $this->setAmbiente($ambiente);
-        Sii::setAmbiente(self::$ambiente);
+        $this->setAmbiente($ambiente, $rut_envia);
 
         $glosa = match ((int)$request->estado) {
             0 => ".",
@@ -470,7 +515,7 @@ class ApiPasarelaController extends PasarelaController
         // Envío de respuesta de documento a SII
         list($rut_emisor, $dv_emisor) = explode('-', str_replace('.', '', $request->rut_receptor));
         try {
-            $respuesta_doc = new \sasco\LibreDTE\Sii\RegistroCompraVenta($this->obtenerFirma());
+            $respuesta_doc = new \sasco\LibreDTE\Sii\RegistroCompraVenta($Firma);
         } catch (Exception $e) {
             return response()->json([
                 'error' => $e->getMessage(),
@@ -487,7 +532,7 @@ class ApiPasarelaController extends PasarelaController
         // Envío de respuesta de documento a emisor
         // Obtener respuesta de documento
         if($request->correo_receptor) {
-            $xml_respuesta = $this->generarRespuestaDocumento((int)$request->estado, $glosa, base64_decode($request->dte_xml), $request->rut_receptor);
+            $xml_respuesta = $this->generarRespuestaDocumento((int)$request->estado, $glosa, base64_decode($request->dte_xml), $request->rut_receptor, $Firma);
             if (!$xml_respuesta) {
                 return response()->json([
                     'error' => Log::read()->msg,
@@ -537,11 +582,15 @@ class ApiPasarelaController extends PasarelaController
             'dv' => 'required|string',
             'tipo' => 'required|integer',
             'cant_doctos' => 'required|integer',
+            'firmab64' => 'required|string',
+            'pswb64' => 'required|string',
         ], [
             'rut.required' => 'Rut Emisor es requerido',
             'dv.required' => 'Dv Emisor es requerido',
             'tipo.required' => 'Tipo de Folio es requerido',
             'cant_doctos.required' => 'Cantidad de documentos es requerida',
+            'firmab64.required' => 'firmab64 es requerida',
+            'pswb64.required' => 'pswb64 es requerida',
         ]);
         if ($validator->fails()) {
             return response()->json([
@@ -549,10 +598,22 @@ class ApiPasarelaController extends PasarelaController
             ], 400);
         }
 
-        // Set ambiente
-        $this->setAmbiente($ambiente);
+        // Obtener firma
+        list($cert_path, $Firma) = $this->importarFirma(base64_decode($request->firmab64), base64_decode($request->pswb64));
+        if (is_array($Firma)) {
+            return response()->json([
+                'error' => $Firma['error'],
+            ], 400);
+        }
 
-        $caf_xml = $this->generarNuevoCaf($request->rut, $request->dv, $request->tipo, $request->cant_doctos);
+        // verificar Token SII
+        $rut_envia = $Firma->getID();
+        $this->isToken($rut_envia, $Firma);
+
+        // Set ambiente
+        $this->setAmbiente($ambiente, $rut_envia);
+
+        $caf_xml = $this->generarNuevoCaf($cert_path, base64_decode($request->pswb64), $request->rut, $request->dv, $request->tipo, $request->cant_doctos);
         if (!$caf_xml) {
             return response()->json([
                 'error' => Log::read()->msg,
