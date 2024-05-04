@@ -11,6 +11,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log;
 
 class ProcessEnvioDteSii implements ShouldQueue
 {
@@ -37,13 +38,12 @@ class ProcessEnvioDteSii implements ShouldQueue
         $caratula = $this->arr['caratula'];
 
         // Set ambiente y obtener token
-        if($this->envio->tipo_dte == 39 || $this->envio->tipo_dte == 41){
+        if ($this->envio->tipo_dte == 39 || $this->envio->tipo_dte == 41) {
             $controller = new ApiBoletaController();
-            $controller->setAmbiente($this->envio->ambiente);
         } else {
             $controller = new ApiFacturaController();
-            $controller->setAmbiente($this->envio->ambiente);
         }
+        $controller->setAmbiente($this->envio->ambiente, $caratula['RutEnvia']);
 
         // enviar al SII
         list($envio_response, $filename) = $controller->enviar($xml, $caratula['RutEnvia'], $caratula['RutEmisor'], $this->envio->rut_receptor);
