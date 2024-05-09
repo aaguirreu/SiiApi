@@ -950,7 +950,7 @@ class DteController extends Controller
         }
     }
 
-    protected function importarFirma($cert, $cert_pass)
+    protected function importarFirma(&$tmp_dir, $cert, $cert_pass)
     {
         // Guardar firma en tmp y que se autoelimine
         try {

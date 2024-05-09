@@ -75,7 +75,7 @@ class ApiPasarelaController extends PasarelaController
         $dte = $request->json()->all();
 
         // Obtener firma
-        list($cert_path, $Firma) = $this->importarFirma(base64_decode($request->firmab64), base64_decode($request->pswb64));
+        list($cert_path, $Firma) = $this->importarFirma($tmp_dir, base64_decode($request->firmab64), base64_decode($request->pswb64));
         if (is_array($Firma)) {
             return response()->json([
                 'error' => $Firma['error'],
@@ -216,7 +216,7 @@ class ApiPasarelaController extends PasarelaController
         }
 
         // Obtener firma
-        list($cert_path, $Firma) = $this->importarFirma(base64_decode($request->firmab64), base64_decode($request->pswb64));
+        list($cert_path, $Firma) = $this->importarFirma($tmp_dir, base64_decode($request->firmab64), base64_decode($request->pswb64));
         if (is_array($Firma)) {
             return response()->json([
                 'error' => $Firma['error'],
@@ -306,7 +306,7 @@ class ApiPasarelaController extends PasarelaController
         }
 
         // Obtener firma
-        list($cert_path, $Firma) = $this->importarFirma(base64_decode($request->firmab64), base64_decode($request->pswb64));
+        list($cert_path, $Firma) = $this->importarFirma($tmp_dir, base64_decode($request->firmab64), base64_decode($request->pswb64));
         if (is_array($Firma)) {
             return response()->json([
                 'error' => $Firma['error'],
@@ -476,7 +476,7 @@ class ApiPasarelaController extends PasarelaController
         }
 
         // Obtener firma
-        list($cert_path, $Firma) = $this->importarFirma(base64_decode($request->firmab64), base64_decode($request->pswb64));
+        list($cert_path, $Firma) = $this->importarFirma($tmp_dir, base64_decode($request->firmab64), base64_decode($request->pswb64));
         if (is_array($Firma)) {
             return response()->json([
                 'error' => $Firma['error'],
@@ -599,7 +599,7 @@ class ApiPasarelaController extends PasarelaController
         }
 
         // Obtener firma
-        list($cert_path, $Firma) = $this->importarFirma(base64_decode($request->firmab64), base64_decode($request->pswb64));
+        list($cert_path, $Firma) = $this->importarFirma($tmp_dir, base64_decode($request->firmab64), base64_decode($request->pswb64));
         if (is_array($Firma)) {
             return response()->json([
                 'error' => $Firma['error'],
