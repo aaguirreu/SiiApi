@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Response;
 use Illuminate\Support\Facades\Validator;
 use sasco\LibreDTE\Log;
+use sasco\LibreDTE\Sii\ConsumoFolio;
 use sasco\LibreDTE\Sii\Folios;
 use SimpleXMLElement;
 use Webklex\PHPIMAP\Attachment;
@@ -163,7 +164,7 @@ class ApiPasarelaController extends PasarelaController
                     'created_at' => $this->timestamp,
                     'updated_at' => $this->timestamp,
                 ]);
-                $envio = $Envio->find($envio_id);
+                $envio = $Envio->find($envio_id)                                                                                                                                                                                                                                                                                                                                                                                                                                           ;
             } catch (Exception $e) {
                 return response()->json([
                     'error' => "Error al guardar en la base de datos",
@@ -207,7 +208,6 @@ class ApiPasarelaController extends PasarelaController
             'firmab64.required' => 'firmab64 es requerida',
             'pswb64.required' => 'pswb64 es requerida',
         ]);
-
         // Si falla la validación, retorna una respuesta Json con el error
         if ($validator->fails()) {
             return response()->json([
@@ -234,6 +234,14 @@ class ApiPasarelaController extends PasarelaController
         } else {
             $controller = new ApiFacturaController();
             $controller->setAmbiente($ambiente, $rut_envia);
+        }
+
+        // Si existe track id en body, consultar inmediatamente
+        if(isset($request->track_id)) {
+            $request['rut'] = $request['rut_emisor'];
+            $request['dv'] = $request['dv_emisor'];
+            $request['track_id'] = $request->track_id;
+            return $controller->estadoEnvioDte($request, $ambiente);
         }
 
         $Envio = new Envio();
@@ -637,10 +645,96 @@ class ApiPasarelaController extends PasarelaController
         ], 200);
     }
 
+    public function resumenVentas(Request $request, $ambiente) {
+        $validator = Validator::make($request->all(), [
+            'Caratula' => 'required',
+            'Resumen' => 'required',
+            'firmab64' => 'required|string',
+            'pswb64' => 'required|string',
+        ], [
+            'Caratula.required' => 'Caratula es requerida',
+            'Resumen.required' => 'Resumen es requerido',
+            'firmab64.required' => 'firmab64 es requerida',
+            'pswb64.required' => 'pswb64 es requerida',
+        ]);
+        if ($validator->fails()) {
+            return response()->json([
+                'error' => $validator->errors()->all(),
+            ], 400);
+        }
+
+        // Validar Caratula
+        $validator = Validator::make($request->toArray()['Caratula'], [
+            'RutEmisor' => 'required|string',
+            'FchResol' => 'required|string',
+            'NroResol' => 'required|integer',
+            'FchInicio' => 'required|string',
+            'FchFinal' => 'required|string',
+            'SecEnvio' => 'required|integer'
+        ], [
+            'RutEmisor.required' => 'RutEmisor es requerido',
+            'FchResol.required' => 'FchResol es requerido',
+            'NroResol.required' => 'NroResol es requerido',
+            'FchInicio.required' => 'FchInicio es requerido',
+            'FchFinal.required' => 'FchFinal es requerido',
+            'SecEnvio.required' => 'SecEnvio es requerido',
+        ]);
+        if ($validator->fails()) {
+            return response()->json([
+                'error' => $validator->errors()->all(),
+            ], 400);
+        }
+
+        // Obtener firma
+        list($cert_path, $Firma) = $this->importarFirma($tmp_dir, base64_decode($request->firmab64), base64_decode($request->pswb64));
+        if (is_array($Firma)) {
+            return response()->json([
+                'error' => $Firma['error'],
+            ], 400);
+        }
+
+        // verificar Token SII
+        $rut_envia = $Firma->getID();
+        $this->isToken($rut_envia, $Firma);
+
+        // Set ambiente
+        $this->setAmbiente($ambiente, $rut_envia);
+
+        $r = $request->toArray();
+        $resumen_ventas_diarias = $this->generarResumenVentasDiarias($r['Caratula'], $r['Resumen'], $Firma);
+        $consumo_folio = new ConsumoFolio();
+        $consumo_folio->setFirma($Firma);
+        $consumo_folio->setDocumentos([39, 41]); // [39, 61] si es sólo afecto, [41, 61] si es sólo exento
+        $consumo_folio->setCaratula([
+            'RutEmisor' => $r["Caratula"]['RutEmisor'],
+            'FchResol' => $r["Caratula"]['FchResol'],
+            'NroResol' => $r["Caratula"]['NroResol'],
+        ]);
+        $consumo_folio->loadXML($resumen_ventas_diarias);
+        if ($consumo_folio->schemaValidate()) {
+            //echo $ConsumoFolio->generar();
+            $track_id = $consumo_folio->enviar();
+            if (!$track_id) {
+                return response()->json([
+                    'error' => ["Error al enviar XML", Log::read()->msg],
+                ], 400);
+            }
+            return response()->json([
+                'track_id' => $track_id,
+                'resumen_xml' => base64_encode($consumo_folio->generar()),
+            ], 200);
+        }
+        return response()->json([
+            'error' => ["Error al validar XML", Log::read()->msg],
+        ], 400);
+    }
+
     public function base64(Request $request)
     {
-        return response()->json([
+        return base64_decode($request->getContent());
+
+        /*return response()->json([
             'base64' => base64_encode($request->getContent())
-        ], 200);
+        ], 200);*/
     }
 }

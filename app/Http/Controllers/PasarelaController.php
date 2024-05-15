@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\V1\DteController;
 use Carbon\Carbon;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
+use sasco\LibreDTE\FirmaElectronica;
 use sasco\LibreDTE\Log;
 use SimpleXMLElement;
 use Symfony\Component\DomCrawler\Crawler;
@@ -44,7 +45,7 @@ class PasarelaController extends DteController
                 'allow_redirects' => true,
             ]);
         } catch (GuzzleException $e) {
-            Log::write(401, "Error al autenticarse con el SII.\n{$e->getMessage()}");
+            Log::write(401, ["Error al autenticarse con el SII.", $e->getMessage(), $e->getTraceAsString()]);
             return false;
         }
 
@@ -72,7 +73,7 @@ class PasarelaController extends DteController
         try {
             $data_confirmar_folio = $this->getDataConfirmarFolio($rut_emp, $dv_emp, $tipo_folio, $cant_doctos, $html);
         } catch (\InvalidArgumentException $e) {
-            Log::write("Rut incorrecto o no autorizado. {$e->getMessage()} {$e->getTraceAsString()}");
+            Log::write(["Rut incorrecto o no autorizado.", $e->getMessage(), $e->getTraceAsString()]);
             return false;
         }
 
@@ -479,5 +480,44 @@ class PasarelaController extends DteController
             return $xml;
         }
         return false;
+    }
+
+    public function generarResumenVentasDiarias(array $caratula, array $resumen, FirmaElectronica $Firma)
+    {
+        $caratula_merge = array_merge([
+            '@attributes' => [
+                'version' => '1.0',
+            ],
+            'RutEmisor' => false,
+            'RutEnvia' => $Firma->getID(),
+            'FchResol' => false,
+            'NroResol' => false,
+            'FchInicio' => false,
+            'FchFinal' => false,
+            'Correlativo' => false,
+            'SecEnvio' => 1,
+            'TmstFirmaEnv' => date('Y-m-d\TH:i:s'),
+        ], $caratula);
+        $id = 'CONSUMO_FOLIO_'.str_replace('-', '', $caratula['RutEmisor']).'_'.str_replace('-', '', $caratula['FchInicio']).'_'.date('U');
+
+        $consumo_folios = (new \sasco\LibreDTE\XML())->generate([
+            'ConsumoFolios' => [
+                '@attributes' => [
+                    'xmlns' => 'http://www.sii.cl/SiiDte',
+                    'xmlns:xsi' => 'http://www.w3.org/2001/XMLSchema-instance',
+                    'xsi:schemaLocation' => 'http://www.sii.cl/SiiDte ConsumoFolio_v10.xsd',
+                    'version' => '1.0',
+                ],
+                'DocumentoConsumoFolios' => [
+                    '@attributes' => [
+                        'ID' => $id,
+                    ],
+                    'Caratula' => $caratula_merge,
+                    'Resumen' => $resumen,
+                ],
+            ]
+        ])->saveXML();
+        // firmar XML del envío y entregar
+        return $Firma->signXML($consumo_folios, '#'.$id, 'DocumentoConsumoFolios', true);
     }
 }

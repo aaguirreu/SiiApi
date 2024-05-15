@@ -74,4 +74,6 @@ Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1', 'm
     Route::post('pasarela/dtes/correos.importar', 'ApiPasarelaController@importarDtesCorreo');
     // Obtener CAF
     Route::post('pasarela/{ambiente}/caf.obtener', 'ApiPasarelaController@obtenerCaf');
+    // Resumen Ventas Diarias
+    Route::post('pasarela/{ambiente}/resumenVentas', 'ApiPasarelaController@resumenVentas');
 });
