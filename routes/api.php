@@ -19,7 +19,7 @@ use App\Http\Controllers\UserAuthController;
 Route::post('/tokens/create', [UserAuthController::class, 'createToken']);
 
 // Api/V1
-Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1', 'middleware' => ['auth:sanctum']], function () {
+Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1'/*, 'middleware' => ['auth:sanctum']*/], function () {
     // Rcof
     /*Route::post('rcof/{dte_filename}', 'ApiSetPruebaController@enviarRcofOnly');
 
@@ -76,4 +76,7 @@ Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1', 'm
     Route::post('pasarela/{ambiente}/caf.obtener', 'ApiPasarelaController@obtenerCaf');
     // Resumen Ventas Diarias
     Route::post('pasarela/{ambiente}/resumenVentas', 'ApiPasarelaController@resumenVentas');
+
+    // Miscelaneos
+    Route::post('base64', 'ApiPasarelaController@base64');
 });

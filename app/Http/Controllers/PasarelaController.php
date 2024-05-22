@@ -268,6 +268,10 @@ class PasarelaController extends DteController
                 Log::write($texto);
                 return false;
             }
+            if (stristr($texto, "No ha sido posible completar su solicitud.")){
+                Log::write($texto);
+                return false;
+            }
         }
         Log::write($html);
         return false;

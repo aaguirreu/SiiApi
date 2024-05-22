@@ -105,9 +105,10 @@ class ApiPasarelaController extends PasarelaController
 
         // Verificar que los CAFs sean válidos
         foreach ($Folios as $Folio) {
+            /** @var Folios $Folio */
             if (!$Folio->check()) {
                 return response()->json([
-                    'error' => "Error al leer CAF",
+                    'error' => ["Error al leer CAF", Log::read()],
                 ], 400);
             }
         }

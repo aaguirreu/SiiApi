@@ -170,9 +170,9 @@ class DteController extends Controller
                     self::$ambiente == 0 ? $tipo_dte = $documento->Encabezado->IdDoc->TipoDTE : $tipo_dte = -$documento->Encabezado->IdDoc->TipoDTE;
                     // si envio_dte_id es null (dte recibido) no existe caf en base de datos, por lo tanto caf_id es null
                     $compra_venta == 1 ? $caf_id = DB::table('caf')
-                            ->where('empresa_id', '=', $emisor_id)
-                            ->where('tipo', '=', $tipo_dte)
-                            ->latest()->first()->id : $caf_id = null;
+                        ->where('empresa_id', '=', $emisor_id)
+                        ->where('tipo', '=', $tipo_dte)
+                        ->latest()->first()->id : $caf_id = null;
                     $receptor_id = $this->getEmpresa($documento->Encabezado->Receptor->RUTRecep, $documento);
                     $documento_id = $this->guardarDocumento($dte_id, $caf_id, $receptor_id, $documento);
 
@@ -960,7 +960,7 @@ class DteController extends Controller
         } catch (Exception $e) {
             return [null, [
                 'error' => $e->getMessage(),
-                ]
+            ]
             ];
         }
 
@@ -972,8 +972,8 @@ class DteController extends Controller
 
         if (isset($error)) {
             return [$cert_path, [
-                'error' => $error,
-                ]
+                'error' => [$error, 'Si sus credenciales están bien, verifique que su servidor tenga habilitada la opción Legacy de OpenSSL.'],
+            ]
             ];
         }
 
