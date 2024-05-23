@@ -584,7 +584,7 @@ class ApiPasarelaController extends PasarelaController
         return response()->json($response, 200);
     }
 
-    public function obtenerCaf(Request $request, $ambiente)//: JsonResponse
+    public function obtenerCaf(Request $request, $ambiente): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'rut' => 'required|string',
