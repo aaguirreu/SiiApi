@@ -56,8 +56,8 @@ class PasarelaController extends DteController
 
         $solicita_folios = $client->request('POST', "https://$servidor.sii.cl/cvc_cgi/dte/of_solicita_folios_dcto", [
             'form_params' => [
-                'RUT_EMP' => '76974300',
-                'DV_EMP' => '6',
+                'RUT_EMP' => $rut_emp,
+                'DV_EMP' => $dv_emp,
                 'COD_DOCTO' => $tipo_folio,
                 'ACEPTAR' => 'Continuar',
             ],
