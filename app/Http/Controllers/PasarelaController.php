@@ -277,33 +277,42 @@ class PasarelaController extends DteController
         return false;
     }
 
-    private function verificarHtmlCaf($html, $data): bool
+    public function verificarHtmlCaf($html, $data): bool
     {
         $crawler = new Crawler($html);
 
         // Verificar si el SII autorizó el CAF
-        $texto = $crawler->filter('font.texto')->eq(0)->text(); // Obtener el segundo elemento que coincide con la clase 'texto'
-        if (isset($texto)) {
-            if (stristr($texto, "Servicio de Impuestos Internos ha autorizado")) {
-                return true;
+        $found = false;
+        $crawler->filter('font.texto')->each(function (Crawler $node) use (&$text_arr, &$found) {
+            $text_arr[] = $node->text();
+            if (stristr($node->text(), "Servicio de Impuestos Internos ha autorizado")) {
+                $found = true;
             }
-        }
-        // Obtener el texto dentro del elemento que contiene la clase "texto"
-        $texto = $crawler->filter('font.texto')->text();
-        // Si texto existe
-        if (isset($texto)) {
-            if(stristr($texto, "No ha sido posible completar su solicitud.")) {
-                if (stristr($texto, "La cantidad de documentos a timbrar debe ser menor o igual al máximo autorizado")) {
-                    Log::write("$texto MAX_AUTOR={$data['MAX_AUTOR']}");
-                    return false;
-                }
+        });
+        if ($found)
+            return true;
 
-                if (stristr($texto, "diferencia entre el rango de folios solicitado con el rango solicitado la última vez")) {
+        // Si texto existe
+        if (isset($text_arr)) {
+            foreach ($text_arr as $texto) {
+                if (stristr($texto, "No ha sido posible completar su solicitud.")) {
+                    if (stristr($texto, "La cantidad de documentos a timbrar debe ser menor o igual al máximo autorizado")) {
+                        Log::write("$texto MAX_AUTOR={$data['MAX_AUTOR']}");
+                        return false;
+                    }
+
+                    if (stristr($texto, "diferencia entre el rango de folios solicitado con el rango solicitado la última vez")) {
+                        Log::write($texto);
+                        return false;
+                    }
+
                     Log::write($texto);
                     return false;
                 }
-                Log::write($texto);
-                return false;
+                if (stristr($texto, "usted tiene disponible una cantidad de folios suficiente para emitir documentos")) {
+                    Log::write($texto);
+                    return false;
+                }
             }
         }
 
