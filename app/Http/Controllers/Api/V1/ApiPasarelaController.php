@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\PasarelaController;
 use App\Jobs\ProcessEnvioDteSii;
+use App\Mail\DteEnvio;
 use App\Mail\DteResponse;
 use App\Models\Envio;
 use Carbon\Carbon;
@@ -12,6 +13,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Response;
 use Illuminate\Support\Facades\Validator;
 use sasco\LibreDTE\Log;
@@ -70,6 +72,32 @@ class ApiPasarelaController extends PasarelaController
             return response()->json([
                 'error' => $validator->errors()->all(),
             ], 400);
+        }
+
+        if($request->correo_receptor) {
+            $validator = Validator::make($request->all(), [
+                'correo_receptor' => 'required|email',
+                'mail' => 'required|email',
+                'password' => 'required|string',
+                'host' => 'required|string',
+                'port' => 'required|integer',
+            ], [
+                'correo_receptor' => 'correo_receptor debe ser un correo válido',
+                'mail.email' => 'mail debe ser un correo válido',
+                'mail.required' => 'mail es requerido',
+                'password.required' => 'password es requerida',
+                'host.required' => 'host es requerido',
+                'port.required' => 'port es requerido',
+            ]);
+
+            // Si falla la validación, retorna una respuesta Json con el error
+            if ($validator->fails()) {
+                $error = $validator->errors()->all();
+                $error[] = 'Rut receptor detectado. Ingrese credenciales de correo emisor.';
+                return response()->json([
+                    'error' => $error,
+                ], 400);
+            }
         }
 
         // Obtener json
@@ -179,6 +207,12 @@ class ApiPasarelaController extends PasarelaController
             'caratula' => $caratula,
             'xml' => $base64_xml,
         ];
+
+        // Agregar todos los datos si existe receptor
+        if ($request->correo_receptor) {
+            $envio_arr['$ambiente'] = $ambiente;
+            $envio_arr['request'] = $dte;
+        }
 
         // Dispatch job para enviar a SII de manera asincrónica
         ProcessEnvioDteSii::dispatch($envio, $envio_arr);
@@ -728,6 +762,155 @@ class ApiPasarelaController extends PasarelaController
         return response()->json([
             'error' => ["Error al validar XML", Log::read()->msg],
         ], 400);
+    }
+
+    public function generarDteReceptor(Request $request, $ambiente)//: JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'correo_receptor' => 'required|email',
+            'mail' => 'required|email',
+            'password' => 'required|string',
+            'host' => 'required|string',
+            'port' => 'required|integer',
+            'Caratula' => 'required',
+            'Documentos' => 'required|array',
+            'Documentos.*.Encabezado.IdDoc.TipoDTE' => 'required|integer',
+            'Documentos.*.Encabezado.IdDoc.Folio' => 'required|integer',
+            'Cafs' => 'required|array',
+            'firmab64' => 'required|string',
+            'pswb64' => 'required|string',
+        ], [
+            'correo_receptor' => 'correo_receptor debe ser un correo válido',
+            'mail.email' => 'mail debe ser un correo válido',
+            'mail.required' => 'mail es requerido',
+            'password.required' => 'password es requerida',
+            'host.required' => 'host es requerido',
+            'port.required' => 'port es requerido',
+            'Caratula.required' => 'Caratula es requerida',
+            'Documentos.required' => 'Documentos es requerido',
+            'Documentos.*.Encabezado.IdDoc.TipoDTE.required' => 'TipoDTE es requerido',
+            'Documentos.*.Encabezado.IdDoc.TipoDTE.integer' => 'TipoDTE debe ser un número entero',
+            'Documentos.*.Encabezado.IdDoc.Folio.integer' => 'Folio debe ser un número entero',
+            'Documentos.*.Encabezado.IdDoc.Folio.required' => 'Folio es requerido',
+            'Cafs.required' => 'Cafs es requerido',
+            'Cafs.array' => 'Cafs debe ser un arreglo',
+            'firmab64.required' => 'firmab64 es requerida',
+            'pswb64.required' => 'pswb64 es requerida',
+        ]);
+
+        // Si falla la validación, retorna una respuesta Json con el error
+        if ($validator->fails()) {
+            return response()->json([
+                'error' => $validator->errors()->all(),
+            ], 400);
+        }
+
+        // Obtener json
+        $dte = $request->json()->all();
+
+        // Obtener firma
+        list($cert_path, $Firma) = $this->importarFirma($tmp_dir, base64_decode($request->firmab64), base64_decode($request->pswb64));
+        if (is_array($Firma)) {
+            return response()->json([
+                'error' => $Firma['error'],
+            ], 400);
+        }
+
+        // verificar Token SII
+        $rut_envia = $Firma->getID();
+        $this->isToken($rut_envia, $Firma);
+
+        // Set ambiente
+        $this->setAmbiente($ambiente, $rut_envia);
+
+        // Extraer los valores de TipoDTE de cada documento
+        $tipos_dte = array_map(function($documento) {
+            return $documento['Encabezado']['IdDoc']['TipoDTE'];
+        }, $dte['Documentos']);
+
+        // Extraer los Caf como Objetos Folios
+        $Folios = array_reduce($dte['Cafs'], function ($carry, $caf) {
+            $caf = base64_decode($caf);
+            $folio = new Folios($caf);
+            $carry[$folio->getTipo()] = $folio;
+            return $carry;
+        }, []);
+
+        // Verificar que los CAFs sean válidos
+        foreach ($Folios as $Folio) {
+            /** @var Folios $Folio */
+            if (!$Folio->check()) {
+                return response()->json([
+                    'error' => ["Error al leer CAF", Log::read()],
+                ], 400);
+            }
+        }
+
+        // Extraer los valores de TD cada elemento en Cafs
+        $tipos_cafs = array_map(function($caf) {
+            return $caf->getTipo();
+        }, $Folios);
+
+        // Encontrar los tipoDTE que no traen su CAF correspondiente
+        $tipos_dte_diff = array_diff($tipos_dte, $tipos_cafs);
+
+        // Si un documento no tiene CAF, retorna error
+        foreach ($tipos_dte_diff as $tipo_dte) {
+            return response()->json([
+                'error' => "No hay coincidencia para TipoDTE = $tipo_dte en los CAFs obtenidos"
+            ], 400);
+        }
+
+        // Obtener caratula
+        $caratula = $this->obtenerCaratula(json_decode(json_encode($dte)), $dte['Documentos'], $Firma);
+
+        // Igualar rut receptor de documento al de caratula
+        $caratula['RutReceptor'] = $request['Documentos'][0]['Encabezado']['Receptor']['RUTRecep'] ?? '000-0';
+
+        // generar cada DTE, timbrar, firmar y agregar al sobre de EnvioBOLETA
+        $envio_dte_xml = $this->generarEnvioDteXml($dte['Documentos'], $Firma, $Folios, $caratula);
+        if(is_array($envio_dte_xml)) {
+            return response()->json([
+                'error' => "Error al generar el XML",
+                'message' => $envio_dte_xml,
+            ], 400);
+        }
+
+        // Preparar datos
+        $tipo_dte = $dte['Documentos'][0]['Encabezado']['IdDoc']['TipoDTE'];
+        $folio = $dte['Documentos'][0]['Encabezado']['IdDoc']['Folio'];
+        $filename = "DTE_$tipo_dte" . "_$tipos_dte[0]" . "_$this->timestamp.xml";
+        $filename = str_replace(' ', 'T', $filename);
+        $filename = str_replace(':', '-', $filename);
+        $envio = [
+            'filename' => $filename,
+            'data' => $envio_dte_xml
+        ];
+        $message = [
+            'from' => $request['Documentos'][0]['Encabezado']['Receptor']['RznSocRecep'] ?? '',
+            'subject' => "RutEmisor: {$caratula['RutEmisor']} RutReceptor: {$caratula['RutReceptor']} - TipoDTE: $tipo_dte - Folio: $folio",
+        ];
+
+        // Enviar respuesta por correo
+        try {
+            // Configurar la conexión SMTP
+            Config::set('mail.mailers.smtp.host', $request['host']);
+            Config::set('mail.mailers.smtp.port', $request['port']);
+            Config::set('mail.mailers.smtp.username', $request['mail']);
+            Config::set('mail.mailers.smtp.password', $request['password']);
+            Config::set('mail.from.address', $request['mail']);
+            Config::set('mail.from.name', env('APP_NAME', 'Logiciel ApiFact'));
+            Mail::to($request->correo_receptor)->send(new DteEnvio($message, $envio));
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => $e->getMessage()
+            ], 200);
+        }
+
+        return response()->json([
+            'sucess' => "Correo enviado con éxito",
+        ], 200);
     }
 
     public function base64(Request $request)

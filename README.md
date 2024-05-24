@@ -1,10 +1,4 @@
-Api que consume la api sii para el envío de boletas https://www4c.sii.cl/bolcoreinternetui/api/
-
-# Diagrama de la DB
-
-![SiiApiDBDiagram](https://github.com/aaguirreu/SiiApi/assets/64426866/70b3a044-cb09-4528-9d7c-724e6a1c61d0)
-
-
+ApiSii es un proyecto 
 
 # Instrucciones
 Sigue las siguientes instrucciones para un correcto funcionamiento en una maquina virtual con apache2.
