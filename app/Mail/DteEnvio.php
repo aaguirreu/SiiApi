@@ -31,7 +31,7 @@ class DteEnvio extends Mailable
     {
         return $this
             ->view('envio-email', ['name' => $this->message['from']])
-            ->subject('EnvioDTE')
+            ->subject($this->message['subject'])
             ->attachData($this->file['data'], $this->file['filename'], [
                 'mime' => 'text/xml',
             ]);

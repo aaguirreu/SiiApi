@@ -64,6 +64,8 @@ Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1'/*, 
     // Pasarela
     // Envio de DTE y Boletas
     Route::post('pasarela/{ambiente}/dte/envio', 'ApiPasarelaController@generarDte');
+    // Envio de DTE a Receptor
+    Route::post('pasarela/{ambiente}/dte/envio.receptor', 'ApiPasarelaController@generarDteReceptor');
     // Consulta de estado de envio
     Route::post('pasarela/{ambiente}/dte/estado.envio', 'ApiPasarelaController@estadoEnvio');
     // Consulta de estado de documento

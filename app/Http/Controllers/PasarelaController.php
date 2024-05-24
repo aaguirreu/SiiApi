@@ -306,6 +306,11 @@ class PasarelaController extends DteController
                         return false;
                     }
 
+                    if (stristr($texto, "ADVERTENCIA")) {
+                        Log::write($texto);
+                        return false;
+                    }
+
                     Log::write($texto);
                     return false;
                 }
@@ -317,6 +322,7 @@ class PasarelaController extends DteController
         }
 
         // En caso de dar error distinto a los ya encapsulados, retornar el html en base64
+        Log::write("No ha sido posible realizar su solicitud. Comuníquese con su soporte.");
         Log::write(base64_encode($html));
         return false;
     }
