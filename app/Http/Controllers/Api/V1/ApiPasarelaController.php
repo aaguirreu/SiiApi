@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\PasarelaController;
+use App\Jobs\ProcessEnvioDteReceptor;
 use App\Jobs\ProcessEnvioDteSii;
 use App\Mail\DteEnvio;
 use App\Mail\DteResponse;
@@ -12,6 +13,7 @@ use Exception;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Response;
@@ -210,12 +212,18 @@ class ApiPasarelaController extends PasarelaController
 
         // Agregar todos los datos si existe receptor
         if ($request->correo_receptor) {
-            $envio_arr['$ambiente'] = $ambiente;
+            $envio_arr['ambiente'] = $ambiente;
             $envio_arr['request'] = $dte;
-        }
 
-        // Dispatch job para enviar a SII de manera asincrónica
-        ProcessEnvioDteSii::dispatch($envio, $envio_arr);
+            // Dispatch jobs en cadena para enviar a SII de manera asincrónica
+            Bus::chain([
+                new ProcessEnvioDteSii($envio, $envio_arr),
+                new ProcessEnvioDteReceptor($envio, $envio_arr['request'], $envio_arr['ambiente'])
+            ])->dispatch();
+        } else {
+            // Dispatch job para enviar a SII de manera asincrónica
+            ProcessEnvioDteSii::dispatch($envio, $envio_arr);
+        }
 
         return response()->json([
             'dte_xml' => $base64_xml,
@@ -406,7 +414,7 @@ class ApiPasarelaController extends PasarelaController
             'encryption'    => $body['encryption'] ?? 'ssl',
             'validate_cert' => $body['validate_cert'] ?? true,
             'username'      => $body['mail'],
-            'password'      => $body['password'],
+            'password'      => base64_decode($body['password']),
             'protocol'      => $body['protocol'] ?? 'imap'
         ]);
 
@@ -588,30 +596,21 @@ class ApiPasarelaController extends PasarelaController
                 'data' => $xml_respuesta
             ];
 
-            $body = $request->only(['mail', 'password', 'host', 'port', 'protocol', 'folder']);
-            $cm = new ClientManager(base_path().'/config/imap.php');
-            $client = $cm->make([
-                'host'          => $body['host'],
-                'port'          => $body['port'],
-                'encryption'    => $body['encryption'] ?? 'ssl',
-                'validate_cert' => $body['validate_cert'] ?? true,
-                'username'      => $body['mail'],
-                'password'      => $body['password'],
-                'protocol'      => $body['protocol'] ?? 'imap'
-            ]);
-
+            // Enviar respuesta por correo
             try {
-                $client->connect();
-            } catch (Exception $e) {
-                return Response::json(['error' => $e->getMessage()], 500);
-            }
+                // Configurar la conexión SMTP
+                Config::set('mail.mailers.smtp.host', $request['host']);
+                Config::set('mail.mailers.smtp.port', $request['port']);
+                Config::set('mail.mailers.smtp.username', $request['mail']);
+                Config::set('mail.mailers.smtp.password', base64_decode($request['password']));
+                Config::set('mail.from.address', $request['mail']);
+                Config::set('mail.from.name', env('APP_NAME', 'Logiciel ApiFact'));
 
-            try {
                 Mail::to($request->correo_receptor)->send(new DteResponse($xml->children()->SetDTE->DTE->Documento[0]->Encabezado->Receptor->RznSocRecep, $respuesta));
-            } catch (Exception $e) {
+            } catch (\Exception $e) {
                 return response()->json([
-                    'error' => $e->getMessage(),
-                ], 400);
+                    'error' => $e->getMessage()
+                ], 200);
             }
         }
 
@@ -764,9 +763,11 @@ class ApiPasarelaController extends PasarelaController
         ], 400);
     }
 
-    public function generarDteReceptor(Request $request, $ambiente)//: JsonResponse
+    public function generarDteReceptor(Request $request, $ambiente): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
+        $request = $request->json()->all();
+
+        $validator = Validator::make($request, [
             'correo_receptor' => 'required|email',
             'mail' => 'required|email',
             'password' => 'required|string',
@@ -806,10 +807,10 @@ class ApiPasarelaController extends PasarelaController
         }
 
         // Obtener json
-        $dte = $request->json()->all();
+        $dte = $request;
 
         // Obtener firma
-        list($cert_path, $Firma) = $this->importarFirma($tmp_dir, base64_decode($request->firmab64), base64_decode($request->pswb64));
+        list($cert_path, $Firma) = $this->importarFirma($tmp_dir, base64_decode($request['firmab64']), base64_decode($request['pswb64']));
         if (is_array($Firma)) {
             return response()->json([
                 'error' => $Firma['error'],
@@ -897,10 +898,10 @@ class ApiPasarelaController extends PasarelaController
             Config::set('mail.mailers.smtp.host', $request['host']);
             Config::set('mail.mailers.smtp.port', $request['port']);
             Config::set('mail.mailers.smtp.username', $request['mail']);
-            Config::set('mail.mailers.smtp.password', $request['password']);
+            Config::set('mail.mailers.smtp.password', base64_decode($request['password']));
             Config::set('mail.from.address', $request['mail']);
             Config::set('mail.from.name', env('APP_NAME', 'Logiciel ApiFact'));
-            Mail::to($request->correo_receptor)->send(new DteEnvio($message, $envio));
+            Mail::to($request['correo_receptor'])->send(new DteEnvio($message, $envio));
 
         } catch (\Exception $e) {
             return response()->json([

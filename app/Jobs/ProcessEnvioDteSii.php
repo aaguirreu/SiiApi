@@ -3,12 +3,15 @@
 namespace App\Jobs;
 
 use App\Http\Controllers\Api\V1\ApiFacturaController;
+use App\Http\Controllers\Api\V1\ApiPasarelaController;
 use App\Models\Envio;
 use App\Http\Controllers\Api\V1\ApiBoletaController;
 use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Foundation\Bus\DispatchesJobs;
+use Illuminate\Http\Request;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 
@@ -39,6 +42,9 @@ class ProcessEnvioDteSii implements ShouldQueue
         // Set ambiente y obtener token
         if ($this->envio->tipo_dte == 39 || $this->envio->tipo_dte == 41) {
             $controller = new ApiBoletaController();
+            // No enviar DTE a receptor en boletas
+            if (isset($this->arr['correo_receptor']))
+                unset($this->arr['correo_receptor']);
         } else {
             $controller = new ApiFacturaController();
         }

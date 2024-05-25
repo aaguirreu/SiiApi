@@ -10,6 +10,7 @@ use sasco\LibreDTE\Estado;
 use sasco\LibreDTE\Log;
 use sasco\LibreDTE\Sii\ConsumoFolio;
 use sasco\LibreDTE\Sii\EnvioDte;
+use Spatie\TemporaryDirectory\TemporaryDirectory;
 
 class BoletaController extends DteController
 {
@@ -25,12 +26,15 @@ class BoletaController extends DteController
         if (strpos($dte, '<?xml') === false) {
             $dte = '<?xml version="1.0" encoding="ISO-8859-1"?>' . "\n" . $dte;
         }
-        list($file, $filename) = $this->parseFileName($rut_emisor, '60803000-K', $dte);
+
+        $filename = $this->parseFileName($dte);
         try {
-            Storage::disk('xml')->put("$rut_emisor/Envios/60803000-K/$filename", $dte);
+            $tmp_dir = TemporaryDirectory::make()->deleteWhenDestroyed();
+            $xml_path = $tmp_dir->path($filename);
+            file_put_contents($xml_path, $dte);
         } catch (Exception $e) {
-            Log::write(0, "Error al guardar dte en Storage. {$e->getMessage()}");
-            return false;
+            Log::write("Error al guardar dte en Storage.");
+            Log::write($e->getMessage());
         }
 
         $data = [
@@ -38,7 +42,7 @@ class BoletaController extends DteController
             'dvSender' => $dvSender,
             'rutCompany' => $rutCompany,
             'dvCompany' => $dvCompany,
-            'archivo' => new CURLFile($file),
+            'archivo' => new CURLFile($xml_path, 'text/xml', $filename),
         ];
         $header = ['Cookie: TOKEN=' . self::$token];
 
@@ -68,8 +72,6 @@ class BoletaController extends DteController
             if ($response == 'Error 500') {
                 Log::write(Estado::ENVIO_ERROR_500, Estado::get(Estado::ENVIO_ERROR_500));
             }
-            // Borrar xml guardado anteriormente
-            Storage::disk('xml')->delete("$rut_emisor/Envios/60803000-K/$filename");
             return false;
         }
 
@@ -77,7 +79,6 @@ class BoletaController extends DteController
         try {
             $json_response = json_decode($response);
         } catch (Exception $e) {
-            Storage::disk('xml')->delete("$rut_emisor/Envios/60803000-K/$filename");
             Log::write(Estado::ENVIO_ERROR_XML, Estado::get(Estado::ENVIO_ERROR_XML, $e->getMessage()));
             return false;
         }
@@ -87,7 +88,6 @@ class BoletaController extends DteController
                 Estado::ENVIO_ERROR_XML,
                 Estado::get(Estado::ENVIO_ERROR_XML, $response)
             );
-            Storage::disk('xml')->delete("$rut_emisor/Envios/60803000-K/$filename");
             return false;
         }
 
