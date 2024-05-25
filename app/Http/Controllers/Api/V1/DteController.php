@@ -672,7 +672,7 @@ class DteController extends Controller
         return $error ?? $folios;
     }
 
-    protected function parseFileName($rut_emisor, $rut_receptor, $dte): array
+    protected function parseFileName($dte): string
     {
         $Xml = new SimpleXMLElement($dte);
         //$tipo_dte = key(array_filter(self::$folios));
@@ -682,8 +682,7 @@ class DteController extends Controller
         $filename = "DTE_$tipo_dte" . "_$folio" . "_$this->timestamp.xml";
         $filename = str_replace(' ', 'T', $filename);
         $filename = str_replace(':', '-', $filename);
-        $file = Storage::disk('xml')->path("$rut_emisor/Envios/$rut_receptor/$filename");
-        return [$file, $filename];
+        return $filename;
     }
 
     /**

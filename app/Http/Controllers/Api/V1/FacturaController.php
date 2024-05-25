@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Storage;
 use sasco\LibreDTE\Estado;
 use sasco\LibreDTE\Log;
 use sasco\LibreDTE\Sii\EnvioDte;
+use Spatie\TemporaryDirectory\TemporaryDirectory;
 use Webklex\PHPIMAP\Attachment;
 
 class FacturaController extends DteController
@@ -30,12 +31,14 @@ class FacturaController extends DteController
             $dte = '<?xml version="1.0" encoding="ISO-8859-1"?>' . "\n" . $dte;
         }
 
-        list($file, $filename) = $this->parseFileName($rutEmisor, $rutReceptor, $dte);
+        $filename = $this->parseFileName($dte);
         try {
-            Storage::disk('xml')->put("$rutEmisor/Envios/$rutReceptor/$filename", $dte);
+            $tmp_dir = TemporaryDirectory::make()->deleteWhenDestroyed();
+            $xml_path = $tmp_dir->path($filename);
+            file_put_contents($xml_path, $dte);
         } catch (Exception $e) {
-            Log::write(0, "Error al guardar dte en Storage. {$e->getMessage()}");
-            return false;
+            Log::write("Error al guardar dte en Storage.");
+            Log::write($e->getMessage());
         }
 
         $data = [
@@ -43,7 +46,7 @@ class FacturaController extends DteController
             'dvSender' => $dvSender,
             'rutCompany' => $rutCompany,
             'dvCompany' => $dvCompany,
-            'archivo' => new CURLFile($file, 'text/xml', $filename),
+            'archivo' => new CURLFile($xml_path, 'text/xml', $filename),
         ];
 
         $header = [
@@ -76,8 +79,6 @@ class FacturaController extends DteController
             if ($response == 'Error 500') {
                 Log::write(Estado::ENVIO_ERROR_500, Estado::get(Estado::ENVIO_ERROR_500));
             }
-            // Borrar xml guardado anteriormente
-            Storage::disk('xml')->delete("$rutEmisor/Envios/$rutReceptor/$filename");
             return false;
         }
 
@@ -89,7 +90,6 @@ class FacturaController extends DteController
             $xml = new \SimpleXMLElement($response, LIBXML_COMPACT);
         } catch (Exception $e) {
             \sasco\LibreDTE\Log::write(Estado::ENVIO_ERROR_XML, Estado::get(Estado::ENVIO_ERROR_XML, $e->getMessage()));
-            Storage::disk('xml')->delete("$rutEmisor/Envios/$rutReceptor/$filename");
             return false;
         }
 
@@ -99,8 +99,6 @@ class FacturaController extends DteController
                 $xml->STATUS,
                 Estado::get($xml->STATUS).(isset($xml->DETAIL)?'. '.implode("\n", (array)$xml->DETAIL->ERROR):'')
             );
-            // Borrar xml guardado anteriormente
-            Storage::disk('xml')->delete("$rutEmisor/Envios/$rutReceptor/$filename");
             return false;
         }
 

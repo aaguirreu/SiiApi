@@ -3,10 +3,11 @@
 namespace App\Jobs;
 
 use App\Http\Controllers\Api\V1\ApiPasarelaController;
+use App\Models\Envio;
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Http\Request;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 
@@ -20,7 +21,9 @@ class ProcessEnvioDteReceptor implements ShouldQueue
      * @return void
      */
     public function __construct(
-        public array $arr
+        public Envio $envio,
+        public array $arr,
+        public string $ambiente
     ) {}
 
     /**
@@ -30,7 +33,11 @@ class ProcessEnvioDteReceptor implements ShouldQueue
      */
     public function handle()
     {
-        $controller = new ApiPasarelaController();
-        $controller->generarDteReceptor($this->arr['request'], $this->arr['ambiente']);
+        if (!($this->envio->tipo_dte == 39 || $this->envio->tipo_dte == 41) && $this->envio->estado == 'enviado') {
+            $controller = new ApiPasarelaController();
+            $request = new Request();
+            $request->json()->add($this->arr);
+            $controller->generarDteReceptor($request, $this->ambiente);
+        }
     }
 }
