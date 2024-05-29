@@ -37,4 +37,8 @@ Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1', 'm
     Route::post('pasarela/{ambiente}/caf.obtener', 'ApiPasarelaController@obtenerCaf');
     // Resumen Ventas Diarias
     Route::post('pasarela/{ambiente}/resumenVentas', 'ApiPasarelaController@resumenVentas');
+    // PDF
+    Route::post('pasarela/dtes/pdf', 'ApiPasarelaController@generarPdf');
+    Route::post('pasarela/dtes/pdf{continuo?}', 'ApiPasarelaController@generarPdf');
+
 });
