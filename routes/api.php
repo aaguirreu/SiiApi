@@ -80,6 +80,7 @@ Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1'/*, 
     Route::post('pasarela/{ambiente}/resumenVentas', 'ApiPasarelaController@resumenVentas');
     // PDF
     Route::post('pasarela/dtes/pdf', 'ApiPasarelaController@generarPdf');
+    Route::post('pasarela/dtes/pdf{continuo?}', 'ApiPasarelaController@generarPdf');
 
     // Miscelaneos
     Route::post('base64', 'ApiPasarelaController@base64');

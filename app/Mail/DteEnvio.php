@@ -19,7 +19,7 @@ class DteEnvio extends Mailable
      */
     public function __construct(
         protected array $message,
-        protected array $file
+        protected array $files
     ) {}
 
     /**
@@ -29,11 +29,13 @@ class DteEnvio extends Mailable
      */
     public function build()
     {
+        foreach ($this->files as $file) {
+            $this->attachData($file['data'], $file['filename'], [
+                'mime' => $file['mime'] ?? 'text/xml',
+            ]);
+        }
         return $this
             ->view('envio-email', ['name' => $this->message['from']])
-            ->subject($this->message['subject'])
-            ->attachData($this->file['data'], $this->file['filename'], [
-                'mime' => 'text/xml',
-            ]);
+            ->subject($this->message['subject']);
     }
 }
