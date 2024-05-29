@@ -42,9 +42,6 @@ class ProcessEnvioDteSii implements ShouldQueue
         // Set ambiente y obtener token
         if ($this->envio->tipo_dte == 39 || $this->envio->tipo_dte == 41) {
             $controller = new ApiBoletaController();
-            // No enviar DTE a receptor en boletas
-            if (isset($this->arr['correo_receptor']))
-                unset($this->arr['correo_receptor']);
         } else {
             $controller = new ApiFacturaController();
         }

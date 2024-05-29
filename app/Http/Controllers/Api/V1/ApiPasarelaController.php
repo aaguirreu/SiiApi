@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\PasarelaController;
 use App\Jobs\ProcessEnvioDteReceptor;
 use App\Jobs\ProcessEnvioDteSii;
+use App\LibreDTE\PDF\Dte;
 use App\Mail\DteEnvio;
 use App\Mail\DteResponse;
 use App\Models\Envio;
@@ -18,8 +19,11 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Response;
 use Illuminate\Support\Facades\Validator;
+use phpseclib\Net\SCP;
+use phpseclib\Net\SFTP;
 use sasco\LibreDTE\Log;
 use sasco\LibreDTE\Sii\ConsumoFolio;
+use sasco\LibreDTE\Sii\EnvioDte;
 use sasco\LibreDTE\Sii\Folios;
 use SimpleXMLElement;
 use Webklex\PHPIMAP\Attachment;
@@ -161,7 +165,7 @@ class ApiPasarelaController extends PasarelaController
         // Obtener caratula
         $caratula = $this->obtenerCaratula(json_decode(json_encode($dte)), $dte['Documentos'], $Firma);
 
-        // generar cada DTE, timbrar, firmar y agregar al sobre de EnvioBOLETA
+        // generar cada DTE, timbrar, firmar y agregar al envío
         $envio_dte_xml = $this->generarEnvioDteXml($dte['Documentos'], $Firma, $Folios, $caratula);
         if(is_array($envio_dte_xml)){
             return response()->json([
@@ -204,10 +208,22 @@ class ApiPasarelaController extends PasarelaController
             }
         }
 
+        // Generar PDF
         $base64_xml = base64_encode($envio_dte_xml);
+        $req = new Request();
+        $req->json()->add(["xmlb64" => $base64_xml]);
+        $pdf_response = $this->generarPdf($req);
+        $pdfs = json_decode($pdf_response->getContent(), true);
+        if ($pdf_response->status() != 200)
+            return response()->json([
+                'error' => "Error al generar PDF",
+                'message' => $pdfs['error'],
+            ], 400);
+
         $envio_arr = [
             'caratula' => $caratula,
             'xml' => $base64_xml,
+            'pdfs' => $pdfs['success']
         ];
 
         // Agregar todos los datos si existe receptor
@@ -227,6 +243,7 @@ class ApiPasarelaController extends PasarelaController
 
         return response()->json([
             'dte_xml' => $base64_xml,
+            'pdfb64' => $pdfs['success'],
         ], 200);
     }
 
@@ -910,7 +927,62 @@ class ApiPasarelaController extends PasarelaController
         }
 
         return response()->json([
-            'sucess' => "Correo enviado con éxito",
+            'success' => "Correo enviado con éxito",
+        ], 200);
+    }
+
+    public function generarPdf(Request $request, $continuo = false): JsonResponse
+    {
+        $request = $request->json()->all();
+        $validator = Validator::make($request, [
+            'xmlb64' => 'required|string',
+        ], [
+            'xmlb64.required' => 'xml es requerido',
+        ]);
+        // Si falla la validación, retorna una respuesta Json con el error
+        if ($validator->fails()) {
+            return response()->json([
+                'error' => $validator->errors()->all(),
+            ], 400);
+        }
+
+        // Cargar EnvioDTE y extraer arreglo con datos de carátula y DTEs
+        $EnvioDte = new EnvioDte();
+        //$EnvioDte->loadXML(base64_decode($request->xmlb64));
+        $EnvioDte->loadXML(base64_decode($request['xmlb64']));
+        $Caratula = $EnvioDte->getCaratula();
+        $Documentos = $EnvioDte->getDocumentos();
+
+        // procesar cada DTEs e ir agregándolo al PDF
+        $pdfb64_arr = [];
+        /**
+         * @var sasco\libredte\lib\Sii\Dte $DTE
+         */
+        foreach ($Documentos as $DTE) {
+            $filename = 'dte_' . $Caratula['RutEmisor'] . '_' . $DTE->getID();
+            if (!$DTE->getDatos())
+                //die('No se pudieron obtener los datos del DTE');
+                return response()->json([
+                    'error' => 'No se pudieron obtener los datos del DTE'
+                ], 400);
+            $dte = $DTE->getDatos();
+            $pdf = new Dte($continuo); // =false hoja carta, =true papel contínuo (false por defecto si no se pasa)
+            $pdf->setFooterText();
+            $pdf->setLogo('/vendor/sasco/website/webroot/img/logo_mini.png'); // debe ser PNG!
+            $pdf->setResolucion(['FchResol' => $Caratula['FchResol'], 'NroResol' => $Caratula['NroResol']]);
+            //$pdf->setCedible(true);
+            //$pdf->agregar($DTE->getDatos(), $DTE->getTED());
+            $pdf->agregar_papel_80($dte, $DTE->getTED());
+            $pdf->Output("C:\Users\aagui\Documents\PDFs\\$filename.pdf", 'F');
+            // entregar archivo comprimido que incluirá cada uno de los DTEs
+            // PARA AHORRAR ESPACIO EN TMP DELETE DEBE SER TRUE!!!
+            //\sasco\LibreDTE\File::compress(sys_get_temp_dir()."$filename.pdf", ['format'=>'zip', 'delete'=>true, 'download'=>false]);
+            $nombre = "{$Caratula['RutEmisor']}.{$dte['Encabezado']['IdDoc']['TipoDTE']}.{$dte['Encabezado']['IdDoc']['Folio']}";
+            $pdfb64_arr[$nombre] = chunk_split(base64_encode($pdf->getPDFData()));
+        }
+
+        return response()->json([
+            'success' => $pdfb64_arr
         ], 200);
     }
 

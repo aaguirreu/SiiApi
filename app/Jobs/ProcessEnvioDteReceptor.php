@@ -33,7 +33,7 @@ class ProcessEnvioDteReceptor implements ShouldQueue
      */
     public function handle()
     {
-        if (!($this->envio->tipo_dte == 39 || $this->envio->tipo_dte == 41) && $this->envio->estado == 'enviado') {
+        if (!$this->envio->estado == 'enviado') {
             $controller = new ApiPasarelaController();
             $request = new Request();
             $request->json()->add($this->arr);
