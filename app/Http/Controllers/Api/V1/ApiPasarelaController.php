@@ -60,6 +60,7 @@ class ApiPasarelaController extends PasarelaController
             'Cafs' => 'required|array',
             'firmab64' => 'required|string',
             'pswb64' => 'required|string',
+            'formato_impresion' => 'required|string',
         ], [
             'Caratula.required' => 'Caratula es requerida',
             'Documentos.required' => 'Documentos es requerido',
@@ -71,6 +72,8 @@ class ApiPasarelaController extends PasarelaController
             'Cafs.array' => 'Cafs debe ser un arreglo',
             'firmab64.required' => 'firmab64 es requerida',
             'pswb64.required' => 'pswb64 es requerida',
+            'formato_impresion.required' => 'formato_impresion es requerido',
+
         ]);
 
         // Si falla la validación, retorna una respuesta Json con el error
@@ -167,7 +170,7 @@ class ApiPasarelaController extends PasarelaController
 
         // generar cada DTE, timbrar, firmar y agregar al envío
         $envio_dte_xml = $this->generarEnvioDteXml($dte['Documentos'], $Firma, $Folios, $caratula);
-        if(is_array($envio_dte_xml)){
+        if(is_array($envio_dte_xml)) {
             return response()->json([
                 'error' => "Error al generar el XML",
                 'message' => $envio_dte_xml,
@@ -210,26 +213,32 @@ class ApiPasarelaController extends PasarelaController
 
         // Generar PDF
         $base64_xml = base64_encode($envio_dte_xml);
-        $req = new Request();
-        $req->json()->add(["xmlb64" => $base64_xml]);
-        $pdf_response = $this->generarPdf($req);
-        $pdfs = json_decode($pdf_response->getContent(), true);
-        if ($pdf_response->status() != 200)
+        $continuo = false;
+        if ($request->formato_impresion == 'H')
+            $continuo = true;
+        if(isset($request->Observaciones))
+            $pdfb64_arr = $this->xmlPdf($envio_dte_xml, $continuo, $request->Observaciones);
+        else
+            $pdfb64_arr = $this->xmlPdf($envio_dte_xml, $continuo);
+
+        // Si hubo un error retornar error
+        if (!$pdfb64_arr) {
+            Log::write("No se pudo generar PDF");
             return response()->json([
-                'error' => "Error al generar PDF",
-                'message' => $pdfs['error'],
+                'error' => Log::read(),
             ], 400);
+        }
 
         $envio_arr = [
             'caratula' => $caratula,
             'xml' => $base64_xml,
-            'pdfs' => $pdfs['success']
         ];
 
         // Agregar todos los datos si existe receptor
         if ($request->correo_receptor) {
             $envio_arr['ambiente'] = $ambiente;
             $envio_arr['request'] = $dte;
+            $envio_arr['request']['pdfs'] = $pdfb64_arr;
 
             // Dispatch jobs en cadena para enviar a SII de manera asincrónica
             Bus::chain([
@@ -243,7 +252,7 @@ class ApiPasarelaController extends PasarelaController
 
         return response()->json([
             'dte_xml' => $base64_xml,
-            'pdfb64' => $pdfs['success'],
+            'pdfb64' => $pdfb64_arr,
         ], 200);
     }
 
@@ -900,10 +909,42 @@ class ApiPasarelaController extends PasarelaController
         $filename = "DTE_$tipo_dte" . "_$tipos_dte[0]" . "_$this->timestamp.xml";
         $filename = str_replace(' ', 'T', $filename);
         $filename = str_replace(':', '-', $filename);
-        $envio = [
-            'filename' => $filename,
-            'data' => $envio_dte_xml
+        $attatchments = [
+            [
+                'filename' => $filename,
+                'data' => $envio_dte_xml
+            ],
         ];
+
+        // Agregar pdfs según xml enviado al SII
+        if (isset($request['pdfs'])) {
+            foreach ($request['pdfs'] as $key => $pdf) {
+                $attatchments[] = [
+                    'filename' => str_replace('.', '_', $key) . '.pdf',
+                    'data' => base64_decode($pdf),
+                    'mime' => 'application/pdf'
+                ];
+            }
+        } else {
+            // Agregar pdfs según xml enviado al receptor
+            $continuo = false;
+            if ($request['formato_impresion'] == 'H')
+                $continuo = true;
+            if(isset($request['Observaciones']))
+                $pdfb64_arr = $this->xmlPdf($envio_dte_xml, $continuo, $request['Observaciones']);
+            else
+                $pdfb64_arr = $this->xmlPdf($envio_dte_xml, $continuo);
+
+            foreach ($pdfb64_arr as $key => $pdf) {
+                $attatchments[] = [
+                    'filename' => str_replace('.', '_', $key).".pdf",
+                    'data' => base64_decode($pdf),
+                    'mime' => 'application/pdf'
+                ];
+            }
+        }
+
+
         $message = [
             'from' => $request['Documentos'][0]['Encabezado']['Receptor']['RznSocRecep'] ?? '',
             'subject' => "RutEmisor: {$caratula['RutEmisor']} RutReceptor: {$caratula['RutReceptor']} - TipoDTE: $tipo_dte - Folio: $folio",
@@ -918,7 +959,7 @@ class ApiPasarelaController extends PasarelaController
             Config::set('mail.mailers.smtp.password', base64_decode($request['password']));
             Config::set('mail.from.address', $request['mail']);
             Config::set('mail.from.name', env('APP_NAME', 'Logiciel ApiFact'));
-            Mail::to($request['correo_receptor'])->send(new DteEnvio($message, $envio));
+            Mail::to($request['correo_receptor'])->send(new DteEnvio($message, $attatchments));
 
         } catch (\Exception $e) {
             return response()->json([
@@ -933,8 +974,7 @@ class ApiPasarelaController extends PasarelaController
 
     public function generarPdf(Request $request, $continuo = false): JsonResponse
     {
-        $request = $request->json()->all();
-        $validator = Validator::make($request, [
+        $validator = Validator::make($request->all(), [
             'xmlb64' => 'required|string',
         ], [
             'xmlb64.required' => 'xml es requerido',
@@ -946,42 +986,21 @@ class ApiPasarelaController extends PasarelaController
             ], 400);
         }
 
-        // Cargar EnvioDTE y extraer arreglo con datos de carátula y DTEs
-        $EnvioDte = new EnvioDte();
-        //$EnvioDte->loadXML(base64_decode($request->xmlb64));
-        $EnvioDte->loadXML(base64_decode($request['xmlb64']));
-        $Caratula = $EnvioDte->getCaratula();
-        $Documentos = $EnvioDte->getDocumentos();
+        if($continuo == '.continuo') {
+            $continuo = true;
+        } else $continuo = false;
 
-        // procesar cada DTEs e ir agregándolo al PDF
-        $pdfb64_arr = [];
-        /**
-         * @var sasco\libredte\lib\Sii\Dte $DTE
-         */
-        foreach ($Documentos as $DTE) {
-            $filename = 'dte_' . $Caratula['RutEmisor'] . '_' . $DTE->getID();
-            if (!$DTE->getDatos())
-                //die('No se pudieron obtener los datos del DTE');
-                return response()->json([
-                    'error' => 'No se pudieron obtener los datos del DTE'
-                ], 400);
-            $dte = $DTE->getDatos();
-            $pdf = new Dte($continuo); // =false hoja carta, =true papel contínuo (false por defecto si no se pasa)
-            $pdf->setFooterText();
-            $pdf->setLogo('/vendor/sasco/website/webroot/img/logo_mini.png'); // debe ser PNG!
-            $pdf->setResolucion(['FchResol' => $Caratula['FchResol'], 'NroResol' => $Caratula['NroResol']]);
-            //$pdf->setCedible(true);
-            //$pdf->agregar($DTE->getDatos(), $DTE->getTED());
-            $pdf->agregar_papel_80($dte, $DTE->getTED());
-            $pdf->Output("C:\Users\aagui\Documents\PDFs\\$filename.pdf", 'F');
-            // entregar archivo comprimido que incluirá cada uno de los DTEs
-            // PARA AHORRAR ESPACIO EN TMP DELETE DEBE SER TRUE!!!
-            //\sasco\LibreDTE\File::compress(sys_get_temp_dir()."$filename.pdf", ['format'=>'zip', 'delete'=>true, 'download'=>false]);
-            $nombre = "{$Caratula['RutEmisor']}.{$dte['Encabezado']['IdDoc']['TipoDTE']}.{$dte['Encabezado']['IdDoc']['Folio']}";
-            $pdfb64_arr[$nombre] = chunk_split(base64_encode($pdf->getPDFData()));
-        }
+        $pdfb64_arr = $this->xmlPdf(base64_decode($request->xmlb64), $continuo, $request->observaciones);
 
+        // Si hubo un error retornar error
+        if (!$pdfb64_arr)
+            return response()->json([
+                'error' => Log::read()
+            ], 400);
+
+        // Respuesta exito
         return response()->json([
+            'path'=> base_path(),
             'success' => $pdfb64_arr
         ], 200);
     }

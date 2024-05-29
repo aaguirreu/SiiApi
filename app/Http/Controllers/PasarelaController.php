@@ -3,11 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Api\V1\DteController;
+use App\LibreDTE\PDF\Dte;
 use Carbon\Carbon;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
 use sasco\LibreDTE\FirmaElectronica;
 use sasco\LibreDTE\Log;
+use sasco\LibreDTE\Sii\EnvioDte;
 use SimpleXMLElement;
 use Symfony\Component\DomCrawler\Crawler;
 use Webklex\PHPIMAP\Attachment;
@@ -538,5 +540,44 @@ class PasarelaController extends DteController
         ])->saveXML();
         // firmar XML del envío y entregar
         return $Firma->signXML($consumo_folios, '#'.$id, 'DocumentoConsumoFolios', true);
+    }
+
+    public function xmlPdf($xml, $continuo, $observaciones = false): array|false
+    {
+        // Cargar EnvioDTE y extraer arreglo con datos de carátula y DTEs
+        $EnvioDte = new EnvioDte();
+        //$EnvioDte->loadXML(base64_decode($request->xmlb64));
+        $EnvioDte->loadXML($xml);
+        $Caratula = $EnvioDte->getCaratula();
+        $Documentos = $EnvioDte->getDocumentos();
+
+        // procesar cada DTEs e ir agregándolo al PDF
+        $pdfb64_arr = [];
+        foreach ($Documentos as $DTE) {
+            $filename = 'dte_' . $Caratula['RutEmisor'] . '_' . $DTE->getID();
+            if (!$DTE->getDatos()) {
+                Log::write("No se pudieron obtener los datos del DTE");
+                return false;
+            }
+            $dte = $DTE->getDatos();
+            // Utilizar librería editada \App\LibreDTE\PDF\Dte
+            $pdf = new Dte($continuo); // =false hoja carta, =true papel contínuo (false por defecto si no se pasa)
+            // Utilizar librería original
+            //$pdf = new \sasco\LibreDTE\Sii\Dte\PDF\Dte($continuo);
+            $pdf->setFooterText();
+            $pdf->setLogo('/vendor/sasco/website/webroot/img/logo_mini.png'); // debe ser PNG!
+            $pdf->setResolucion(['FchResol' => $Caratula['FchResol'], 'NroResol' => $Caratula['NroResol']]);
+            //$pdf->setCedible(true);
+            // Si existen observaciones
+            if($observaciones)
+                $dte['Observaciones'] = $observaciones;
+            $pdf->agregar($dte, $DTE->getTED());
+            //$data = chunk_split(base64_encode($pdf->getPDFData()));
+            //file_put_contents(base_path().$filename.".pdf", base64_decode($data));
+            $nombre = "{$Caratula['RutEmisor']}.{$dte['Encabezado']['IdDoc']['TipoDTE']}.{$dte['Encabezado']['IdDoc']['Folio']}";
+            $pdfb64_arr[$nombre] = chunk_split(base64_encode($pdf->getPDFData()));
+        }
+
+        return $pdfb64_arr;
     }
 }
