@@ -216,8 +216,8 @@ class ApiPasarelaController extends PasarelaController
         $continuo = false;
         if ($request->formato_impresion == 'H')
             $continuo = true;
-        if(isset($request->Observaciones))
-            $pdfb64_arr = $this->xmlPdf($envio_dte_xml, $continuo, $request->Observaciones);
+        if(isset($request->observaciones))
+            $pdfb64_arr = $this->xmlPdf($envio_dte_xml, $continuo, $request->observaciones);
         else
             $pdfb64_arr = $this->xmlPdf($envio_dte_xml, $continuo);
 
@@ -930,8 +930,8 @@ class ApiPasarelaController extends PasarelaController
             $continuo = false;
             if ($request['formato_impresion'] == 'H')
                 $continuo = true;
-            if(isset($request['Observaciones']))
-                $pdfb64_arr = $this->xmlPdf($envio_dte_xml, $continuo, $request['Observaciones']);
+            if(isset($request['observaciones']))
+                $pdfb64_arr = $this->xmlPdf($envio_dte_xml, $continuo, $request['observaciones']);
             else
                 $pdfb64_arr = $this->xmlPdf($envio_dte_xml, $continuo);
 
