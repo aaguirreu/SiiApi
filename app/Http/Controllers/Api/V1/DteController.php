@@ -585,11 +585,11 @@ class DteController extends Controller
         return $response ?? $documentos;
     }
 
-    protected function obtenerCaratula($dte, $documentos, $firma): array
+    protected function obtenerCaratula($dte, $documentos, FirmaElectronica $Firma): array
     {
         return [
             'RutEmisor' => $dte->Caratula->RutEmisor ?? $documentos[0]['Encabezado']['Emisor']['RUTEmisor'], // se obtiene automáticamente
-            'RutEnvia' => $firma->getID(),
+            'RutEnvia' => $Firma->getID(),
             'RutReceptor' => $dte->Caratula->RutReceptor ?? "60803000-K",
             'FchResol' => $dte->Caratula->FchResol,
             'NroResol' => $dte->Caratula->NroResol,

@@ -60,7 +60,6 @@ class ApiPasarelaController extends PasarelaController
             'Cafs' => 'required|array',
             'firmab64' => 'required|string',
             'pswb64' => 'required|string',
-            'formato_impresion' => 'required|string',
         ], [
             'Caratula.required' => 'Caratula es requerida',
             'Documentos.required' => 'Documentos es requerido',
@@ -72,8 +71,6 @@ class ApiPasarelaController extends PasarelaController
             'Cafs.array' => 'Cafs debe ser un arreglo',
             'firmab64.required' => 'firmab64 es requerida',
             'pswb64.required' => 'pswb64 es requerida',
-            'formato_impresion.required' => 'formato_impresion es requerido',
-
         ]);
 
         // Si falla la validación, retorna una respuesta Json con el error
@@ -177,10 +174,8 @@ class ApiPasarelaController extends PasarelaController
             ], 400);
         }
 
-        // Guardar en DB
+        // Guardar en DB y verificar si ya existe el envío
         $Envio = new Envio();
-
-        // Verificar si ya existe el envío
         $envio = $Envio->where('rut_emisor', '=', $caratula['RutEmisor'])
             ->where('tipo_dte', '=', $dte['Documentos'][0]['Encabezado']['IdDoc']['TipoDTE'])
             ->where('folio', '=', $dte['Documentos'][0]['Encabezado']['IdDoc']['Folio'])
@@ -213,13 +208,12 @@ class ApiPasarelaController extends PasarelaController
 
         // Generar PDF
         $base64_xml = base64_encode($envio_dte_xml);
-        $continuo = false;
-        if ($request->formato_impresion == 'H')
-            $continuo = true;
-        if(isset($request->observaciones))
-            $pdfb64_arr = $this->xmlPdf($envio_dte_xml, $continuo, $request->observaciones);
-        else
-            $pdfb64_arr = $this->xmlPdf($envio_dte_xml, $continuo);
+
+        // Asigna true si es 'H' False caso contrario
+        $continuo = $request->formato_impresion == 'H';
+
+        // Llama a la función xmlPdf con los argumentos claros
+        $pdfb64_arr = $this->xmlPdf($envio_dte_xml, $continuo, $request->logob64, $request->observaciones, $request->cedible, $request->footer);
 
         // Si hubo un error retornar error
         if (!$pdfb64_arr) {
@@ -238,7 +232,7 @@ class ApiPasarelaController extends PasarelaController
         if ($request->correo_receptor) {
             $envio_arr['ambiente'] = $ambiente;
             $envio_arr['request'] = $dte;
-            $envio_arr['request']['pdfs'] = $pdfb64_arr;
+            $envio_arr['request']['pdfb64'] = $pdfb64_arr;
 
             // Dispatch jobs en cadena para enviar a SII de manera asincrónica
             Bus::chain([
@@ -791,14 +785,7 @@ class ApiPasarelaController extends PasarelaController
 
     public function generarDteReceptor(Request $request, $ambiente): JsonResponse
     {
-        $request = $request->json()->all();
-
-        $validator = Validator::make($request, [
-            'correo_receptor' => 'required|email',
-            'mail' => 'required|email',
-            'password' => 'required|string',
-            'host' => 'required|string',
-            'port' => 'required|integer',
+        $validator = Validator::make($request->all(), [
             'Caratula' => 'required',
             'Documentos' => 'required|array',
             'Documentos.*.Encabezado.IdDoc.TipoDTE' => 'required|integer',
@@ -806,13 +793,12 @@ class ApiPasarelaController extends PasarelaController
             'Cafs' => 'required|array',
             'firmab64' => 'required|string',
             'pswb64' => 'required|string',
+            'correo_receptor' => 'required|email',
+            'mail' => 'required|email',
+            'password' => 'required|string',
+            'host' => 'required|string',
+            'port' => 'required|integer',
         ], [
-            'correo_receptor' => 'correo_receptor debe ser un correo válido',
-            'mail.email' => 'mail debe ser un correo válido',
-            'mail.required' => 'mail es requerido',
-            'password.required' => 'password es requerida',
-            'host.required' => 'host es requerido',
-            'port.required' => 'port es requerido',
             'Caratula.required' => 'Caratula es requerida',
             'Documentos.required' => 'Documentos es requerido',
             'Documentos.*.Encabezado.IdDoc.TipoDTE.required' => 'TipoDTE es requerido',
@@ -823,6 +809,12 @@ class ApiPasarelaController extends PasarelaController
             'Cafs.array' => 'Cafs debe ser un arreglo',
             'firmab64.required' => 'firmab64 es requerida',
             'pswb64.required' => 'pswb64 es requerida',
+            'correo_receptor' => 'correo_receptor debe ser un correo válido',
+            'mail.email' => 'mail debe ser un correo válido',
+            'mail.required' => 'mail es requerido',
+            'password.required' => 'password es requerida',
+            'host.required' => 'host es requerido',
+            'port.required' => 'port es requerido',
         ]);
 
         // Si falla la validación, retorna una respuesta Json con el error
@@ -833,7 +825,7 @@ class ApiPasarelaController extends PasarelaController
         }
 
         // Obtener json
-        $dte = $request;
+        $dte = $request->json()->all();
 
         // Obtener firma
         list($cert_path, $Firma) = $this->importarFirma($tmp_dir, base64_decode($request['firmab64']), base64_decode($request['pswb64']));
@@ -842,13 +834,6 @@ class ApiPasarelaController extends PasarelaController
                 'error' => $Firma['error'],
             ], 400);
         }
-
-        // verificar Token SII
-        $rut_envia = $Firma->getID();
-        $this->isToken($rut_envia, $Firma);
-
-        // Set ambiente
-        $this->setAmbiente($ambiente, $rut_envia);
 
         // Extraer los valores de TipoDTE de cada documento
         $tipos_dte = array_map(function($documento) {
@@ -903,69 +888,24 @@ class ApiPasarelaController extends PasarelaController
             ], 400);
         }
 
-        // Preparar datos
-        $tipo_dte = $dte['Documentos'][0]['Encabezado']['IdDoc']['TipoDTE'];
-        $folio = $dte['Documentos'][0]['Encabezado']['IdDoc']['Folio'];
-        $filename = "DTE_$tipo_dte" . "_$tipos_dte[0]" . "_$this->timestamp.xml";
-        $filename = str_replace(' ', 'T', $filename);
-        $filename = str_replace(':', '-', $filename);
-        $attatchments = [
-            [
-                'filename' => $filename,
-                'data' => $envio_dte_xml
-            ],
+        $envio_arr = [
+            'correo_receptor' => $request['correo_receptor'],
+            'mail' => $request['mail'],
+            'password' => $request['password'],
+            'host' => $request['host'],
+            'port' => $request['port'],
         ];
-
-        // Agregar pdfs según xml enviado al SII
-        if (isset($request['pdfs'])) {
-            foreach ($request['pdfs'] as $key => $pdf) {
-                $attatchments[] = [
-                    'filename' => str_replace('.', '_', $key) . '.pdf',
-                    'data' => base64_decode($pdf),
-                    'mime' => 'application/pdf'
-                ];
-            }
-        } else {
-            // Agregar pdfs según xml enviado al receptor
-            $continuo = false;
-            if ($request['formato_impresion'] == 'H')
-                $continuo = true;
-            if(isset($request['observaciones']))
-                $pdfb64_arr = $this->xmlPdf($envio_dte_xml, $continuo, $request['observaciones']);
-            else
-                $pdfb64_arr = $this->xmlPdf($envio_dte_xml, $continuo);
-
-            foreach ($pdfb64_arr as $key => $pdf) {
-                $attatchments[] = [
-                    'filename' => str_replace('.', '_', $key).".pdf",
-                    'data' => base64_decode($pdf),
-                    'mime' => 'application/pdf'
-                ];
-            }
-        }
-
 
         $message = [
             'from' => $request['Documentos'][0]['Encabezado']['Receptor']['RznSocRecep'] ?? '',
-            'subject' => "RutEmisor: {$caratula['RutEmisor']} RutReceptor: {$caratula['RutReceptor']} - TipoDTE: $tipo_dte - Folio: $folio",
+            'subject' => "RutEmisor: {$caratula['RutEmisor']} RutReceptor: {$caratula['RutReceptor']}",
         ];
 
-        // Enviar respuesta por correo
-        try {
-            // Configurar la conexión SMTP
-            Config::set('mail.mailers.smtp.host', $request['host']);
-            Config::set('mail.mailers.smtp.port', $request['port']);
-            Config::set('mail.mailers.smtp.username', $request['mail']);
-            Config::set('mail.mailers.smtp.password', base64_decode($request['password']));
-            Config::set('mail.from.address', $request['mail']);
-            Config::set('mail.from.name', env('APP_NAME', 'Logiciel ApiFact'));
-            Mail::to($request['correo_receptor'])->send(new DteEnvio($message, $attatchments));
-
-        } catch (\Exception $e) {
+        $envio = $this->enviarDteReceptor($envio_dte_xml, $message, $envio_arr, $request->pdfb64, $request->formato_impresion, $request->observaciones, $request->logob64, $request->cedible, $request->footer);
+        if (!$envio)
             return response()->json([
-                'error' => $e->getMessage()
-            ], 200);
-        }
+                'error' => Log::read()->msg,
+            ], 400);
 
         return response()->json([
             'success' => "Correo enviado con éxito",
@@ -986,11 +926,11 @@ class ApiPasarelaController extends PasarelaController
             ], 400);
         }
 
-        if($continuo == '.continuo') {
-            $continuo = true;
-        } else $continuo = false;
+        // Asigna true si es 'H' False caso contrario
+        $continuo = $request->formato_impresion == 'H';
 
-        $pdfb64_arr = $this->xmlPdf(base64_decode($request->xmlb64), $continuo, $request->observaciones);
+        // Llama a la función xmlPdf con los argumentos claros
+        $pdfb64_arr = $this->xmlPdf(base64_decode($request->xmlb64), $continuo, $request->logob64, $request->observaciones, $request->cedible, $request->footer);
 
         // Si hubo un error retornar error
         if (!$pdfb64_arr)
@@ -1000,7 +940,6 @@ class ApiPasarelaController extends PasarelaController
 
         // Respuesta exito
         return response()->json([
-            'path'=> base_path(),
             'success' => $pdfb64_arr
         ], 200);
     }

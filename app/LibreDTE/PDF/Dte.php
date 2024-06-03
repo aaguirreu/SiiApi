@@ -80,6 +80,9 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
         // agregar observaciones
         $this->x_fin_datos = $this->getY();
         $this->agregarObservacion($dte['Encabezado']['IdDoc']);
+        // Observaciones adicionales sobre el timbre
+        if(isset($dte['Observaciones']))
+            $this->agregarObservacionAdicional($dte['Observaciones']);
         if (!$this->timbre_pie) {
             $this->Ln();
         }
@@ -322,6 +325,9 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
         $this->agregarTotales($dte['Encabezado']['Totales'], $OtraMoneda, $this->y+6, 61, 17);
         // agregar observaciones
         $y = $this->agregarObservacion($dte['Encabezado']['IdDoc'], $x_start, $this->y+6);
+        // Observaciones adicionales sobre el timbre
+        if(isset($dte['Observaciones']))
+            $y = $this->agregarObservacionAdicional($dte['Observaciones'], $x_start, $this->y);
         // agregar timbre
         $this->agregarTimbre($timbre, 2, 2, $y+6, 60, 6, 'S');
         // agregar acuse de recibo y leyenda cedible
@@ -338,7 +344,7 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
         }
     }
 
-    protected function agregarObservacionAdicional(array $observaciones, $x, $y): float
+    protected function agregarObservacionAdicional(array $observaciones, $x = 10, $y = 190): float
     {
         $y = (!$this->papelContinuo and !$this->timbre_pie) ? $this->x_fin_datos : $y;
         if (!$this->papelContinuo and $this->timbre_pie) {

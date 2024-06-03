@@ -4,13 +4,17 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Api\V1\DteController;
 use App\LibreDTE\PDF\Dte;
+use App\Mail\DteEnvio;
 use Carbon\Carbon;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
+use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Mail;
 use sasco\LibreDTE\FirmaElectronica;
 use sasco\LibreDTE\Log;
 use sasco\LibreDTE\Sii\EnvioDte;
 use SimpleXMLElement;
+use Spatie\TemporaryDirectory\TemporaryDirectory;
 use Symfony\Component\DomCrawler\Crawler;
 use Webklex\PHPIMAP\Attachment;
 use Webklex\PHPIMAP\Support\MessageCollection;
@@ -542,8 +546,19 @@ class PasarelaController extends DteController
         return $Firma->signXML($consumo_folios, '#'.$id, 'DocumentoConsumoFolios', true);
     }
 
-    public function xmlPdf($xml, $continuo, $observaciones = false): array|false
+    public function xmlPdf($xml, $continuo = false, $logob64 = false, $observaciones = false, $cedible = false, $footer = false): array|false
     {
+        if ($logob64){
+            try {
+                $tmp_dir = TemporaryDirectory::make()->deleteWhenDestroyed();
+                $logo_path = $tmp_dir->path("logo.png");
+                file_put_contents($logo_path, base64_decode($logob64));
+                file_get_contents($logo_path);
+            } catch (\Exception $e) {
+                $logob64 = false;
+            }
+        }
+
         // Cargar EnvioDTE y extraer arreglo con datos de carátula y DTEs
         $EnvioDte = new EnvioDte();
         //$EnvioDte->loadXML(base64_decode($request->xmlb64));
@@ -564,20 +579,76 @@ class PasarelaController extends DteController
             $pdf = new Dte($continuo); // =false hoja carta, =true papel contínuo (false por defecto si no se pasa)
             // Utilizar librería original
             //$pdf = new \sasco\LibreDTE\Sii\Dte\PDF\Dte($continuo);
-            $pdf->setFooterText();
-            $pdf->setLogo('/vendor/sasco/website/webroot/img/logo_mini.png'); // debe ser PNG!
+            if ($footer)
+                $pdf->setFooterText();
+            if ($logob64)
+                $pdf->setLogo($logo_path); // debe ser PNG!
             $pdf->setResolucion(['FchResol' => $Caratula['FchResol'], 'NroResol' => $Caratula['NroResol']]);
-            //$pdf->setCedible(true);
+            $pdf->setCedible($cedible);
             // Si existen observaciones
             if($observaciones)
                 $dte['Observaciones'] = $observaciones;
             $pdf->agregar($dte, $DTE->getTED());
-            //$data = chunk_split(base64_encode($pdf->getPDFData()));
-            //file_put_contents(base_path().$filename.".pdf", base64_decode($data));
+            //file_put_contents(base_path()."\pdf.pdf", $pdf->getPDFData());
             $nombre = "{$Caratula['RutEmisor']}.{$dte['Encabezado']['IdDoc']['TipoDTE']}.{$dte['Encabezado']['IdDoc']['Folio']}";
             $pdfb64_arr[$nombre] = chunk_split(base64_encode($pdf->getPDFData()));
         }
 
         return $pdfb64_arr;
+    }
+
+    public function enviarDteReceptor($envio_dte_xml, $message, $envio_arr, $pdfb64 = false, $formato_impresion = false, $observaciones = false, $logob64 = false, $cedible = false, $footer = false): bool
+    {
+        // Preparar datos
+        $attatchments = [
+            [
+                'filename' => $this->parseFileName($envio_dte_xml),
+                'data' => $envio_dte_xml
+            ],
+        ];
+
+        // Agregar pdfs según xml enviado al SII
+        if ($pdfb64) {
+            foreach ($pdfb64 as $key => $pdf) {
+                $attatchments[] = [
+                    'filename' => str_replace('.', '_', $key) . '.pdf',
+                    'data' => base64_decode($pdf),
+                    'mime' => 'application/pdf'
+                ];
+            }
+        } else {
+            // Asigna true si es 'H' False caso contrario
+            $continuo = $formato_impresion == 'H';
+
+            // Llama a la función xmlPdf con los argumentos claros
+            $pdfb64_arr = $this->xmlPdf($envio_dte_xml, $continuo, $logob64, $observaciones, $cedible, $footer);
+
+            foreach ($pdfb64_arr as $key => $pdf) {
+                $attatchments[] = [
+                    'filename' => str_replace('.', '_', $key).".pdf",
+                    'data' => base64_decode($pdf),
+                    'mime' => 'application/pdf'
+                ];
+            }
+        }
+
+        // Enviar respuesta por correo
+        try {
+            // Configurar la conexión SMTP
+            Config::set('mail.mailers.smtp.host', $envio_arr['host']);
+            Config::set('mail.mailers.smtp.port', $envio_arr['port']);
+            Config::set('mail.mailers.smtp.username', $envio_arr['mail']);
+            Config::set('mail.mailers.smtp.password', base64_decode($envio_arr['password']));
+            Config::set('mail.from.address', $envio_arr['mail']);
+            Config::set('mail.from.name', env('APP_NAME', 'Logiciel ApiFact'));
+            Mail::to($envio_arr['correo_receptor'])->send(new DteEnvio($message, $attatchments));
+
+        } catch (\Exception $e) {
+            Log::write("Error al enviar correo con DTEs al receptor");
+            Log::write($e->getMessage());
+            return false;
+        }
+
+        return true;
     }
 }
