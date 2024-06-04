@@ -589,7 +589,7 @@ class PasarelaController extends DteController
             if($observaciones)
                 $dte['Observaciones'] = $observaciones;
             $pdf->agregar($dte, $DTE->getTED());
-            //file_put_contents(base_path()."\pdf.pdf", $pdf->getPDFData());
+            //file_put_contents(base_path()."/pdf.pdf", $pdf->getPDFData());
             $nombre = "{$Caratula['RutEmisor']}.{$dte['Encabezado']['IdDoc']['TipoDTE']}.{$dte['Encabezado']['IdDoc']['Folio']}";
             $pdfb64_arr[$nombre] = chunk_split(base64_encode($pdf->getPDFData()));
         }
