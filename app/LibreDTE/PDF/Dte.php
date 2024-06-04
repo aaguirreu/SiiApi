@@ -344,6 +344,106 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
         }
     }
 
+    protected function agregarEmisor(array $emisor, $x = 10, $y = 15, $w = 75, $w_img = 30, $font_size = null, array $color = null, $h_folio = null, $w_all = null)
+    {
+        $agregarDatosEmisor = true;
+        // logo del documento
+        if (isset($this->logo)) {
+            // logo centrado (papel continuo)
+            if (!empty($this->logo['posicion']) and $this->logo['posicion'] == 'C') {
+                $logo_w = null;
+                $logo_y = null;
+                $logo_position = 'C';
+                $logo_next_pointer = 'N';
+            }
+            // logo a la derecha (posicion=0) o arriba (posicion=1)
+            else if (empty($this->logo['posicion']) or $this->logo['posicion'] == 1) {
+                $logo_w = !$this->logo['posicion'] ? $w_img : null;
+                $logo_y = $this->logo['posicion'] ? $w_img/2 : null;
+                $logo_position = '';
+                $logo_next_pointer = 'T';
+            }
+            // logo completo, reemplazando datos del emisor (posicion=2)
+            else {
+                $logo_w = null;
+                $logo_y = $w_img;
+                $logo_position = '';
+                $logo_next_pointer = 'T';
+                $agregarDatosEmisor = false;
+            }
+            // Se modifica el resize
+            $this->Image(
+                $this->logo['uri'],
+                $x,
+                $y,
+                $logo_w,
+                $logo_y,
+                'PNG',
+                '',
+                $logo_next_pointer,
+                2,
+                300,
+                $logo_position,
+                $ismask = false,
+                $imgmask = false,
+                $border = 0, $fitbox = false,
+                $hidden = false,
+                $fitonpage = false,
+                $alt = false,
+                $altimgs = array(),
+            );
+
+            if (!empty($this->logo['posicion']) and $this->logo['posicion'] == 'C') {
+                $w += 40;
+            } else {
+                if ($this->logo['posicion']) {
+                    $this->SetY($this->y + ($w_img/2));
+                    $w += 40;
+                } else {
+                    $x = $this->x+3;
+                }
+            }
+        } else {
+            $this->y = $y-2;
+            $w += 40;
+        }
+        // agregar datos del emisor
+        if ($agregarDatosEmisor) {
+            $this->setFont('', 'B', $font_size ? $font_size : 14);
+            $this->SetTextColorArray($color===null?[32, 92, 144]:$color);
+            $this->MultiTexto(!empty($emisor['RznSoc']) ? $emisor['RznSoc'] : $emisor['RznSocEmisor'], $x, $this->y+2, 'L', ($h_folio and $h_folio < $this->getY()) ? $w_all : $w);
+            $this->setFont('', 'B', $font_size ? $font_size : 9);
+            $this->SetTextColorArray([0,0,0]);
+            $this->MultiTexto(!empty($emisor['GiroEmis']) ? $emisor['GiroEmis'] : $emisor['GiroEmisor'], $x, $this->y, 'L', ($h_folio and $h_folio < $this->getY()) ? $w_all : $w);
+            $direccion = !empty($emisor['DirOrigen']) ? $emisor['DirOrigen'] : null;
+            $comuna = !empty($emisor['CmnaOrigen']) ? $emisor['CmnaOrigen'] : null;
+            $ciudad = !empty($emisor['CiudadOrigen']) ? $emisor['CiudadOrigen'] : \sasco\LibreDTE\Chile::getCiudad($comuna);
+            $this->MultiTexto($direccion.($comuna?(', '.$comuna):'').($ciudad?(', '.$ciudad):''), $x, $this->y, 'L', ($h_folio and $h_folio < $this->getY()) ? $w_all : $w);
+            if (!empty($emisor['Sucursal'])) {
+                $this->MultiTexto('Sucursal: '.$emisor['Sucursal'], $x, $this->y, 'L', ($h_folio and $h_folio < $this->getY()) ? $w_all : $w);
+            }
+            if (!empty($this->casa_matriz)) {
+                $this->MultiTexto('Casa matriz: '.$this->casa_matriz, $x, $this->y, 'L', ($h_folio and $h_folio < $this->getY()) ? $w_all : $w);
+            }
+            $contacto = [];
+            if (!empty($emisor['Telefono'])) {
+                if (!is_array($emisor['Telefono'])) {
+                    $emisor['Telefono'] = [$emisor['Telefono']];
+                }
+                foreach ($emisor['Telefono'] as $t) {
+                    $contacto[] = $t;
+                }
+            }
+            if (!empty($emisor['CorreoEmisor'])) {
+                $contacto[] = $emisor['CorreoEmisor'];
+            }
+            if ($contacto) {
+                $this->MultiTexto(implode(' / ', $contacto), $x, $this->y, 'L', ($h_folio and $h_folio < $this->getY()) ? $w_all : $w);
+            }
+        }
+        return $this->y;
+    }
+
     protected function agregarObservacionAdicional(array $observaciones, $x = 10, $y = 190): float
     {
         $y = (!$this->papelContinuo and !$this->timbre_pie) ? $this->x_fin_datos : $y;
