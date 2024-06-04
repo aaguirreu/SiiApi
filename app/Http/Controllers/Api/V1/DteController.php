@@ -585,7 +585,7 @@ class DteController extends Controller
         return $response ?? $documentos;
     }
 
-    protected function obtenerCaratula($dte, $documentos, FirmaElectronica $Firma): array
+    public function obtenerCaratula($dte, $documentos, FirmaElectronica $Firma): array
     {
         return [
             'RutEmisor' => $dte->Caratula->RutEmisor ?? $documentos[0]['Encabezado']['Emisor']['RUTEmisor'], // se obtiene automáticamente
@@ -596,7 +596,7 @@ class DteController extends Controller
         ];
     }
 
-    protected function generarEnvioDteXml(array $documentos, FirmaElectronica $Firma, array $folios, array $caratula): mixed
+    public function generarEnvioDteXml(array $documentos, FirmaElectronica $Firma, array $folios, array $caratula): mixed
     {
         $EnvioDTE = new EnvioDte();
         foreach ($documentos as $documento) {
@@ -949,7 +949,7 @@ class DteController extends Controller
         }
     }
 
-    protected function importarFirma(&$tmp_dir, $cert, $cert_pass)
+    public function importarFirma(&$tmp_dir, $cert, $cert_pass)
     {
         // Guardar firma en tmp y que se autoelimine
         try {
