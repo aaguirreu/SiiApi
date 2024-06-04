@@ -5,8 +5,6 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\PasarelaController;
 use App\Jobs\ProcessEnvioDteReceptor;
 use App\Jobs\ProcessEnvioDteSii;
-use App\LibreDTE\PDF\Dte;
-use App\Mail\DteEnvio;
 use App\Mail\DteResponse;
 use App\Models\Envio;
 use Carbon\Carbon;
@@ -19,11 +17,8 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Response;
 use Illuminate\Support\Facades\Validator;
-use phpseclib\Net\SCP;
-use phpseclib\Net\SFTP;
 use sasco\LibreDTE\Log;
 use sasco\LibreDTE\Sii\ConsumoFolio;
-use sasco\LibreDTE\Sii\EnvioDte;
 use sasco\LibreDTE\Sii\Folios;
 use SimpleXMLElement;
 use Webklex\PHPIMAP\Attachment;
@@ -230,14 +225,13 @@ class ApiPasarelaController extends PasarelaController
 
         // Agregar todos los datos si existe receptor
         if ($request->correo_receptor) {
-            $envio_arr['ambiente'] = $ambiente;
             $envio_arr['request'] = $dte;
             $envio_arr['request']['pdfb64'] = $pdfb64_arr;
 
             // Dispatch jobs en cadena para enviar a SII de manera asincrónica
             Bus::chain([
                 new ProcessEnvioDteSii($envio, $envio_arr),
-                new ProcessEnvioDteReceptor($envio, $envio_arr['request'], $envio_arr['ambiente'])
+                new ProcessEnvioDteReceptor($envio, $envio_arr['request'])
             ])->dispatch();
         } else {
             // Dispatch job para enviar a SII de manera asincrónica
@@ -699,7 +693,8 @@ class ApiPasarelaController extends PasarelaController
         ], 200);
     }
 
-    public function resumenVentas(Request $request, $ambiente) {
+    public function resumenVentas(Request $request, $ambiente): JsonResponse
+    {
         $validator = Validator::make($request->all(), [
             'Caratula' => 'required',
             'Resumen' => 'required',
@@ -783,7 +778,7 @@ class ApiPasarelaController extends PasarelaController
         ], 400);
     }
 
-    public function generarDteReceptor(Request $request, $ambiente): JsonResponse
+    public function generarDteReceptor(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'Caratula' => 'required',
@@ -912,7 +907,7 @@ class ApiPasarelaController extends PasarelaController
         ], 200);
     }
 
-    public function generarPdf(Request $request, $continuo = false): JsonResponse
+    public function generarPdf(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'xmlb64' => 'required|string',
@@ -940,7 +935,7 @@ class ApiPasarelaController extends PasarelaController
 
         // Respuesta exito
         return response()->json([
-            'success' => $pdfb64_arr
+            'pdfb64' => $pdfb64_arr
         ], 200);
     }
 

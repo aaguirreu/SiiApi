@@ -25,7 +25,6 @@ class ProcessEnvioDteReceptor implements ShouldQueue
     public function __construct(
         public Envio $envio,
         public array $arr,
-        public string $ambiente
     ) {}
 
     /**
