@@ -65,7 +65,7 @@ Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1'/*, 
     // Envio de DTE y Boletas
     Route::post('pasarela/{ambiente}/dte/envio', 'ApiPasarelaController@generarDte');
     // Envio de DTE a Receptor
-    Route::post('pasarela/{ambiente}/dte/envio.receptor', 'ApiPasarelaController@generarDteReceptor');
+    Route::post('pasarela/dte/envio.receptor', 'ApiPasarelaController@generarDteReceptor');
     // Consulta de estado de envio
     Route::post('pasarela/{ambiente}/dte/estado.envio', 'ApiPasarelaController@estadoEnvio');
     // Consulta de estado de documento
@@ -80,7 +80,6 @@ Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1'/*, 
     Route::post('pasarela/{ambiente}/resumenVentas', 'ApiPasarelaController@resumenVentas');
     // PDF
     Route::post('pasarela/dtes/pdf', 'ApiPasarelaController@generarPdf');
-    Route::post('pasarela/dtes/pdf{continuo?}', 'ApiPasarelaController@generarPdf');
 
     // Miscelaneos
     Route::post('base64', 'ApiPasarelaController@base64');
