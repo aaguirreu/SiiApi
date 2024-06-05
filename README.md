@@ -1,8 +1,9 @@
-ApiSii es un proyecto 
+Api que genera y envía XML firmados al SII y receptor. Utiliza LibreDTE
 
 ### Requerimientos
 - php-curl
 - php-xml
+- libgdk-pixbuf-2.0-0 (En debian para el resize del logo)
 
 ## Instrucciones
 Sigue las siguientes instrucciones para un correcto funcionamiento en una maquina virtual con apache2.
