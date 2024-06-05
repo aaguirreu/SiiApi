@@ -618,7 +618,7 @@ class PasarelaController extends DteController
             }
         } else {
             // Asigna true si es 'H' False caso contrario
-            $continuo = $formato_impresion == 'H';
+            $continuo = $formato_impresion == 'T';
 
             // Llama a la función xmlPdf con los argumentos claros
             $pdfb64_arr = $this->xmlPdf($envio_dte_xml, $continuo, $logob64, $observaciones, $cedible, $footer);

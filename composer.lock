@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "ad036b75b698dbf976c974b0fe903479",
+    "content-hash": "0ead5a21bbb0be3e56e8cac67faf723b",
     "packages": [
         {
             "name": "asm89/stack-cors",
@@ -2353,30 +2353,31 @@
         },
         {
             "name": "php-imap/php-imap",
-            "version": "2.0.3",
+            "version": "2.2.5",
             "source": {
                 "type": "git",
                 "url": "https://github.com/barbushin/php-imap.git",
-                "reference": "cc1a49a3f68090db182183c59ffbc09055d59f5b"
+                "reference": "3be0a7e1fbd99c4fd35b3ae3e90b130d44520b5d"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/barbushin/php-imap/zipball/cc1a49a3f68090db182183c59ffbc09055d59f5b",
-                "reference": "cc1a49a3f68090db182183c59ffbc09055d59f5b",
+                "url": "https://api.github.com/repos/barbushin/php-imap/zipball/3be0a7e1fbd99c4fd35b3ae3e90b130d44520b5d",
+                "reference": "3be0a7e1fbd99c4fd35b3ae3e90b130d44520b5d",
                 "shasum": ""
             },
             "require": {
+                "ext-imap": "*",
                 "php": ">=5.3.0"
             },
             "type": "library",
             "autoload": {
-                "psr-0": {
-                    "PhpImap": "src/"
+                "psr-4": {
+                    "PhpImap\\": "src/PhpImap/"
                 }
             },
             "notification-url": "https://packagist.org/downloads/",
             "license": [
-                "BSD 3-Clause"
+                "MIT"
             ],
             "authors": [
                 {
@@ -2385,18 +2386,21 @@
                     "homepage": "http://linkedin.com/in/barbushin"
                 }
             ],
-            "description": "PHP class to access mailbox by POP3/IMAP/NNTP using IMAP extension",
+            "description": "Manage mailboxes, filter/get/delete emails in PHP (supports IMAP/POP3/NNTP)",
             "homepage": "https://github.com/barbushin/php-imap",
             "keywords": [
                 "imap",
                 "mail",
-                "php"
+                "mailbox",
+                "php",
+                "pop3",
+                "receive emails"
             ],
             "support": {
                 "issues": "https://github.com/barbushin/php-imap/issues",
                 "source": "https://github.com/barbushin/php-imap/tree/master"
             },
-            "time": "2015-09-16T07:40:39+00:00"
+            "time": "2017-10-06T05:49:25+00:00"
         },
         {
             "name": "phplang/scope-exit",
@@ -2523,16 +2527,16 @@
         },
         {
             "name": "phpseclib/phpseclib",
-            "version": "2.0.31",
+            "version": "2.0.47",
             "source": {
                 "type": "git",
                 "url": "https://github.com/phpseclib/phpseclib.git",
-                "reference": "233a920cb38636a43b18d428f9a8db1f0a1a08f4"
+                "reference": "b7d7d90ee7df7f33a664b4aea32d50a305d35adb"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/phpseclib/phpseclib/zipball/233a920cb38636a43b18d428f9a8db1f0a1a08f4",
-                "reference": "233a920cb38636a43b18d428f9a8db1f0a1a08f4",
+                "url": "https://api.github.com/repos/phpseclib/phpseclib/zipball/b7d7d90ee7df7f33a664b4aea32d50a305d35adb",
+                "reference": "b7d7d90ee7df7f33a664b4aea32d50a305d35adb",
                 "shasum": ""
             },
             "require": {
@@ -2547,7 +2551,8 @@
                 "ext-gmp": "Install the GMP (GNU Multiple Precision) extension in order to speed up arbitrary precision integer arithmetic operations.",
                 "ext-libsodium": "SSH2/SFTP can make use of some algorithms provided by the libsodium-php extension.",
                 "ext-mcrypt": "Install the Mcrypt extension in order to speed up a few other cryptographic operations.",
-                "ext-openssl": "Install the OpenSSL extension in order to speed up a wide variety of cryptographic operations."
+                "ext-openssl": "Install the OpenSSL extension in order to speed up a wide variety of cryptographic operations.",
+                "ext-xml": "Install the XML extension to load XML formatted public keys."
             },
             "type": "library",
             "autoload": {
@@ -2612,7 +2617,7 @@
             ],
             "support": {
                 "issues": "https://github.com/phpseclib/phpseclib/issues",
-                "source": "https://github.com/phpseclib/phpseclib/tree/2.0.31"
+                "source": "https://github.com/phpseclib/phpseclib/tree/2.0.47"
             },
             "funding": [
                 {
@@ -2628,7 +2633,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2021-04-06T13:56:45+00:00"
+            "time": "2024-02-26T04:55:38+00:00"
         },
         {
             "name": "psr/clock",
@@ -3343,28 +3348,28 @@
         },
         {
             "name": "sasco/libredte",
-            "version": "21.10.5",
+            "version": "24.1.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/LibreDTE/libredte-lib.git",
-                "reference": "9054a4a8e2943ff04fd67537093cb5de659379b4"
+                "reference": "afe52b863be7ab0332d841eb10ba7a63471a77a3"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/LibreDTE/libredte-lib/zipball/9054a4a8e2943ff04fd67537093cb5de659379b4",
-                "reference": "9054a4a8e2943ff04fd67537093cb5de659379b4",
+                "url": "https://api.github.com/repos/LibreDTE/libredte-lib/zipball/afe52b863be7ab0332d841eb10ba7a63471a77a3",
+                "reference": "afe52b863be7ab0332d841eb10ba7a63471a77a3",
                 "shasum": ""
             },
             "require": {
                 "ext-curl": "*",
                 "ext-openssl": "*",
                 "ext-soap": "*",
-                "php": ">=7.3",
-                "phpseclib/phpseclib": "2.0.31",
-                "tecnickcom/tcpdf": "6.4.1"
+                "php": "7.3.* || 7.4.*",
+                "phpseclib/phpseclib": "^2.0.47",
+                "tecnickcom/tcpdf": "~6.7.5"
             },
             "require-dev": {
-                "phpunit/phpunit": "9.5.4"
+                "phpunit/phpunit": "^9.6.19"
             },
             "type": "library",
             "autoload": {
@@ -3378,23 +3383,22 @@
             ],
             "authors": [
                 {
-                    "name": "SASCO SpA",
-                    "homepage": "https://sasco.cl"
+                    "name": "LibreDTE",
+                    "homepage": "https://www.libredte.cl"
                 }
             ],
             "description": "Biblioteca para trabajo con DTE del SII de Chile",
-            "homepage": "https://libredte.cl",
+            "homepage": "https://www.libredte.cl",
             "keywords": [
                 "dte",
                 "facturación electrónica",
                 "sii"
             ],
             "support": {
-                "forum": "https://groups.google.com/forum/#!forum/libredte",
                 "issues": "https://github.com/LibreDTE/libredte-lib/issues",
                 "source": "https://github.com/LibreDTE/libredte-lib"
             },
-            "time": "2022-07-16T14:53:14+00:00"
+            "time": "2024-05-19T17:26:20+00:00"
         },
         {
             "name": "spatie/temporary-directory",
@@ -3728,16 +3732,16 @@
         },
         {
             "name": "symfony/css-selector",
-            "version": "v7.1.0",
+            "version": "v7.1.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symfony/css-selector.git",
-                "reference": "843f2f7ac5e4c5bf0ec77daef23ca6d4d8922adc"
+                "reference": "1c7cee86c6f812896af54434f8ce29c8d94f9ff4"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symfony/css-selector/zipball/843f2f7ac5e4c5bf0ec77daef23ca6d4d8922adc",
-                "reference": "843f2f7ac5e4c5bf0ec77daef23ca6d4d8922adc",
+                "url": "https://api.github.com/repos/symfony/css-selector/zipball/1c7cee86c6f812896af54434f8ce29c8d94f9ff4",
+                "reference": "1c7cee86c6f812896af54434f8ce29c8d94f9ff4",
                 "shasum": ""
             },
             "require": {
@@ -3773,7 +3777,7 @@
             "description": "Converts CSS selectors to XPath expressions",
             "homepage": "https://symfony.com",
             "support": {
-                "source": "https://github.com/symfony/css-selector/tree/v7.1.0"
+                "source": "https://github.com/symfony/css-selector/tree/v7.1.1"
             },
             "funding": [
                 {
@@ -3789,7 +3793,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2024-04-18T09:32:20+00:00"
+            "time": "2024-05-31T14:57:53+00:00"
         },
         {
             "name": "symfony/deprecation-contracts",
@@ -3860,16 +3864,16 @@
         },
         {
             "name": "symfony/dom-crawler",
-            "version": "v7.1.0",
+            "version": "v7.1.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symfony/dom-crawler.git",
-                "reference": "fc26d2e4472df45340e8b8fb43cb708d468eaa84"
+                "reference": "01ce8174447f1f1dd33a5854b01beef79061d9fa"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symfony/dom-crawler/zipball/fc26d2e4472df45340e8b8fb43cb708d468eaa84",
-                "reference": "fc26d2e4472df45340e8b8fb43cb708d468eaa84",
+                "url": "https://api.github.com/repos/symfony/dom-crawler/zipball/01ce8174447f1f1dd33a5854b01beef79061d9fa",
+                "reference": "01ce8174447f1f1dd33a5854b01beef79061d9fa",
                 "shasum": ""
             },
             "require": {
@@ -3907,7 +3911,7 @@
             "description": "Eases DOM navigation for HTML and XML documents",
             "homepage": "https://symfony.com",
             "support": {
-                "source": "https://github.com/symfony/dom-crawler/tree/v7.1.0"
+                "source": "https://github.com/symfony/dom-crawler/tree/v7.1.1"
             },
             "funding": [
                 {
@@ -3923,7 +3927,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2024-04-18T09:32:20+00:00"
+            "time": "2024-05-31T14:57:53+00:00"
         },
         {
             "name": "symfony/error-handler",
@@ -5785,20 +5789,20 @@
         },
         {
             "name": "tecnickcom/tcpdf",
-            "version": "6.4.1",
+            "version": "6.7.5",
             "source": {
                 "type": "git",
                 "url": "https://github.com/tecnickcom/TCPDF.git",
-                "reference": "5ba838befdb37ef06a16d9f716f35eb03cb1b329"
+                "reference": "951eabf0338ec2522bd0d5d9c79b08a3a3d36b36"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/tecnickcom/TCPDF/zipball/5ba838befdb37ef06a16d9f716f35eb03cb1b329",
-                "reference": "5ba838befdb37ef06a16d9f716f35eb03cb1b329",
+                "url": "https://api.github.com/repos/tecnickcom/TCPDF/zipball/951eabf0338ec2522bd0d5d9c79b08a3a3d36b36",
+                "reference": "951eabf0338ec2522bd0d5d9c79b08a3a3d36b36",
                 "shasum": ""
             },
             "require": {
-                "php": ">=5.3.0"
+                "php": ">=5.5.0"
             },
             "type": "library",
             "autoload": {
@@ -5823,7 +5827,7 @@
             },
             "notification-url": "https://packagist.org/downloads/",
             "license": [
-                "LGPL-3.0-only"
+                "LGPL-3.0-or-later"
             ],
             "authors": [
                 {
@@ -5845,7 +5849,7 @@
             ],
             "support": {
                 "issues": "https://github.com/tecnickcom/TCPDF/issues",
-                "source": "https://github.com/tecnickcom/TCPDF/tree/6.4.1"
+                "source": "https://github.com/tecnickcom/TCPDF/tree/6.7.5"
             },
             "funding": [
                 {
@@ -5853,7 +5857,7 @@
                     "type": "custom"
                 }
             ],
-            "time": "2021-03-27T16:00:33+00:00"
+            "time": "2024-04-20T17:25:10+00:00"
         },
         {
             "name": "tijsverkoyen/css-to-inline-styles",
@@ -8917,7 +8921,7 @@
     "prefer-stable": true,
     "prefer-lowest": false,
     "platform": {
-        "php": "^8.0",
+        "php": "*",
         "ext-curl": "*",
         "ext-dom": "*",
         "ext-json": "*",

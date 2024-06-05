@@ -1,16 +1,11 @@
 ApiSii es un proyecto 
 
-# Instrucciones
+### Requerimientos
+- php-curl
+- php-xml
+
+## Instrucciones
 Sigue las siguientes instrucciones para un correcto funcionamiento en una maquina virtual con apache2.
-
-### php.ini
-
-En el archivo php.ini quitar los punto y coma ";" de los siguientes líneas:
-- extension=pdo_pgsql
-- extension=pgsql
-- extension=soap
-- extension=curl
-- extension=zip
 
 ### Clonar repositorio
 
@@ -19,18 +14,12 @@ cd /var/www/html/
 git clone https://github.com/aaguirreu/SiiApi.git
 ```
 
-### .env
+### Configurar .env
 
- Copiar o reemplazar .env_example como .env  
+Copiar o reemplazar .env_example como .env  
 `cp .env_example .env`
 
-Llenar los datos faltantes. Verifica que CAFS_PATH Y DTES_PATH terminen en /.
-
-- CERT_PATH= Ruta a la firma digital (archivo .pfx o .p12).
-- CERT_PASS= Contraseña de la firma
-- XML_PATH= Carpeta donde se guardarán los cafs.xml
-
-Reemplazar los valores de la base de datos según corresponda:
+Reemplazar los valores de la base de datos. Necesario para el envío de DTEs.
 
 - DB_CONNECTION=pgsql
 - DB_HOST=127.0.0.1
@@ -40,50 +29,12 @@ Reemplazar los valores de la base de datos según corresponda:
 - DB_PASSWORD=postgres
 
 ### Instalar dependencias y migrar la base de datos
+Se utiliza la flag --ignore-platform-reqs para instalar la última versión del paquete sasco/LibreDTE, 
+debido a que este requiere php7.4 y este proyecto utiliza php8.2.
 
 ```
-composer install --no-dev
+composer install --no-dev --ignore-platform-reqs
 php artisan migrate --seed
-```
-
-### Configurar dteimap:idle command para recibir los correos
-
-En desarrollo se puede ejecutar el comando de forma manual:
-
-`php artisan dteimap:idle`
-
-Para que se ejecute en producción se debe configurar un cronjob que ejecute el comando cada cierto tiempo.
-Más información en la página oficial de [PHP-IMAP](https://www.php-imap.com/frameworks/laravel/service)
-
-#### Configurando un systemd service:
-
-`nano /etc/systemd/system/imap-idle.service`
-
-```
-[Unit]
-Description=ImapIdle
-After=multi-user.target
-After=syslog.target
-After=network-online.target
-
-[Service]
-Type=simple
-
-User=www-data
-Group=www-data
-
-WorkingDirectory=/var/www/my_project
-ExecStart=/user/bin/php artisan dteimap:idle
-
-Restart=on-failure
-RestartSec=5s
-
-[Install]
-WantedBy=multi-user.target
-```
-```
-systemctl start imap-idle.service
-systemctl enable imap-idle.service
 ```
 
 #### Configuración de permisos
@@ -96,8 +47,7 @@ chmod -R 774 storage/framework/
 php artisan cache:clear
 ```
 
-### Cambiar la contraseña con Tinker
-
+### Cambiar la contraseña para obtener el token con Tinker
 Es importante haber utilizado la flag --seed al migrar, ya que, genera el usuario.
 ```
 php artisan tinker

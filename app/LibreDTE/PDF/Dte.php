@@ -371,7 +371,7 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
                 $logo_next_pointer = 'T';
                 $agregarDatosEmisor = false;
             }
-            // Se modifica el resize de 2 a 1.
+            // Se modifica el resize
             $this->Image(
                 $this->logo['uri'],
                 $x,
@@ -379,11 +379,18 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
                 $logo_w,
                 $logo_y,
                 'PNG',
-                (isset($emisor['url'])?$emisor['url']:''),
+                '',
                 $logo_next_pointer,
-                1,
+                2,
                 300,
-                $logo_position
+                $logo_position,
+                $ismask = false,
+                $imgmask = false,
+                $border = 0, $fitbox = false,
+                $hidden = false,
+                $fitonpage = false,
+                $alt = false,
+                $altimgs = array(),
             );
 
             if (!empty($this->logo['posicion']) and $this->logo['posicion'] == 'C') {
