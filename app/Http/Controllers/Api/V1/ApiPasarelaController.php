@@ -25,6 +25,7 @@ use Webklex\PHPIMAP\Attachment;
 use Webklex\PHPIMAP\ClientManager;
 use Webklex\PHPIMAP\Folder;
 use Webklex\PHPIMAP\Message;
+use function MongoDB\BSON\toJSON;
 
 /**
  *
@@ -902,9 +903,9 @@ class ApiPasarelaController extends PasarelaController
                 'error' => Log::read()->msg,
             ], 400);
 
-        return response()->json([
-            'success' => "Correo enviado con éxito",
-        ], 200);
+        return response()->json(
+            $envio
+        , 200);
     }
 
     public function generarPdf(Request $request): JsonResponse

@@ -597,7 +597,7 @@ class PasarelaController extends DteController
         return $pdfb64_arr;
     }
 
-    public function enviarDteReceptor($envio_dte_xml, $message, $envio_arr, $pdfb64 = false, $formato_impresion = false, $observaciones = false, $logob64 = false, $cedible = false, $footer = false): bool
+    public function enviarDteReceptor($envio_dte_xml, $message, $envio_arr, $pdfb64 = false, $formato_impresion = false, $observaciones = false, $logob64 = false, $cedible = false, $footer = false): bool|array
     {
         // Preparar datos
         $attatchments = [
@@ -648,7 +648,11 @@ class PasarelaController extends DteController
             Log::write($e->getMessage());
             return false;
         }
+        $arr = [
+            'xmlb64' =>base64_encode($envio_dte_xml),
+            'pdfb64' =>$pdfb64_arr
+        ];
 
-        return true;
+        return $arr;
     }
 }
