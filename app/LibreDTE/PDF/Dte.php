@@ -351,10 +351,17 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
         if (isset($this->logo)) {
             // logo centrado (papel continuo)
             if (!empty($this->logo['posicion']) and $this->logo['posicion'] == 'C') {
-                $logo_w = null;
-                $logo_y = null;
+                // Se setean en 0 para que $this->Image haga el ajuste.
+                $logo_y = 0;
+                $logo_w = 0;
                 $logo_position = 'C';
                 $logo_next_pointer = 'N';
+                // Se hace el resize con imagick antes de asignar la imagen
+                // para evitar que la librería haga el resize
+                $imagick = new \Imagick($this->logo['uri']);
+                $imagick->scaleImage(200, 0);
+                $imagick->writeImage($this->logo['uri']);
+
             }
             // logo a la derecha (posicion=0) o arriba (posicion=1)
             else if (empty($this->logo['posicion']) or $this->logo['posicion'] == 1) {
@@ -371,26 +378,19 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
                 $logo_next_pointer = 'T';
                 $agregarDatosEmisor = false;
             }
-            // Se modifica el resize
+
             $this->Image(
                 $this->logo['uri'],
-                $x,
+                $x ,
                 $y,
                 $logo_w,
                 $logo_y,
                 'PNG',
                 '',
                 $logo_next_pointer,
-                2,
+                false,
                 300,
                 $logo_position,
-                $ismask = false,
-                $imgmask = false,
-                $border = 0, $fitbox = false,
-                $hidden = false,
-                $fitonpage = false,
-                $alt = false,
-                $altimgs = array(),
             );
 
             if (!empty($this->logo['posicion']) and $this->logo['posicion'] == 'C') {
