@@ -24,7 +24,8 @@
         "swaggest/json-schema": "^0.12.41",
         "symfony/dom-crawler": "^7.0",
         "webklex/laravel-imap": "*",
-        "sasco/libredte": "24.1.*"
+        "sasco/libredte": "24.1.*",
+        "ext-imagick": "*"
     },
     "require-dev": {
         "facade/ignition": "^2.5",
