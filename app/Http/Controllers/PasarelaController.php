@@ -597,7 +597,7 @@ class PasarelaController extends DteController
         return $pdfb64_arr;
     }
 
-    public function enviarDteReceptor($envio_dte_xml, $message, $envio_arr, $pdfb64 = false, $formato_impresion = false, $observaciones = false, $logob64 = false, $cedible = false, $footer = false): bool|array
+    public function enviarDteReceptor($envio_dte_xml, $message, $envio_arr, $pdfb64_arr = false, $formato_impresion = false, $observaciones = false, $logob64 = false, $cedible = false, $footer = false): bool|array
     {
         // Preparar datos
         $attatchments = [
@@ -608,8 +608,8 @@ class PasarelaController extends DteController
         ];
 
         // Agregar pdfs según xml enviado al SII
-        if ($pdfb64) {
-            foreach ($pdfb64 as $key => $pdf) {
+        if ($pdfb64_arr) {
+            foreach ($pdfb64_arr as $key => $pdf) {
                 $attatchments[] = [
                     'filename' => str_replace('.', '_', $key) . '.pdf',
                     'data' => base64_decode($pdf),
