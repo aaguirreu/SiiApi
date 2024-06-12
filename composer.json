@@ -5,35 +5,30 @@
     "keywords": ["framework", "laravel"],
     "license": "MIT",
     "require": {
-        "php": "*",
+        "php": "^8.2",
         "ext-curl": "*",
         "ext-dom": "*",
+        "ext-imagick": "*",
         "ext-json": "*",
         "ext-libxml": "*",
         "ext-openssl": "*",
         "ext-simplexml": "*",
-        "beyondcode/laravel-mailbox": "^3.1",
-        "fruitcake/laravel-cors": "^2.0",
-        "guzzlehttp/guzzle": "^7.0.1",
-        "laravel/framework": "^8.75",
-        "laravel/sanctum": "^2.15",
-        "laravel/tinker": "^2.5",
-        "php-imap/php-imap": "^2.0",
-        "phpseclib/phpseclib": "^2.0",
-        "spatie/temporary-directory": "^2.2",
-        "swaggest/json-schema": "^0.12.41",
-        "symfony/dom-crawler": "^7.0",
-        "webklex/laravel-imap": "*",
-        "sasco/libredte": "24.1.*",
-        "ext-imagick": "*"
+        "laravel/framework": "^11.9",
+        "laravel/pulse": "^1.2",
+        "laravel/sanctum": "^4.0",
+        "laravel/tinker": "^2.9",
+        "sasco/libredte": "^24.1",
+        "spatie/temporary-directory": "*",
+        "symfony/dom-crawler": "^7.1",
+        "webklex/laravel-imap": "^5.3"
     },
     "require-dev": {
-        "facade/ignition": "^2.5",
-        "fakerphp/faker": "^1.9.1",
-        "laravel/sail": "^1.0.1",
-        "mockery/mockery": "^1.4.4",
-        "nunomaduro/collision": "^5.10",
-        "phpunit/phpunit": "^9.5.10"
+        "fakerphp/faker": "^1.23",
+        "laravel/pint": "^1.13",
+        "laravel/sail": "^1.26",
+        "mockery/mockery": "^1.6",
+        "nunomaduro/collision": "^8.0",
+        "phpunit/phpunit": "^11.0.1"
     },
     "autoload": {
         "psr-4": {
@@ -60,7 +55,9 @@
             "@php -r \"file_exists('.env') || copy('.env.example', '.env');\""
         ],
         "post-create-project-cmd": [
-            "@php artisan key:generate --ansi"
+            "@php artisan key:generate --ansi",
+            "@php -r \"file_exists('database/database.sqlite') || touch('database/database.sqlite');\"",
+            "@php artisan migrate --graceful --ansi"
         ]
     },
     "extra": {
@@ -71,8 +68,12 @@
     "config": {
         "optimize-autoloader": true,
         "preferred-install": "dist",
-        "sort-packages": true
+        "sort-packages": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true,
+            "php-http/discovery": true
+        }
     },
-    "minimum-stability": "dev",
+    "minimum-stability": "stable",
     "prefer-stable": true
 }
