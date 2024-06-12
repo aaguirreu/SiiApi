@@ -88,8 +88,16 @@ class PasarelaController extends DteController
         ]);
 
         $html = $confirma_folio->getBody()->getContents();
-        $data_obtener_folio = $this->getDataObtenerFolio($html);
 
+        if ($this->esPrimerTimbraje($html)) {
+            $data_confimar_folio_inicial = $this->getDataConfimarFolioInicial($html);
+            $confirma_folio = $client->request('POST', "https://$servidor.sii.cl/cvc_cgi/dte/of_confirma_folio", [
+                'form_params' => $data_confimar_folio_inicial,
+            ]);
+            $html = $confirma_folio->getBody()->getContents();
+        }
+
+        $data_obtener_folio = $this->getDataObtenerFolio($html);
         // Generar folios. Necesario para que el SII genere el archivo xml (caf)
         $response = $client->request('POST', "https://$servidor.sii.cl/cvc_cgi/dte/of_genera_folio", [
             'form_params' => $data_obtener_folio,
@@ -184,6 +192,35 @@ class PasarelaController extends DteController
         ];
     }
 
+    protected function getDataConfimarFolioInicial($html): array
+    {
+        // Crear el Crawler
+        $crawler = new Crawler($html);
+
+        // Extraer los valores de los inputs
+        $nomusu = $crawler->filter('input[name="NOMUSU"]')->count() > 0 ? $crawler->filter('input[name="NOMUSU"]')->attr('value') : null;
+        $folio_inicial = $crawler->filter('input[name="FOLIO_INICIAL"]')->count() > 0 ? $crawler->filter('input[name="FOLIO_INICIAL"]')->attr('value') : null;
+        $con_credito = $crawler->filter('input[name="CON_CREDITO"]')->count() > 0 ? $crawler->filter('input[name="CON_CREDITO"]')->attr('value') : null;
+        $con_ajuste = $crawler->filter('input[name="CON_AJUSTE"]')->count() > 0 ? $crawler->filter('input[name="CON_AJUSTE"]')->attr('value') : null;
+        $rut_emp = $crawler->filter('input[name="RUT_EMP"]')->count() > 0 ? $crawler->filter('input[name="RUT_EMP"]')->attr('value') : null;
+        $dv_emp = $crawler->filter('input[name="DV_EMP"]')->count() > 0 ? $crawler->filter('input[name="DV_EMP"]')->attr('value') : null;
+        $cod_docto = $crawler->filter('input[name="COD_DOCTO"]')->count() > 0 ? $crawler->filter('input[name="COD_DOCTO"]')->attr('value') : null;
+        $cant_doctos = $crawler->filter('input[name="CANT_DOCTOS"]')->count() > 0 ? $crawler->filter('input[name="CANT_DOCTOS"]')->attr('value') : null;
+        $aceptar = $crawler->filter('input[name="ACEPTAR"]')->count() > 0 ? $crawler->filter('input[name="ACEPTAR"]')->attr('value') : null;
+
+        return [
+            'NOMUSU' => $nomusu,
+            'FOLIO_INICIAL' => $folio_inicial,
+            'CON_CREDITO' => $con_credito,
+            'CON_AJUSTE' => $con_ajuste,
+            'RUT_EMP' => $rut_emp,
+            'DV_EMP' => $dv_emp,
+            'COD_DOCTO' => $cod_docto,
+            'CANT_DOCTOS' => $cant_doctos,
+            'ACEPTAR' => $aceptar,
+        ];
+    }
+
     protected function getDataObtenerFolio($html): array
     {
         // Obtener el contenido HTML de la respuesta
@@ -213,6 +250,7 @@ class PasarelaController extends DteController
         $dv_emp = $crawler->filter('input[name="DV_EMP"]')->count() > 0 ? $crawler->filter('input[name="DV_EMP"]')->attr('value') : null;
         $cod_docto = $crawler->filter('input[name="COD_DOCTO"]')->count() > 0 ? $crawler->filter('input[name="COD_DOCTO"]')->attr('value') : null;
         $cant_doctos = $crawler->filter('input[name="CANT_DOCTOS"]')->count() > 0 ? $crawler->filter('input[name="CANT_DOCTOS"]')->attr('value') : null;
+        $aceptar = $crawler->filter('input[name="ACEPTAR"]')->count() > 0 ? $crawler->filter('input[name="ACEPTAR"]')->attr('value') : null;
 
         return [
             'NOMUSU' => $nomusu,
@@ -229,8 +267,8 @@ class PasarelaController extends DteController
             'FECHA_ANT' => $fecha_ant,
             'ESTADO_TIMBRAJE' => $estado_timbraje,
             'CONTROL' => $control,
-            'FOLIO_INI' => $folio_ini,
-            'FOLIO_FIN' => $folio_fin,
+            'FOLIO_INI' => intval($folio_ini) == 0 ? "1" : $folio_ini, // Si es el primer folio (0) retornar 1
+            'FOLIO_FIN' => intval($folio_ini) == 0 ? $cant_doctos : $folio_fin, // Si es el primer folio retornar folio final ( = $cant_doctos)
             'DIA' => $dia,
             'MES' => $mes,
             'ANO' => $ano,
@@ -240,7 +278,7 @@ class PasarelaController extends DteController
             'DV_EMP' => $dv_emp,
             'COD_DOCTO' => $cod_docto,
             'CANT_DOCTOS' => $cant_doctos,
-            'ACEPTAR' => 'Obtener Folios'
+            'ACEPTAR' => $aceptar
         ];
     }
 
@@ -281,6 +319,20 @@ class PasarelaController extends DteController
         }
         Log::write($html);
         return false;
+    }
+
+    public function esPrimerTimbraje($html)
+    {
+        $crawler = new Crawler($html);
+        $found = false;
+        $crawler->filter('font.texto')->each(function (Crawler $node) use (&$text_arr, &$found) {
+            $text_arr[] = $node->text();
+            if (stripos($node->text(), "No registra timbraje anterior.") !== false) {
+                $found = true;
+            }
+        });
+        if ($found)
+            return true;
     }
 
     public function verificarHtmlCaf($html, $data): bool
