@@ -1,8 +1,7 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\Api\V1;
 
-use App\Http\Controllers\Api\V1\DteController;
 use App\LibreDTE\PDF\Dte;
 use App\Mail\DteEnvio;
 use Carbon\Carbon;

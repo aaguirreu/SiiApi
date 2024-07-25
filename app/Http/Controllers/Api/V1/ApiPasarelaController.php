@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Api\V1;
 
-use App\Http\Controllers\PasarelaController;
 use App\Jobs\ProcessEnvioDteReceptor;
 use App\Jobs\ProcessEnvioDteSii;
 use App\Mail\DteResponse;
@@ -13,8 +12,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Bus;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Response;
 use Illuminate\Support\Facades\Validator;
 use sasco\LibreDTE\Log;
@@ -25,7 +24,6 @@ use Webklex\PHPIMAP\Attachment;
 use Webklex\PHPIMAP\ClientManager;
 use Webklex\PHPIMAP\Folder;
 use Webklex\PHPIMAP\Message;
-use function MongoDB\BSON\toJSON;
 
 /**
  *
