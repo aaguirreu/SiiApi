@@ -20,7 +20,8 @@
         "sasco/libredte": "^24.1",
         "spatie/temporary-directory": "*",
         "symfony/dom-crawler": "^7.1",
-        "webklex/laravel-imap": "^5.3"
+        "webklex/laravel-imap": "^5.3",
+        "zircote/swagger-php": "^4.10"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",
