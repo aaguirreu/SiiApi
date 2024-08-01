@@ -2,8 +2,12 @@
 
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 use Laravel\Pulse\Support\PulseMigration;
 
+/**
+ * Tabla ajustada a Postgresql 8.4.20
+ */
 return new class extends PulseMigration
 {
     /**
@@ -20,11 +24,7 @@ return new class extends PulseMigration
             $table->unsignedInteger('timestamp');
             $table->string('type');
             $table->mediumText('key');
-            match ($this->driver()) {
-                'mariadb', 'mysql' => $table->char('key_hash', 16)->charset('binary')->virtualAs('unhex(md5(`key`))'),
-                'pgsql' => $table->uuid('key_hash')->storedAs('md5("key")::uuid'),
-                'sqlite' => $table->string('key_hash'),
-            };
+            $table->uuid('key_hash');
             $table->mediumText('value');
 
             $table->index('timestamp'); // For trimming...
@@ -37,11 +37,7 @@ return new class extends PulseMigration
             $table->unsignedInteger('timestamp');
             $table->string('type');
             $table->mediumText('key');
-            match ($this->driver()) {
-                'mariadb', 'mysql' => $table->char('key_hash', 16)->charset('binary')->virtualAs('unhex(md5(`key`))'),
-                'pgsql' => $table->uuid('key_hash')->storedAs('md5("key")::uuid'),
-                'sqlite' => $table->string('key_hash'),
-            };
+            $table->uuid('key_hash');
             $table->bigInteger('value')->nullable();
 
             $table->index('timestamp'); // For trimming...
@@ -56,11 +52,7 @@ return new class extends PulseMigration
             $table->unsignedMediumInteger('period');
             $table->string('type');
             $table->mediumText('key');
-            match ($this->driver()) {
-                'mariadb', 'mysql' => $table->char('key_hash', 16)->charset('binary')->virtualAs('unhex(md5(`key`))'),
-                'pgsql' => $table->uuid('key_hash')->storedAs('md5("key")::uuid'),
-                'sqlite' => $table->string('key_hash'),
-            };
+            $table->uuid('key_hash');
             $table->string('aggregate');
             $table->decimal('value', 20, 2);
             $table->unsignedInteger('count')->nullable();
@@ -70,6 +62,45 @@ return new class extends PulseMigration
             $table->index('type'); // For purging...
             $table->index(['period', 'type', 'aggregate', 'bucket']); // For aggregate queries...
         });
+
+        // Verificar si el lenguaje plpgsql existe antes de crearlo
+        if ($this->driver() === 'pgsql') {
+            $plpgsqlExists = DB::select("SELECT lanname FROM pg_catalog.pg_language WHERE lanname = 'plpgsql'");
+
+            if (empty($plpgsqlExists)) {
+                DB::statement('CREATE LANGUAGE plpgsql');
+            }
+
+            DB::statement('
+                CREATE OR REPLACE FUNCTION generate_key_hash() RETURNS trigger AS $$
+                BEGIN
+                    NEW.key_hash := md5(NEW.key);
+                    RETURN NEW;
+                END;
+                $$ LANGUAGE plpgsql;
+            ');
+
+            DB::statement('
+                CREATE TRIGGER trigger_generate_key_hash_pulse_values
+                BEFORE INSERT OR UPDATE ON pulse_values
+                FOR EACH ROW
+                EXECUTE PROCEDURE generate_key_hash();
+            ');
+
+            DB::statement('
+                CREATE TRIGGER trigger_generate_key_hash_pulse_entries
+                BEFORE INSERT OR UPDATE ON pulse_entries
+                FOR EACH ROW
+                EXECUTE PROCEDURE generate_key_hash();
+            ');
+
+            DB::statement('
+                CREATE TRIGGER trigger_generate_key_hash_pulse_aggregates
+                BEFORE INSERT OR UPDATE ON pulse_aggregates
+                FOR EACH ROW
+                EXECUTE PROCEDURE generate_key_hash();
+            ');
+        }
     }
 
     /**
@@ -77,6 +108,13 @@ return new class extends PulseMigration
      */
     public function down(): void
     {
+        if ($this->driver() === 'pgsql') {
+            DB::statement('DROP TRIGGER IF EXISTS trigger_generate_key_hash_pulse_values ON pulse_values;');
+            DB::statement('DROP TRIGGER IF EXISTS trigger_generate_key_hash_pulse_entries ON pulse_entries;');
+            DB::statement('DROP TRIGGER IF EXISTS trigger_generate_key_hash_pulse_aggregates ON pulse_aggregates;');
+            DB::statement('DROP FUNCTION IF EXISTS generate_key_hash();');
+        }
+
         Schema::dropIfExists('pulse_values');
         Schema::dropIfExists('pulse_entries');
         Schema::dropIfExists('pulse_aggregates');
