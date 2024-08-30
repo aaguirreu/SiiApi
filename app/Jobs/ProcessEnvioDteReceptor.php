@@ -66,6 +66,7 @@ class ProcessEnvioDteReceptor implements ShouldQueue
             ];
 
             $message = [
+                'emisor' => $this->arr['Documentos'][0]['Encabezado']['Emisor']['RznSoc'] ?? '',
                 'from' => $this->arr['Documentos'][0]['Encabezado']['Receptor']['RznSocRecep'] ?? '',
                 'subject' => "RutEmisor: {$caratula['RutEmisor']} RutReceptor: {$caratula['RutReceptor']}",
             ];

@@ -695,7 +695,7 @@ class PasarelaController extends DteController
             Config::set('mail.mailers.smtp.username', $envio_arr['mail']);
             Config::set('mail.mailers.smtp.password', base64_decode($envio_arr['password']));
             Config::set('mail.from.address', $envio_arr['mail']);
-            Config::set('mail.from.name', env('APP_NAME', 'Logiciel ApiFact'));
+            Config::set('mail.from.name', $message['emisor']);
             Mail::to($envio_arr['correo_receptor'])->send(new DteEnvio($message, $attatchments));
 
         } catch (\Exception $e) {
