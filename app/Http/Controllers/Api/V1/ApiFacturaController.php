@@ -258,6 +258,7 @@ class ApiFacturaController extends FacturaController
      */
     public function estadoEnvioDte(Request $request, string $ambiente)
     {
+        Sii::setAmbiente(self::$ambiente);
         $response = Sii::request('QueryEstUp', 'getEstUp', [
             $request->rut,
             $request->dv,
@@ -278,6 +279,7 @@ class ApiFacturaController extends FacturaController
      */
     public function estadoDocumento(Request $request, $ambiente)
     {
+        Sii::setAmbiente(self::$ambiente);
         // consultar estado dte
         $xml = Sii::request('QueryEstDte', 'getEstDte', [
             'RutConsultante'    => $request->rut,
