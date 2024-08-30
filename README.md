@@ -16,6 +16,7 @@ ApiDTELogiciel permite para comunicarse con el Servicio de Impuestos Internos (S
 
 - php-curl
 - php-xml
+- php-soap
 - php-bcmath
 - php-imagick
 - Openssl (con Legacy:Opcional)
@@ -31,7 +32,7 @@ git clone https://github.com/aaguirreu/SiiApi.git
 
 #### Configurar .env
 
-Copiar o reemplazar .env_example como .env  
+Copiar o reemplazar .env_example como .env
 
 ```shell
 cp .env_example .env
