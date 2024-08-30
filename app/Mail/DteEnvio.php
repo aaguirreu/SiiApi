@@ -35,7 +35,7 @@ class DteEnvio extends Mailable
             ]);
         }
         return $this
-            ->view('envio-email', ['name' => $this->message['from']])
+            ->view('envio-email', ['emisor' => $this->message['emisor'], 'name' => $this->message['from']])
             ->subject($this->message['subject']);
     }
 }
