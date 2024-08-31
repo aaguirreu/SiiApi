@@ -598,7 +598,7 @@ class PasarelaController extends DteController
         return $Firma->signXML($consumo_folios, '#'.$id, 'DocumentoConsumoFolios', true);
     }
 
-    public function xmlPdf($xml, $continuo = false, $logob64 = false, $observaciones = false, $cedible = false, $footer = false): array|false
+    public function xmlPdf($xml, $continuo = false, $logob64 = false, $observaciones = false, $cedible = false, $footer = false, $tickets = false): array|false
     {
         if ($logob64){
             try {
@@ -643,13 +643,16 @@ class PasarelaController extends DteController
             $pdf->agregar($dte, $DTE->getTED());
             //file_put_contents(base_path()."/pdf.pdf", $pdf->getPDFData());
             $nombre = "{$Caratula['RutEmisor']}.{$dte['Encabezado']['IdDoc']['TipoDTE']}.{$dte['Encabezado']['IdDoc']['Folio']}";
+            if($tickets && $continuo)
+                $pdf->agregarTickets($tickets);
+
             $pdfb64_arr[$nombre] = chunk_split(base64_encode($pdf->getPDFData()));
         }
 
         return $pdfb64_arr;
     }
 
-    public function enviarDteReceptor($envio_dte_xml, $message, $envio_arr, $pdfb64_arr = false, $formato_impresion = false, $observaciones = false, $logob64 = false, $cedible = false, $footer = false): bool|array
+    public function enviarDteReceptor($envio_dte_xml, $message, $envio_arr, $pdfb64_arr = false, $formato_impresion = false, $observaciones = false, $logob64 = false, $cedible = false, $footer = false, $tickets = false): bool|array
     {
         // Preparar datos
         $attatchments = [
@@ -673,7 +676,7 @@ class PasarelaController extends DteController
             $continuo = $formato_impresion == 'T';
 
             // Llama a la función xmlPdf con los argumentos claros
-            $pdfb64_arr = $this->xmlPdf($envio_dte_xml, $continuo, $logob64, $observaciones, $cedible, $footer);
+            $pdfb64_arr = $this->xmlPdf($envio_dte_xml, $continuo, $logob64, $observaciones, $cedible, $footer, $tickets);
 
             foreach ($pdfb64_arr as $key => $pdf) {
                 $attatchments[] = [

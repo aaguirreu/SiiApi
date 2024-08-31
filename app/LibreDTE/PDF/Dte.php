@@ -468,4 +468,16 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
         }
         return $this->getY();
     }
+
+    public function agregarTickets(array $tickets, $x = 10, $y = 190, $width = 80, $height = 0): void
+    {
+        // Agregar tickets
+        $this->setFont('', '', 8);
+        //$this->SetXY($x, $y);
+        $this->setMargins(5,5,5);
+        foreach ($tickets as $ticket) {
+            $this->AddPage('P', [$height ? $height : 80, $width]);
+            $this->MultiTexto(base64_decode($ticket), $x, null, 'L');
+        }
+    }
 }

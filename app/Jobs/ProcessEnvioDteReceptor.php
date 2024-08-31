@@ -78,6 +78,7 @@ class ProcessEnvioDteReceptor implements ShouldQueue
             $observaciones = $this->arr['observaciones'] ?? false;
             $cedible = $this->arr['cedible'] ?? false;
             $footer = $this->arr['footer'] ?? false;
+            $tickets = $this->arr['tickets'] ?? false;
 
             $controller->enviarDteReceptor(
                 $envio_dte_xml,
@@ -88,7 +89,8 @@ class ProcessEnvioDteReceptor implements ShouldQueue
                 $observaciones,
                 $logob64,
                 $cedible,
-                $footer
+                $footer,
+                $tickets
             );
         }
     }
