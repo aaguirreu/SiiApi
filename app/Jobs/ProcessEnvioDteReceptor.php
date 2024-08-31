@@ -69,7 +69,7 @@ class ProcessEnvioDteReceptor implements ShouldQueue
                 'emisor' => $this->arr['Documentos'][0]['Encabezado']['Emisor']['RznSoc'] ?? '',
                 'from' => $this->arr['Documentos'][0]['Encabezado']['Receptor']['RznSocRecep'] ?? '',
                 'subject' => "RutEmisor: {$caratula['RutEmisor']} RutReceptor: {$caratula['RutReceptor']}",
-                'body' => $this->arr['firma_html'] ?? '',
+                'body' => $this->arr['firma_email'] ?? '',
             ];
 
             // Verificar y asignar las propiedades como false si no existen
