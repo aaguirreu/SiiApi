@@ -676,9 +676,9 @@ class DteController extends Controller
     {
         $Xml = new SimpleXMLElement($dte);
         //$tipo_dte = key(array_filter(self::$folios));
-        $tipo_dte = $Xml->children()->SetDTE->DTE->Documento[0]->Encabezado->TipoDTE;
+        $tipo_dte = $Xml->children()->SetDTE->DTE->Documento[0]->Encabezado->IdDoc->TipoDTE;
         //$folio = self::$folios[$tipo_dte];
-        $folio = $Xml->children()->SetDTE->DTE->Documento[0]->Encabezado->Folio;
+        $folio = $Xml->children()->SetDTE->DTE->Documento[0]->Encabezado->IdDoc->Folio;
         $filename = "DTE_$tipo_dte" . "_$folio" . "_$this->timestamp.xml";
         $filename = str_replace(' ', 'T', $filename);
         $filename = str_replace(':', '-', $filename);

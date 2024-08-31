@@ -893,11 +893,12 @@ class ApiPasarelaController extends PasarelaController
         ];
 
         $message = [
+            'emisor' => $request['Documentos'][0]['Encabezado']['Emisor']['RznSoc'] ?? '',
             'from' => $request['Documentos'][0]['Encabezado']['Receptor']['RznSocRecep'] ?? '',
             'subject' => "RutEmisor: {$caratula['RutEmisor']} RutReceptor: {$caratula['RutReceptor']}",
         ];
 
-        $envio = $this->enviarDteReceptor($envio_dte_xml, $message, $envio_arr, $request->pdfb64, $request->formato_impresion, $request->observaciones, $request->logob64, $request->cedible, $request->footer);
+        $envio = $this->enviarDteReceptor($envio_dte_xml, $message, $envio_arr, $request->pdfb64, $request->formato_impresion, $request->observaciones, $request->logob64, $request->cedible, $request->footer, $request->tickets);
         if (!$envio)
             return response()->json([
                 'error' => Log::read()->msg,
