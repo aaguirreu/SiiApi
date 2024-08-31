@@ -34,6 +34,11 @@ class DteEnvio extends Mailable
                 'mime' => $file['mime'] ?? 'text/xml',
             ]);
         }
+        if ($this->message['body'] != '')
+            return $this
+                ->html(base64_decode($this->message['body']))
+                ->subject($this->message['subject']);
+
         return $this
             ->view('envio-email', ['emisor' => $this->message['emisor'], 'name' => $this->message['from']])
             ->subject($this->message['subject']);

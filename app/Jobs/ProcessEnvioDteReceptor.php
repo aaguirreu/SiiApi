@@ -69,6 +69,7 @@ class ProcessEnvioDteReceptor implements ShouldQueue
                 'emisor' => $this->arr['Documentos'][0]['Encabezado']['Emisor']['RznSoc'] ?? '',
                 'from' => $this->arr['Documentos'][0]['Encabezado']['Receptor']['RznSocRecep'] ?? '',
                 'subject' => "RutEmisor: {$caratula['RutEmisor']} RutReceptor: {$caratula['RutReceptor']}",
+                'body' => $this->arr['firma_email'] ?? '',
             ];
 
             // Verificar y asignar las propiedades como false si no existen
@@ -76,8 +77,8 @@ class ProcessEnvioDteReceptor implements ShouldQueue
             $logob64 = $this->arr['logob64'] ?? false;
             $formato_impresion = $this->arr['formato_impresion'] ?? false;
             $observaciones = $this->arr['observaciones'] ?? false;
-            $copia_cedible = $this->arr['cedible'] ?? false;
-            $cedible = $this->rr['copia_cedible'] ?? false;
+            $cedible = $this->arr['cedible'] ?? false;
+            $copia_cedible = $this->rr['copia_cedible'] ?? false;
             $footer = $this->arr['footer'] ?? false;
             $tickets = $this->arr['tickets'] ?? false;
 
@@ -90,6 +91,7 @@ class ProcessEnvioDteReceptor implements ShouldQueue
                 $observaciones,
                 $logob64,
                 $cedible,
+                $copia_cedible,
                 $footer,
                 $tickets
             );
