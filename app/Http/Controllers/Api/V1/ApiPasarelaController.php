@@ -209,7 +209,7 @@ class ApiPasarelaController extends PasarelaController
         $continuo = $request->formato_impresion == 'T';
 
         // Llama a la función xmlPdf con los argumentos claros
-        $pdfb64_arr = $this->xmlPdf($envio_dte_xml, $continuo, $request->logob64, $request->observaciones, $request->cedible, $request->footer);
+        $pdfb64_arr = $this->xmlPdf($envio_dte_xml, $continuo, $request->logob64, $request->observaciones, $request->cedible, $request->footer, $request->tickets);
 
         // Si hubo un error retornar error
         if (!$pdfb64_arr) {
@@ -927,7 +927,7 @@ class ApiPasarelaController extends PasarelaController
         $continuo = $request->formato_impresion == 'T';
 
         // Llama a la función xmlPdf con los argumentos claros
-        $pdfb64_arr = $this->xmlPdf(base64_decode($request->xmlb64), $continuo, $request->logob64, $request->observaciones, $request->cedible, $request->footer);
+        $pdfb64_arr = $this->xmlPdf(base64_decode($request->xmlb64), $continuo, $request->logob64, $request->observaciones, $request->cedible, $request->footer, $request->tickets);
 
         // Si hubo un error retornar error
         if (!$pdfb64_arr)
