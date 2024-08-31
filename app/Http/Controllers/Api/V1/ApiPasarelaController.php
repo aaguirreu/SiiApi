@@ -896,6 +896,7 @@ class ApiPasarelaController extends PasarelaController
             'emisor' => $request['Documentos'][0]['Encabezado']['Emisor']['RznSoc'] ?? '',
             'from' => $request['Documentos'][0]['Encabezado']['Receptor']['RznSocRecep'] ?? '',
             'subject' => "RutEmisor: {$caratula['RutEmisor']} RutReceptor: {$caratula['RutReceptor']}",
+            'body' => $request['firma_html'] ?? '',
         ];
 
         $envio = $this->enviarDteReceptor($envio_dte_xml, $message, $envio_arr, $request->pdfb64, $request->formato_impresion, $request->observaciones, $request->logob64, $request->cedible, $request->copia_cedible, $request->footer, $request->tickets);
