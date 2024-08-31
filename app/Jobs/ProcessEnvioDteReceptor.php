@@ -76,7 +76,8 @@ class ProcessEnvioDteReceptor implements ShouldQueue
             $logob64 = $this->arr['logob64'] ?? false;
             $formato_impresion = $this->arr['formato_impresion'] ?? false;
             $observaciones = $this->arr['observaciones'] ?? false;
-            $cedible = $this->arr['cedible'] ?? false;
+            $copia_cedible = $this->arr['cedible'] ?? false;
+            $cedible = $this->rr['copia_cedible'] ?? false;
             $footer = $this->arr['footer'] ?? false;
             $tickets = $this->arr['tickets'] ?? false;
 
