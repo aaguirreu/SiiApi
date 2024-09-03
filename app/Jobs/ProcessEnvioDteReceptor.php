@@ -78,7 +78,11 @@ class ProcessEnvioDteReceptor implements ShouldQueue
             $formato_impresion = $this->arr['formato_impresion'] ?? false;
             $observaciones = $this->arr['observaciones'] ?? false;
             $cedible = $this->arr['cedible'] ?? false;
-            $copia_cedible = $this->rr['copia_cedible'] ?? false;
+            $copia_cedible = $this->arr['copia_cedible'] ?? false;
+            if ($copia_cedible) { // No se envía la copia cedible al correo receptor
+                $pdfb64 = false; // Se debe asignar false para generar nuevamente el pdf
+                $copia_cedible = false; // se quita copia cedible
+            }
             $footer = $this->arr['footer'] ?? false;
             $tickets = $this->arr['tickets'] ?? false;
 
