@@ -29,7 +29,7 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
             // asignar valor por defecto
             if ($footer===true) {
                 $footer = [
-                    'left' => 'Boletas y Facturas con Logiciel',
+                    'left' => 'ArBo-DTE',
                     'right' => 'www.logiciel.cl',
                 ];
             }
