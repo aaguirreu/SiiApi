@@ -31,6 +31,7 @@ class DteController extends Controller
     protected static array $folios = [];
     protected static array $folios_inicial = [];
     protected static array $tipos_dte = [];
+    protected static string $tipo_dte = '';
     protected static string $url = '';
     protected static string $url_api = ''; // se utiliza solo en boleta electronica para consultas de estado
     protected static int $ambiente = 0; // 0 Producción, 1 Certificación
@@ -382,34 +383,33 @@ class DteController extends Controller
 
     protected function isToken($rut_envia, $Firma): void
     {
-        $tokenStore = TokenSii::where('identifier', $rut_envia)->first();
-
-        if (!$tokenStore) {
+        $rut_tokens = TokenSii::where('rut', $rut_envia)->first();
+        if ($rut_tokens == null) {
             $nuevo_rut = [
                 [
-                    'type' => 'dte',
-                    'environment' => 'prod',
+                    'tipo_dte' => 'dte',
+                    'ambiente' => 0, // produccion
                     'token' => '',
                     'token_timestamp' => '',
                     'token_expiration' => 3600
                 ],
                 [
-                    'type' => 'dte',
-                    'environment' => 'cert',
+                    'tipo_dte' => 'dte',
+                    'ambiente' => 1, // certificacion
                     'token' => '',
                     'token_timestamp' => '',
                     'token_expiration' => 3600
                 ],
                 [
-                    'type' => 'be',
-                    'environment' => 'prod',
+                    'tipo_dte' => 'be',
+                    'ambiente' => 0, // produccion
                     'token' => '',
                     'token_timestamp' => '',
                     'token_expiration' => 3600
                 ],
                 [
-                    'type' => 'be',
-                    'environment' => 'cert',
+                    'tipo_dte' => 'be',
+                    'ambiente' => 1, // certificacion
                     'token' => '',
                     'token_timestamp' => '',
                     'token_expiration' => 3600
@@ -417,7 +417,7 @@ class DteController extends Controller
             ];
 
             TokenSii::create([
-                'identifier' => $rut_envia,
+                'rut' => $rut_envia,
                 'tokens' => $nuevo_rut
             ]);
 
@@ -428,38 +428,44 @@ class DteController extends Controller
             $this->getTokenBE('https://apicert.sii.cl/recursos/v1/boleta.electronica', $Firma); // certificación
             $this->getTokenBE('https://api.sii.cl/recursos/v1/boleta.electronica', $Firma); // producción
         } else {
-            $tokens = $tokenStore->tokens;
+            $tokens = $rut_tokens->tokens;
             $now = Carbon::now('America/Santiago')->timestamp;
 
+            $token_arr = array_filter($tokens, function($item) {
+                return $item['tipo_dte'] === self::$tipo_dte && $item['ambiente'] === self::$ambiente;
+            });
+
+            var_dump($token_arr);
+            /*
             foreach ($tokens as &$token) {
                 if ($token['token'] === '' || !$token['token'] || !$token['token_timestamp']) {
-                    if ($token['type'] === 'dte' && $token['environment'] === 'cert') {
+                    if ($token['tipo_dte'] === 'dte' && $token['ambiente'] === 'cert') {
                         $this->getToken(SII::CERTIFICACION, $Firma);
-                    } elseif ($token['type'] === 'dte' && $token['environment'] === 'prod') {
+                    } elseif ($token['tipo_dte'] === 'dte' && $token['ambiente'] === 'prod') {
                         $this->getToken(SII::PRODUCCION, $Firma);
-                    } elseif ($token['type'] === 'be' && $token['environment'] === 'cert') {
+                    } elseif ($token['tipo_dte'] === 'be' && $token['ambiente'] === 'cert') {
                         $this->getTokenBE('https://apicert.sii.cl/recursos/v1/boleta.electronica', $Firma);
-                    } elseif ($token['type'] === 'be' && $token['environment'] === 'prod') {
+                    } elseif ($token['tipo_dte'] === 'be' && $token['ambiente'] === 'prod') {
                         $this->getTokenBE('https://api.sii.cl/recursos/v1/boleta.electronica', $Firma);
                     }
                 } else {
                     $diff = $now - $token['token_timestamp'];
                     if ($diff > $token['token_expiration']) {
-                        if ($token['type'] === 'dte' && $token['environment'] === 'cert') {
+                        if ($token['tipo_dte'] === 'dte' && $token['ambiente'] === 'cert') {
                             $this->getToken(SII::CERTIFICACION, $Firma);
-                        } elseif ($token['type'] === 'dte' && $token['environment'] === 'prod') {
+                        } elseif ($token['tipo_dte'] === 'dte' && $token['ambiente'] === 'prod') {
                             $this->getToken(SII::PRODUCCION, $Firma);
-                        } elseif ($token['type'] === 'be' && $token['environment'] === 'cert') {
+                        } elseif ($token['tipo_dte'] === 'be' && $token['ambiente'] === 'cert') {
                             $this->getTokenBE('https://apicert.sii.cl/recursos/v1/boleta.electronica', $Firma);
-                        } elseif ($token['type'] === 'be' && $token['environment'] === 'prod') {
+                        } elseif ($token['tipo_dte'] === 'be' && $token['ambiente'] === 'prod') {
                             $this->getTokenBE('https://api.sii.cl/recursos/v1/boleta.electronica', $Firma);
                         }
                     }
                 }
-            }
+            }*/
 
-            $tokenStore->tokens = $tokens;
-            $tokenStore->save();
+            $rut_tokens->tokens = $tokens;
+            $rut_tokens->save();
         }
     }
 
@@ -847,10 +853,11 @@ class DteController extends Controller
      */
     public function setAmbiente($ambiente, $rut_envia): void
     {
-        // Servicio Boleta Electronica
+        // Servicio Boleta Electronica (be)
         if(in_array("39", self::$tipos_dte) || in_array("41", self::$tipos_dte)) {
             if ($ambiente == "certificacion" || $ambiente == 1) {
                 Sii::setAmbiente(1);
+                self::$tipo_dte = 'be';
                 self::$ambiente = 1;
                 self::$url = 'https://pangal.sii.cl/recursos/v1/boleta.electronica.envio'; // url certificación ENVIO BOLETAS
                 self::$url_api = 'https://apicert.sii.cl/recursos/v1/boleta.electronica'; // url certificación CONSULTAS BOLETAS
@@ -859,33 +866,36 @@ class DteController extends Controller
                 // self::$token = json_decode(file_get_contents(base_path('config.json')))->be->cert->token;
                 // pero solo funciona con el token de DTE's certificación/produccion
                 // Esto solo sucede con el envío de boletas, no con la consulta de estado de boletas
-                self::$token = json_decode(file_get_contents(base_path('config.json')))->$rut_envia->dte->cert->token;
+                //self::$token = json_decode(file_get_contents(base_path('config.json')))->$rut_envia->dte->cert->token;
                 // Token para consultas de estado de boletas
-                self::$token_api = json_decode(file_get_contents(base_path('config.json')))->$rut_envia->be->cert->token;
+                //self::$token_api = json_decode(file_get_contents(base_path('config.json')))->$rut_envia->be->cert->token;
             } else if ($ambiente == "produccion" || $ambiente == 0) {
                 Sii::setAmbiente(0);
+                self::$tipo_dte = 'be';
                 self::$ambiente = 0;
                 self::$url = 'https://rahue.sii.cl/recursos/v1/boleta.electronica.envio'; // url producción ENVIO BOLETAS
                 self::$url_api = 'https://api.sii.cl/recursos/v1/boleta.electronica'; // url producción CONSULTAS BOLETAS
                 // IMPORTANTE: token debería ser el obtenido desde la api de boletas electronicas:
                 // self::$token = json_decode(file_get_contents(base_path('config.json')))->be->prod->token;
                 // pero solo funciona con el token de DTE's certificación/produccion
-                self::$token = json_decode(file_get_contents(base_path('config.json')))->$rut_envia->dte->prod->token;
+                //self::$token = json_decode(file_get_contents(base_path('config.json')))->$rut_envia->dte->prod->token;
                 // Token para consultas de estado de boletas
-                self::$token_api = json_decode(file_get_contents(base_path('config.json')))->$rut_envia->be->prod->token;
+                //self::$token_api = json_decode(file_get_contents(base_path('config.json')))->$rut_envia->be->prod->token;
             }
             else abort(404);
-        } else { // Servicio DTEs
+        } else { // Servicio DTEs, excepto boletas (dte)
             if ($ambiente == "certificacion"  || $ambiente == 1) {
                 Sii::setAmbiente(1);
+                self::$tipo_dte = 'dte';
                 self::$ambiente = 1;
                 self::$url = 'https://maullin.sii.cl/cgi_dte/UPL/DTEUpload'; // url certificación
-                self::$token = json_decode(file_get_contents(base_path('config.json')))->$rut_envia->dte->cert->token;
+                //self::$token = json_decode(file_get_contents(base_path('config.json')))->$rut_envia->dte->cert->token;
             } else if ($ambiente == "produccion" || $ambiente == 0) {
                 Sii::setAmbiente(1);
+                self::$tipo_dte = 'dte';
                 self::$ambiente = 0;
                 self::$url = 'https://palena.sii.cl/cgi_dte/UPL/DTEUpload'; // url producción
-                self::$token = json_decode(file_get_contents(base_path('config.json')))->$rut_envia->dte->prod->token;
+                //self::$token = json_decode(file_get_contents(base_path('config.json')))->$rut_envia->dte->prod->token;
             }
             else abort(404);
         }
