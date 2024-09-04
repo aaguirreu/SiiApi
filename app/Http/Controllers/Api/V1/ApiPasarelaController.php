@@ -901,6 +901,8 @@ class ApiPasarelaController extends PasarelaController
             'body' => $request['firma_email'] ?? '',
         ];
 
+        // No enviar copia cedible a correo receptor
+        $request->copia_cedible  = false;
         $envio = $this->enviarDteReceptor($envio_dte_xml, $message, $envio_arr, $request->pdfb64, $request->formato_impresion, $request->observaciones, $request->logob64, $request->cedible, $request->copia_cedible, $request->footer, $request->tickets);
         if (!$envio)
             return response()->json([
