@@ -20,7 +20,7 @@ class CreateEnvioPasarelaTable extends Migration
             $table->string('rut_emisor');
             $table->integer('tipo_dte');
             $table->unsignedInteger('folio');
-            $table->integer('track_id')->nullable();
+            $table->bigInteger('track_id')->nullable();
             $table->integer('ambiente');
             $table->timestamps();
         });
