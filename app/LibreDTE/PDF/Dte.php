@@ -7,7 +7,9 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
     public function __construct($papelContinuo = false)
     {
         parent::__construct();
-        $this->SetTitle('Documento Tributario Electrónico (DTE) de Chile by LibreDTE');
+s        $this->SetTitle('Documento Tributario Electrónico (DTE) de Chile');
+        $this->SetAuthor('ArBo-DTE');
+        $this->SetCreator('Logiciel - https://logiciel.cl');
         $this->papelContinuo = $papelContinuo === true ? 80 : $papelContinuo;
     }
 
@@ -195,6 +197,11 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
         $this->agregar_papel_80($dte, $timbre, 75);
     }
 
+    private function agregar_papel_77(array $dte, $timbre)
+    {
+        $this->agregar_papel_80($dte, $timbre, 76.5);
+    }
+
     /**
      * Método que agrega observaciones abajo de los totales
      * Es identico al original, pero se le agrega una seccion de observaciones
@@ -216,7 +223,7 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
             $dte['Encabezado']['Emisor']['RUTEmisor'],
             $dte['Encabezado']['IdDoc']['TipoDTE'],
             $dte['Encabezado']['IdDoc']['Folio'],
-            isset($dte['Encabezado']['Emisor']['CmnaOrigen']) ? $dte['Encabezado']['Emisor']['CmnaOrigen'] : 'Sin comuna', // siempre debería tener comuna
+            isset($dte['Encabezado']['Emisor']['CmnaOrigen']) ? $dte['Encabezado']['Emisor']['CmnaOrigen'] : '', // siempre debería tener comuna
             $x_start, $y_start, $width-($x_start*4), 10,
             [0,0,0]
         );
@@ -350,27 +357,34 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
         // logo del documento
         if (isset($this->logo)) {
             // logo centrado (papel continuo)
+            $imagick = new \Imagick($this->logo['uri']);
             if (!empty($this->logo['posicion']) and $this->logo['posicion'] == 'C') {
                 // Se setean en 0 para que $this->Image haga el ajuste.
                 $logo_y = 0;
                 $logo_w = 0;
                 $logo_position = 'C';
                 $logo_next_pointer = 'N';
-                // Se hace el resize con imagick antes de asignar la imagen
-                // para evitar que la librería haga el resize
-                $imagick = new \Imagick($this->logo['uri']);
-                $imagick->scaleImage(200, 0);
-                $imagick->writeImage($this->logo['uri']);
 
-            }
-            // logo a la derecha (posicion=0) o arriba (posicion=1)
+                // ver si es svg o png
+                if ($imagick->getImageFormat() != 'SVG') {
+                    // Se hace el resize con imagick antes de asignar la imagen
+                    // para evitar que la librería haga el resize
+                    $imagick = new \Imagick($this->logo['uri']);
+                    // Tamaño imagen
+                    $logo_size = getimagesize($this->logo['uri']);
+                    //echo var_dump($logo_size)."\n"; // quitar
+                    if ($logo_size[0] > 200) {
+                        $imagick->scaleImage(200, 0); // original 200, 0
+                        $imagick->writeImage($this->logo['uri']);
+                    }
+                }
+            } // logo a la derecha (posicion=0) o arriba (posicion=1)
             else if (empty($this->logo['posicion']) or $this->logo['posicion'] == 1) {
                 $logo_w = !$this->logo['posicion'] ? $w_img : null;
-                $logo_y = $this->logo['posicion'] ? $w_img/2 : null;
+                $logo_y = $this->logo['posicion'] ? $w_img / 2 : null;
                 $logo_position = '';
                 $logo_next_pointer = 'T';
-            }
-            // logo completo, reemplazando datos del emisor (posicion=2)
+            } // logo completo, reemplazando datos del emisor (posicion=2)
             else {
                 $logo_w = null;
                 $logo_y = $w_img;
@@ -379,19 +393,48 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
                 $agregarDatosEmisor = false;
             }
 
-            $this->Image(
-                $this->logo['uri'],
-                $x ,
-                $y,
-                $logo_w,
-                $logo_y,
-                'PNG',
-                '',
-                $logo_next_pointer,
-                false,
-                300,
-                $logo_position,
-            );
+            if ($imagick->getImageFormat() != 'SVG') { // png
+                $this->Image(
+                    $this->logo['uri'],
+                    $x,
+                    $y,
+                    $logo_w,
+                    '',
+                    'PNG',
+                    '',
+                    $logo_next_pointer,
+                    false,
+                    300,
+                    $logo_position,
+                );
+            }
+            else if (!empty($this->logo['posicion']) and $this->logo['posicion'] == 'C'){ // SVG papel continuo
+                $y -= 14;
+                $this->ImageSVG(
+                    $this->logo['uri'],
+                    $x,
+                    $y-14,
+                    45,
+                    '',
+                    '',
+                    $logo_next_pointer,
+                    $logo_position,
+                );
+                $this->y -= 14;
+            } else { // SVG Tamaño carta
+                //$y -= 14;
+                $this->ImageSVG(
+                    $this->logo['uri'],
+                    $x,
+                    $y,
+                    40,
+                    '',
+                    '',
+                    $logo_next_pointer,
+                    $logo_position,
+                );
+                //$this->y -= 14;
+            }
 
             if (!empty($this->logo['posicion']) and $this->logo['posicion'] == 'C') {
                 $w += 40;
@@ -411,10 +454,10 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
         if ($agregarDatosEmisor) {
             $this->setFont('', 'B', $font_size ? $font_size : 14);
             $this->SetTextColorArray($color===null?[32, 92, 144]:$color);
-            $this->MultiTexto(!empty($emisor['RznSoc']) ? $emisor['RznSoc'] : $emisor['RznSocEmisor'], $x, $this->y+2, 'L', ($h_folio and $h_folio < $this->getY()) ? $w_all : $w);
+            $this->MultiTexto(!empty($emisor['RznSoc']) ? $emisor['RznSoc'] : $emisor['RznSocEmisor'], $x, $this->y+2, 'C', ($h_folio and $h_folio < $this->getY()) ? $w_all : $w);
             $this->setFont('', 'B', $font_size ? $font_size : 9);
             $this->SetTextColorArray([0,0,0]);
-            $this->MultiTexto(!empty($emisor['GiroEmis']) ? $emisor['GiroEmis'] : $emisor['GiroEmisor'], $x, $this->y, 'L', ($h_folio and $h_folio < $this->getY()) ? $w_all : $w);
+            $this->MultiTexto(!empty($emisor['GiroEmis']) ? $emisor['GiroEmis'] : $emisor['GiroEmisor'], $x, $this->y, 'C', ($h_folio and $h_folio < $this->getY()) ? $w_all : $w);
             $direccion = !empty($emisor['DirOrigen']) ? $emisor['DirOrigen'] : null;
             $comuna = !empty($emisor['CmnaOrigen']) ? $emisor['CmnaOrigen'] : null;
             $ciudad = !empty($emisor['CiudadOrigen']) ? $emisor['CiudadOrigen'] : \sasco\LibreDTE\Chile::getCiudad($comuna);
@@ -438,7 +481,7 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
                 $contacto[] = $emisor['CorreoEmisor'];
             }
             if ($contacto) {
-                $this->MultiTexto(implode(' / ', $contacto), $x, $this->y, 'L', ($h_folio and $h_folio < $this->getY()) ? $w_all : $w);
+                $this->MultiTexto(implode("\n", $contacto), $x, $this->y, 'L', ($h_folio and $h_folio < $this->getY()) ? $w_all : $w);
             }
         }
         return $this->y;
@@ -453,19 +496,22 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
 
         // Agregar linea divisoria
         $p1x = $x;
-        $p1y = $y;
+        $p1y = $y-4;
         $p2x = $this->getPageWidth() - 2;
         $p2y = $p1y;  // Use same y for a straight line
         $style = array('width' => 0.2,'color' => array(0, 0, 0));
-        $this->Line($p1x, $p1y, $p2x, $p2y, $style);
+        $this->Line($p1x+2, $p1y, $p2x, $p2y, $style);
 
         // Agregar observaciones adicionales con texto centrado
-        $this->setFont('', '', 8);
-        //$this->SetXY($x, $y);
+        $this->setFont('', '', 5);
+        //$this->SetXY($x, $y-2);
         $this->Ln();
         foreach ($observaciones as $observacion) {
-            $this->MultiTexto($observacion, null, null, 'C');
+            //$this->MultiTexto($observaciones_str, null, $y-2, 'C');
+            $this->MultiCell($this->w, null, $observacion, $border=0, $align='C', $fill=false, $ln=1, $x, $this->y-4, $reseth=true, $stretch=0, $ishtml=false, $autopadding=true, $maxh=0, $valign='T', $fitcell=false);
         }
+        //$observaciones_str = implode(' ', $observaciones);
+        $this->setFont('', '', 8);
         return $this->getY();
     }
 
@@ -479,5 +525,56 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
             $this->AddPage('P', [$height ? $height : 80, $width]);
             $this->MultiTexto(base64_decode($ticket), $x, null, 'L');
         }
+    }
+
+    protected function agregarDetalleContinuo($detalle, $x = 3, array $offsets = [])
+    {
+        if (!$offsets) {
+            $offsets = [1, 15, 35, 45];
+        }
+        $this->SetY($this->getY()+1);
+        $p1x = $x;
+        $p1y = $this->y;
+        $p2x = $this->getPageWidth() - 2;
+        $p2y = $p1y;  // Use same y for a straight line
+        $style = array('width' => 0.2,'color' => array(0, 0, 0));
+        $this->Line($p1x, $p1y, $p2x, $p2y, $style);
+        $this->Texto($this->detalle_cols['NmbItem']['title'], $x+$offsets[0], $this->y, ucfirst($this->detalle_cols['NmbItem']['align'][0]), $this->detalle_cols['NmbItem']['width']);
+        $this->Texto($this->detalle_cols['PrcItem']['title'], $x+$offsets[1], $this->y, ucfirst($this->detalle_cols['PrcItem']['align'][0]), $this->detalle_cols['PrcItem']['width']);
+        $this->Texto($this->detalle_cols['QtyItem']['title'], $x+$offsets[2], $this->y, ucfirst($this->detalle_cols['QtyItem']['align'][0]), $this->detalle_cols['QtyItem']['width']);
+        $this->Texto($this->detalle_cols['MontoItem']['title'], $x+$offsets[3], $this->y, ucfirst($this->detalle_cols['MontoItem']['align'][0]), $this->detalle_cols['MontoItem']['width']);
+        $this->Line($p1x, $p1y+4, $p2x, $p2y+4, $style);
+        if (!isset($detalle[0])) {
+            $detalle = [$detalle];
+        }
+        // mostrar items
+        $this->SetY($this->getY()+2);
+        foreach($detalle as  &$d) {
+            // sku del item
+            $item = $d['NmbItem'];
+            $this->Texto($item, $x+$offsets[0], $this->y+4, ucfirst($this->detalle_cols['NmbItem']['align'][0]), $this->detalle_cols['NmbItem']['width']);
+            // descuento
+            if (!empty($d['DescuentoPct']) or !empty($d['DescuentoMonto'])) {
+                if (!empty($d['DescuentoPct'])) {
+                    $descuento = (is_numeric($d['DescuentoPct']) ? $this->num($d['DescuentoPct']) : $d['DescuentoPct']).'%';
+                } else {
+                    $descuento = is_numeric($d['DescuentoMonto']) ? $this->num($d['DescuentoMonto']) : $d['DescuentoMonto'];
+                }
+                $this->Texto('Desc.: '.$descuento, $x+$offsets[0], $this->y, ucfirst($this->detalle_cols['NmbItem']['align'][0]), $this->detalle_cols['NmbItem']['width']);
+            }
+            // precio y cantidad
+            if (isset($d['PrcItem'])) {
+                $this->Texto(is_numeric($d['PrcItem']) ? $this->num($d['PrcItem']) : $d['PrcItem'], $x+$offsets[1], $this->y, ucfirst($this->detalle_cols['PrcItem']['align'][0]), $this->detalle_cols['PrcItem']['width']);
+            }
+            if (isset($d['QtyItem'])) {
+                $this->Texto($this->num($d['QtyItem']), $x+$offsets[2], $this->y, ucfirst($this->detalle_cols['QtyItem']['align'][0]), $this->detalle_cols['QtyItem']['width']);
+            }
+            $this->Texto($this->num($d['MontoItem']), $x+$offsets[3], $this->y, ucfirst($this->detalle_cols['MontoItem']['align'][0]), $this->detalle_cols['MontoItem']['width']);
+            // descripción del item
+            if ($this->papel_continuo_item_detalle and !empty($d['DscItem'])) {
+                $this->MultiTexto($d['DscItem'], $x+$offsets[0], $this->y+4, ucfirst($this->detalle_cols['NmbItem']['align'][0]), $this->detalle_cols['NmbItem']['width']);
+            }
+        }
+        $this->Line($p1x, $this->y+4, $p2x, $this->y+4, $style);
     }
 }
