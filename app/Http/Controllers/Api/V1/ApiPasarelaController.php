@@ -23,9 +23,9 @@ use sasco\LibreDTE\Sii\Folios;
 use SimpleXMLElement;
 use Webklex\PHPIMAP\Attachment;
 use Webklex\PHPIMAP\ClientManager;
+use Webklex\PHPIMAP\Exceptions\FolderFetchingException;
 use Webklex\PHPIMAP\Folder;
 use Webklex\PHPIMAP\Message;
-use function MongoDB\BSON\toJSON;
 
 /**
  *
@@ -444,9 +444,16 @@ class ApiPasarelaController extends PasarelaController
         $folder = $client->getFolder($body['folder'] ?? 'INBOX');
         $unseenMessages = $folder->query()->unseen()->get();
 
+        // Crear carpeta dte_IN_procesados si no existe
+        $procesados_folder = $client->getFolder('dte_IN_procesados');
+        if ($procesados_folder == null)
+            $procesados_folder = $client->createFolder("$folder->name/dte_IN_procesados", true);
+
         // Procesar cada mensaje no leído
         $correos = [];
-        /* @var Message $message */
+        /* @var Message $message
+         * @var array $reverse
+         */
         foreach ($unseenMessages as $message) {
             if ($message->hasAttachments()) {
                 // Verificar si adjunto es un DTE
@@ -478,9 +485,22 @@ class ApiPasarelaController extends PasarelaController
                         "content" => $attachments[$key]['content'],
                     ];
                 }
-                $message->setFlag('Seen');
+
+                try {
+                    // Mover correos a dte_IN_procesados
+                    $message->setFlag('Seen');
+                    $message->copy($procesados_folder->path);
+                    $message->delete(false);
+                } catch (Exception $e){
+                    return response()->json([
+                        'error' => $e->getMessage()
+                    ], 401);
+                }
             }
         }
+
+        // Aplicar cambios en servidor de correos: copy() and delete()
+        $client->getConnection()->expunge();
 
         # Revisar error
         //$client->disconnect();
