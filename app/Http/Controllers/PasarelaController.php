@@ -631,6 +631,8 @@ class PasarelaController extends DteController
             $pdf = new Dte($continuo); // =false hoja carta, =true papel contínuo (false por defecto si no se pasa)
             // Utilizar librería original
             //$pdf = new \sasco\LibreDTE\Sii\Dte\PDF\Dte($continuo);
+            // Set casa matriz
+            $pdf->setCasaMatriz('CASA MATRIZ');
             if ($footer)
                 $pdf->setFooterText();
             if ($logob64)
@@ -686,6 +688,8 @@ class PasarelaController extends DteController
         } else {
             // Asigna true si es 'H' False caso contrario
             $continuo = $formato_impresion == 'T';
+            if(in_array($formato_impresion, array(0, 57, 75, 77, 80, 110)))
+                $continuo = $formato_impresion;
 
             // Llama a la función xmlPdf con los argumentos claros
             $pdfb64_arr = $this->xmlPdf($envio_dte_xml, $continuo, $logob64, $observaciones, $cedible, $copia_cedible, $footer, $tickets);

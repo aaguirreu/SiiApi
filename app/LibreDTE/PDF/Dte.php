@@ -13,6 +13,19 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
         $this->papelContinuo = $papelContinuo === true ? 80 : $papelContinuo;
     }
 
+    protected $detalle_cols = [
+        'CdgItem' => ['title'=>'Código', 'align'=>'left', 'width'=>20],
+        'NmbItem' => ['title'=>'SKU', 'align'=>'left', 'width'=>0],
+        'IndExe' => ['title'=>'IE', 'align'=>'left', 'width'=>'7'],
+        'QtyItem' => ['title'=>'Cant.', 'align'=>'right', 'width'=>15],
+        'UnmdItem' => ['title'=>'Unidad', 'align'=>'left', 'width'=>22],
+        'QtyRef' => ['title'=>'Cant. Ref.', 'align'=>'right', 'width'=>22],
+        'PrcItem' => ['title'=>'Unitario', 'align'=>'right', 'width'=>22],
+        'DescuentoMonto' => ['title'=>'Descuento', 'align'=>'right', 'width'=>22],
+        'RecargoMonto' => ['title'=>'Recargo', 'align'=>'right', 'width'=>22],
+        'MontoItem' => ['title'=>'Total', 'align'=>'right', 'width'=>22],
+    ]; ///< Nombres de columnas detalle, alineación y ancho
+
     public function agregar(array $dte, $timbre = null)
     {
         $this->dte = $dte['Encabezado']['IdDoc']['TipoDTE'];
@@ -119,12 +132,16 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
         $this->MultiTexto(!empty($dte['Encabezado']['Emisor']['RznSoc']) ? $dte['Encabezado']['Emisor']['RznSoc'] : $dte['Encabezado']['Emisor']['RznSocEmisor'], $x, null, '', $width-2);
         $this->MultiTexto($dte['Encabezado']['Emisor']['RUTEmisor'], $x, null, '', $width-2);
         $this->MultiTexto('Giro: '.(!empty($dte['Encabezado']['Emisor']['GiroEmis']) ? $dte['Encabezado']['Emisor']['GiroEmis'] : $dte['Encabezado']['Emisor']['GiroEmisor']), $x, null, '', $width-2);
-        $this->MultiTexto($dte['Encabezado']['Emisor']['DirOrigen'].', '.$dte['Encabezado']['Emisor']['CmnaOrigen'], $x, null, '', $width-2);
+        $direccion = !empty($dte['Encabezado']['Emisor']['DirOrigen']) ? $dte['Encabezado']['Emisor']['DirOrigen'] : null;
+        $comuna = !empty($dte['Encabezado']['Emisor']['CmnaOrigen']) ? $dte['Encabezado']['Emisor']['CmnaOrigen'] : null;
+        $ciudad = !empty($dte['Encabezado']['Emisor']['CiudadOrigen']) ? $dte['Encabezado']['Emisor']['CiudadOrigen'] : \sasco\LibreDTE\Chile::getCiudad($comuna);
+        if (!empty($this->casa_matriz)) {
+            $this->MultiTexto("Casa matriz: ".$direccion.($comuna?(', '.$comuna):'').($ciudad?(', '.$ciudad):''), $x, null, '', $width-2);
+            //$this->MultiTexto('Casa matriz: '.$this->casa_matriz, $x, null, '', $width-2);
+        } else
+            $this->MultiTexto("Casa matriz: ".$direccion.($comuna?(', '.$comuna):'').($ciudad?(', '.$ciudad):''), $x, null, '', $width-2);
         if (!empty($dte['Encabezado']['Emisor']['Sucursal'])) {
             $this->MultiTexto('Sucursal: '.$dte['Encabezado']['Emisor']['Sucursal'], $x, null, '', $width-2);
-        }
-        if (!empty($this->casa_matriz)) {
-            $this->MultiTexto('Casa matriz: '.$this->casa_matriz, $x, null, '', $width-2);
         }
         $this->MultiTexto($this->getTipo($dte['Encabezado']['IdDoc']['TipoDTE'], $dte['Encabezado']['IdDoc']['Folio']).' N° '.$dte['Encabezado']['IdDoc']['Folio'], $x, null, '', $width-2);
         $this->MultiTexto('Fecha: '.date('d/m/Y', strtotime($dte['Encabezado']['IdDoc']['FchEmis'])), $x, null, '', $width-2);
@@ -216,6 +233,7 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
         $x_start = 1;
         $y_start = 1;
         $offset = 16;
+        $w_recuadro = $width-($x_start*4);
         // determinar alto de la página y agregarla
         $this->AddPage('P', [$height ? $height : $this->papel_continuo_alto, $width]);
         // agregar cabecera del documento
@@ -224,10 +242,10 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
             $dte['Encabezado']['IdDoc']['TipoDTE'],
             $dte['Encabezado']['IdDoc']['Folio'],
             isset($dte['Encabezado']['Emisor']['CmnaOrigen']) ? $dte['Encabezado']['Emisor']['CmnaOrigen'] : '', // siempre debería tener comuna
-            $x_start, $y_start, $width-($x_start*4), 10,
+            ($width-$w_recuadro)/2, $y_start, $w_recuadro, 10,
             [0,0,0]
         );
-        $y = $this->agregarEmisor($dte['Encabezado']['Emisor'], $x_start, $y+2, $width-($x_start*45), 8, 9, [0,0,0]);
+        $y = $this->agregarEmisor($dte['Encabezado']['Emisor'], $x_start, $y+2, $width-($x_start*45), 45, 9, [0,0,0]);
         // datos del documento
         $this->SetY($y);
         $this->Ln();
@@ -259,15 +277,18 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
         $this->agregarTotales($dte['Encabezado']['Totales'], $OtraMoneda, $this->y+6, 23, 17);
         // agregar acuse de recibo y leyenda cedible
         if ($this->cedible and !in_array($dte['Encabezado']['IdDoc']['TipoDTE'], $this->sinAcuseRecibo)) {
-            $this->agregarAcuseReciboContinuo(3, $this->y+6, 68, 34);
+            $this->agregarAcuseReciboContinuo(3, $this->y+6, $width-6, 34);
             $this->agregarLeyendaDestinoContinuo($dte['Encabezado']['IdDoc']['TipoDTE']);
         }
         // agregar timbre
         $y = $this->agregarObservacion($dte['Encabezado']['IdDoc'], $x_start, $this->y+6);
         // Observaciones adicionales sobre el timbre
-        if(isset($dte['Observaciones']))
+        if(isset($dte['Observaciones'])) {
+            if ($this->cedible)
+                $this->y += 2;
             $y = $this->agregarObservacionAdicional($dte['Observaciones'], $x_start, $this->y);
-        $this->agregarTimbre($timbre, -10, $x_start, $y+6, 70, 6);
+        }
+        $this->agregarTimbreContinuo($timbre, -10, $x_start, $y+2, 70, 6);
         // si el alto no se pasó, entonces es con autocálculo, se elimina esta página y se pasa el alto
         // que se logró determinar para crear la página con el alto correcto
         if (!$height) {
@@ -300,7 +321,7 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
             9,
             [0,0,0]
         );
-        $y[] = $this->agregarEmisor($dte['Encabezado']['Emisor'], 1, 2, 20, 30, 9, [0,0,0], $y[0]);
+        $y[] = $this->agregarEmisor($dte['Encabezado']['Emisor'], 1, 2, 20, 56, 9, [0,0,0], $y[0],110);
         $this->SetY(max($y));
         $this->Ln();
         // datos del documento
@@ -398,7 +419,7 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
                     $this->logo['uri'],
                     $x,
                     $y,
-                    $logo_w,
+                    $w_img,
                     '',
                     'PNG',
                     '',
@@ -409,31 +430,57 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
                 );
             }
             else if (!empty($this->logo['posicion']) and $this->logo['posicion'] == 'C'){ // SVG papel continuo
-                $y -= 14;
-                $this->ImageSVG(
-                    $this->logo['uri'],
-                    $x,
-                    $y-14,
-                    45,
-                    '',
-                    '',
-                    $logo_next_pointer,
-                    $logo_position,
-                );
-                $this->y -= 14;
-            } else { // SVG Tamaño carta
-                //$y -= 14;
+                $y -= 15;
                 $this->ImageSVG(
                     $this->logo['uri'],
                     $x,
                     $y,
-                    40,
+                    $w_img,
                     '',
                     '',
                     $logo_next_pointer,
                     $logo_position,
                 );
-                //$this->y -= 14;
+                $this->y -= 15;
+            } else if ((int)$this->papelContinuo == 110) { // SVG Tamaño carta (papel_110)
+                $y -= 19;
+                $this->ImageSVG(
+                    $this->logo['uri'],
+                    $x,
+                    $y,
+                    $w_img,
+                    '',
+                    '',
+                    $logo_next_pointer,
+                    $logo_position,
+                );
+                $this->y += 19;
+            } else if (!empty($this->logo['posicion']) and $this->logo['posicion'] == 1) { // SVG papel continuo
+                $y -= 18;
+                $this->ImageSVG(
+                    $this->logo['uri'],
+                    $x+1,
+                    $y,
+                    56,
+                    '',
+                    '',
+                    $logo_next_pointer,
+                    $logo_position,
+                );
+                $this->y += 28;
+            }  else { // SVG Tamaño carta (papel_0)
+                $y -= 10;
+                $this->ImageSVG(
+                    $this->logo['uri'],
+                    $x,
+                    $y,
+                    $w_img,
+                    '',
+                    '',
+                    $logo_next_pointer,
+                    $logo_position,
+                );
+                $this->y += 10;
             }
 
             if (!empty($this->logo['posicion']) and $this->logo['posicion'] == 'C') {
@@ -461,12 +508,15 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
             $direccion = !empty($emisor['DirOrigen']) ? $emisor['DirOrigen'] : null;
             $comuna = !empty($emisor['CmnaOrigen']) ? $emisor['CmnaOrigen'] : null;
             $ciudad = !empty($emisor['CiudadOrigen']) ? $emisor['CiudadOrigen'] : \sasco\LibreDTE\Chile::getCiudad($comuna);
-            $this->MultiTexto($direccion.($comuna?(', '.$comuna):'').($ciudad?(', '.$ciudad):''), $x, $this->y, 'L', ($h_folio and $h_folio < $this->getY()) ? $w_all : $w);
+            $this->setFont('', 'B', $font_size ? $font_size-1 : 8);
+            if (empty($this->casa_matriz))
+                $this->MultiTexto($direccion.($comuna?(', '.$comuna):'').($ciudad?(', '.$ciudad):''), $x, $this->y, 'L', ($h_folio and $h_folio < $this->getY()) ? $w_all : $w);
             if (!empty($emisor['Sucursal'])) {
                 $this->MultiTexto('Sucursal: '.$emisor['Sucursal'], $x, $this->y, 'L', ($h_folio and $h_folio < $this->getY()) ? $w_all : $w);
             }
             if (!empty($this->casa_matriz)) {
-                $this->MultiTexto('Casa matriz: '.$this->casa_matriz, $x, $this->y, 'L', ($h_folio and $h_folio < $this->getY()) ? $w_all : $w);
+                $this->MultiTexto("CASA MATRIZ\n".$direccion.($comuna?(', '.$comuna):'').($ciudad?(', '.$ciudad):''), $x, $this->y, 'L', ($h_folio and $h_folio < $this->getY()) ? $w_all : $w);
+                //$this->MultiTexto('Casa matriz: '.$this->casa_matriz, $x, $this->y, 'L', ($h_folio and $h_folio < $this->getY()) ? $w_all : $w);
             }
             $contacto = [];
             if (!empty($emisor['Telefono'])) {
@@ -481,10 +531,15 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
                 $contacto[] = $emisor['CorreoEmisor'];
             }
             if ($contacto) {
-                $this->MultiTexto(implode("\n", $contacto), $x, $this->y, 'L', ($h_folio and $h_folio < $this->getY()) ? $w_all : $w);
+                if ((int)$this->papelContinuo == 0) // Si es papel_0
+                    $contacto = implode(" / ", $contacto);
+                else
+                    $contacto = implode("\n", $contacto);
+                $this->MultiTexto($contacto, $x, $this->y, 'L', ($h_folio and $h_folio < $this->getY()) ? $w_all : $w);
             }
+            $this->setFont('', 'B', $font_size ? $font_size : 9);
         }
-        return $this->y;
+        return $this->y-6;
     }
 
     protected function agregarObservacionAdicional(array $observaciones, $x = 10, $y = 190): float
@@ -496,7 +551,7 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
 
         // Agregar linea divisoria
         $p1x = $x;
-        $p1y = $y-4;
+        $p1y = $y;
         $p2x = $this->getPageWidth() - 2;
         $p2y = $p1y;  // Use same y for a straight line
         $style = array('width' => 0.2,'color' => array(0, 0, 0));
@@ -508,7 +563,7 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
         $this->Ln();
         foreach ($observaciones as $observacion) {
             //$this->MultiTexto($observaciones_str, null, $y-2, 'C');
-            $this->MultiCell($this->w, null, $observacion, $border=0, $align='C', $fill=false, $ln=1, $x, $this->y-4, $reseth=true, $stretch=0, $ishtml=false, $autopadding=true, $maxh=0, $valign='T', $fitcell=false);
+            $this->MultiCell($this->w-4, null, $observacion, $border=0, $align='C', $fill=false, $ln=1, $x, $this->y, $reseth=true, $stretch=0, $ishtml=false, $autopadding=true, $maxh=0, $valign='T', $fitcell=false);
         }
         //$observaciones_str = implode(' ', $observaciones);
         $this->setFont('', '', 8);
@@ -576,5 +631,37 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
             }
         }
         $this->Line($p1x, $this->y+4, $p2x, $this->y+4, $style);
+    }
+
+    protected function agregarTimbreContinuo($timbre, $x_timbre = 10, $x = 10, $y = 190, $w = 70, $font_size = 8, $position = null)
+    {
+        $y = (!$this->papelContinuo and !$this->timbre_pie) ? $this->x_fin_datos : $y;
+        if ($timbre!==null) {
+            $style = [
+                'border' => false,
+                'padding' => 0,
+                'hpadding' => 0,
+                'vpadding' => 0,
+                'module_width' => 1, // width of a single module in points
+                'module_height' => 1, // height of a single module in points
+                'fgcolor' => [0,0,0],
+                'bgcolor' => false, // [255,255,255]
+                'position' => $position === null ? ($this->papelContinuo ? 'C' : 'S') : $position,
+            ];
+            $ecl = version_compare(phpversion(), '7.0.0', '<') ? -1 : $this->ecl;
+            $this->write2DBarcode($timbre, 'PDF417,,'.$ecl, $x_timbre, $y, $w, 0, $style, 'B');
+            $this->setFont('', 'B', $font_size);
+            $this->Texto('Timbre Electrónico SII', $x, null, 'C', $this->w);
+            $this->Ln();
+            $this->Texto('Resolución '.$this->resolucion['NroResol'].' de '.explode('-', $this->resolucion['FchResol'])[0], $x, null, 'C', $this->w);
+            $this->Ln();
+            if ($w>=60) {
+                $this->Texto('Verifique documento: '.$this->web_verificacion, $x, null, 'C', $this->w);
+            } else {
+                $this->Texto('Verifique documento:', $x, null, 'C', $this->w);
+                $this->Ln();
+                $this->Texto($this->web_verificacion, $x, null, 'C', $this->w);
+            }
+        }
     }
 }
