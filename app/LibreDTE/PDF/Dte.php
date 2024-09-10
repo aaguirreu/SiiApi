@@ -7,7 +7,7 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
     public function __construct($papelContinuo = false)
     {
         parent::__construct();
-s        $this->SetTitle('Documento Tributario Electrónico (DTE) de Chile');
+        $this->SetTitle('Documento Tributario Electrónico (DTE) de Chile');
         $this->SetAuthor('ArBo-DTE');
         $this->SetCreator('Logiciel - https://logiciel.cl');
         $this->papelContinuo = $papelContinuo === true ? 80 : $papelContinuo;
