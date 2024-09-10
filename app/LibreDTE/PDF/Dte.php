@@ -627,7 +627,7 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
             $this->Texto($this->num($d['MontoItem']), $x+$offsets[3], $this->y, ucfirst($this->detalle_cols['MontoItem']['align'][0]), $this->detalle_cols['MontoItem']['width']);
             // descripción del item
             if ($this->papel_continuo_item_detalle and !empty($d['DscItem'])) {
-                $this->MultiTexto($d['DscItem'], $x+$offsets[0], $this->y+4, ucfirst($this->detalle_cols['NmbItem']['align'][0]), $this->detalle_cols['NmbItem']['width']);
+                $this->Texto($d['DscItem'], $x+$offsets[0], $this->y+4, ucfirst($this->detalle_cols['NmbItem']['align'][0]), $this->detalle_cols['NmbItem']['width']);
             }
         }
         $this->Line($p1x, $this->y+4, $p2x, $this->y+4, $style);
