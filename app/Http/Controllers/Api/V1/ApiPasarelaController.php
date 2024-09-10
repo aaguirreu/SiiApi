@@ -209,6 +209,8 @@ class ApiPasarelaController extends PasarelaController
 
         // Asigna true si es 'H' False caso contrario
         $continuo = $request->formato_impresion == 'T';
+        if(in_array($request->formato_impresion, array(0, 57, 75, 77, 80, 110)))
+            $continuo = $request->formato_impresion;
 
         // Llama a la función xmlPdf con los argumentos claros
         $pdfb64_arr = $this->xmlPdf($envio_dte_xml, $continuo, $request->logob64, $request->observaciones, $request->cedible, $request->copia_cedible, $request->footer, $request->tickets);
@@ -950,6 +952,8 @@ class ApiPasarelaController extends PasarelaController
 
         // Asigna true si es 'H' False caso contrario
         $continuo = $request->formato_impresion == 'T';
+        if(in_array($request->formato_impresion, array(0, 57, 75, 77, 80, 110)))
+            $continuo = $request->formato_impresion;
 
         // Llama a la función xmlPdf con los argumentos claros
         $pdfb64_arr = $this->xmlPdf(base64_decode($request->xmlb64), $continuo, $request->logob64, $request->observaciones, $request->cedible, $request->copia_cedible, $request->footer, $request->tickets);
