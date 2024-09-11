@@ -15,7 +15,7 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
 
     protected $detalle_cols = [
         'CdgItem' => ['title'=>'Código', 'align'=>'left', 'width'=>20],
-        'NmbItem' => ['title'=>'SKU', 'align'=>'left', 'width'=>0],
+        'NmbItem' => ['title'=>'Item', 'align'=>'left', 'width'=>0],
         'IndExe' => ['title'=>'IE', 'align'=>'left', 'width'=>'7'],
         'QtyItem' => ['title'=>'Cant.', 'align'=>'right', 'width'=>15],
         'UnmdItem' => ['title'=>'Unidad', 'align'=>'left', 'width'=>22],
@@ -558,6 +558,7 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
         $this->Line($p1x+2, $p1y, $p2x, $p2y, $style);
 
         // Agregar observaciones adicionales con texto centrado
+        $font = $this->detalle_fuente;
         $this->setFont('', '', 5);
         //$this->SetXY($x, $y-2);
         $this->Ln();
@@ -566,7 +567,7 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
             $this->MultiCell($this->w-4, null, $observacion, $border=0, $align='C', $fill=false, $ln=1, $x, $this->y, $reseth=true, $stretch=0, $ishtml=false, $autopadding=true, $maxh=0, $valign='T', $fitcell=false);
         }
         //$observaciones_str = implode(' ', $observaciones);
-        $this->setFont('', '', 8);
+        $this->setFont('', '', $font);
         return $this->getY();
     }
 
@@ -627,9 +628,11 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
             $this->Texto($this->num($d['MontoItem']), $x+$offsets[3], $this->y, ucfirst($this->detalle_cols['MontoItem']['align'][0]), $this->detalle_cols['MontoItem']['width']);
             // descripción del item
             if ($this->papel_continuo_item_detalle and !empty($d['DscItem'])) {
-                $this->Texto($d['DscItem'], $x+$offsets[0], $this->y+4, ucfirst($this->detalle_cols['NmbItem']['align'][0]), $this->detalle_cols['NmbItem']['width']);
+                $this->MultiTexto($d['DscItem'], $x+$offsets[0], $this->y+4, ucfirst($this->detalle_cols['NmbItem']['align'][0]), $this->w-4);
+                $this->y -=4;
             }
         }
+        $this->y += 2;
         $this->Line($p1x, $this->y+4, $p2x, $this->y+4, $style);
     }
 
