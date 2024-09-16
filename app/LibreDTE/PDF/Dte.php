@@ -650,7 +650,7 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
         // Agregar tickets
         $this->setFont('', '', 8);
         //$this->SetXY($x, $y);
-        $this->setMargins(5,5,5);
+        $this->setMargins(5,0,5);
         foreach ($tickets as $ticket) {
             $this->AddPage('P', [$height ? $height : 80, $width]);
             $this->MultiTexto(base64_decode($ticket), $x, null, 'L');
