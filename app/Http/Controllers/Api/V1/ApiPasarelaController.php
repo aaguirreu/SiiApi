@@ -207,7 +207,7 @@ class ApiPasarelaController extends PasarelaController
 
         // Asigna true si es 'H' False caso contrario
         $continuo = $request->formato_impresion == 'T';
-        if(in_array($request->formato_impresion, array(0, 57, 75, 77, 80, 110)))
+        if(in_array($request->formato_impresion, array(0, 57, 70, 75, 77, 80, 110)))
             $continuo = $request->formato_impresion;
 
         // Llama a la función xmlPdf con los argumentos claros
@@ -950,7 +950,7 @@ class ApiPasarelaController extends PasarelaController
 
         // Asigna true si es 'H' False caso contrario
         $continuo = $request->formato_impresion == 'T';
-        if(in_array($request->formato_impresion, array(0, 57, 75, 77, 80, 110)))
+        if(in_array($request->formato_impresion, array(0, 57, 70, 75, 77, 80, 110)))
             $continuo = $request->formato_impresion;
 
         // Llama a la función xmlPdf con los argumentos claros

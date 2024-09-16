@@ -688,7 +688,7 @@ class PasarelaController extends DteController
         } else {
             // Asigna true si es 'H' False caso contrario
             $continuo = $formato_impresion == 'T';
-            if(in_array($formato_impresion, array(0, 57, 75, 77, 80, 110)))
+            if(in_array($formato_impresion, array(0, 57, 70, 75, 77, 80, 110)))
                 $continuo = $formato_impresion;
 
             // Llama a la función xmlPdf con los argumentos claros
