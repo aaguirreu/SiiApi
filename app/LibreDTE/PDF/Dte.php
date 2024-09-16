@@ -751,7 +751,7 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
      */
     protected function agregarReceptor_70(array $Encabezado, $x = 10, $offset = 22)
     {
-        echo $w = $this->w-($x+$offset+13);
+        $w = $this->w-($x+$offset+13);
         $receptor = $Encabezado['Receptor'];
         if (!empty($receptor['RUTRecep']) and $receptor['RUTRecep']!='66666666-6') {
             list($rut, $dv) = explode('-', $receptor['RUTRecep']);
