@@ -201,6 +201,80 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
         }
     }
 
+    private function agregar_papel_70(array $dte, $timbre, $width = 70, $height = 0)
+    {
+        // si hay logo asignado se usa centrado
+        if (!empty($this->logo)) {
+            $this->logo['posicion'] = 'C';
+        }
+        // determinar alto de la página y agregarla
+        $x_start = 1;
+        $y_start = 1;
+        $offset = 16;
+        $w_recuadro = $width-($x_start*4);
+        // determinar alto de la página y agregarla
+        $this->AddPage('P', [$height ? $height : $this->papel_continuo_alto, $width]);
+        // agregar cabecera del documento
+        $y = $this->agregarFolio(
+            $dte['Encabezado']['Emisor']['RUTEmisor'],
+            $dte['Encabezado']['IdDoc']['TipoDTE'],
+            $dte['Encabezado']['IdDoc']['Folio'],
+            isset($dte['Encabezado']['Emisor']['CmnaOrigen']) ? $dte['Encabezado']['Emisor']['CmnaOrigen'] : '', // siempre debería tener comuna
+            ($width-$w_recuadro)/2, $y_start, $w_recuadro, 10,
+            [0,0,0]
+        );
+        $y = $this->agregarEmisor($dte['Encabezado']['Emisor'], $x_start, $y+2, $width-($x_start*45), 45, 9, [0,0,0]);
+        // datos del documento
+        $this->SetY($y);
+        $this->Ln();
+        $this->setFont('', '', 8);
+        $this->agregarDatosEmision($dte['Encabezado']['IdDoc'], !empty($dte['Encabezado']['Emisor']['CdgVendedor'])?$dte['Encabezado']['Emisor']['CdgVendedor']:null, $x_start, $offset, false);
+        $this->agregarReceptor_70($dte['Encabezado'], $x_start, $offset);
+        $this->agregarTraslado(
+            !empty($dte['Encabezado']['IdDoc']['IndTraslado']) ? $dte['Encabezado']['IdDoc']['IndTraslado'] : null,
+            !empty($dte['Encabezado']['Transporte']) ? $dte['Encabezado']['Transporte'] : null,
+            $x_start, $offset
+        );
+        if (!empty($dte['Referencia'])) {
+            $this->agregarReferencia($dte['Referencia'], $x_start, $offset);
+        }
+        $this->Ln();
+        $this->agregarDetalleContinuo($dte['Detalle'], 2, [1, 15, 35, 43]);
+        if (!empty($dte['DscRcgGlobal'])) {
+            $this->Ln();
+            $this->Ln();
+            $this->agregarSubTotal($dte['Detalle'], 21, 17);
+            $this->agregarDescuentosRecargos($dte['DscRcgGlobal'], 21, 17);
+        }
+        if (!empty($dte['Encabezado']['IdDoc']['MntPagos'])) {
+            $this->Ln();
+            $this->Ln();
+            $this->agregarPagos($dte['Encabezado']['IdDoc']['MntPagos'], $x_start);
+        }
+        $OtraMoneda = !empty($dte['Encabezado']['OtraMoneda']) ? $dte['Encabezado']['OtraMoneda'] : null;
+        $this->agregarTotales($dte['Encabezado']['Totales'], $OtraMoneda, $this->y+6, 21, 17);
+        // agregar acuse de recibo y leyenda cedible
+        if ($this->cedible and !in_array($dte['Encabezado']['IdDoc']['TipoDTE'], $this->sinAcuseRecibo)) {
+            $this->agregarAcuseReciboContinuo(3, $this->y+6, $width-6, 34);
+            $this->agregarLeyendaDestinoContinuo($dte['Encabezado']['IdDoc']['TipoDTE']);
+        }
+        // agregar timbre
+        $y = $this->agregarObservacion($dte['Encabezado']['IdDoc'], $x_start, $this->y+6);
+        // Observaciones adicionales sobre el timbre
+        if(isset($dte['Observaciones'])) {
+            if ($this->cedible)
+                $this->y += 2;
+            $y = $this->agregarObservacionAdicional($dte['Observaciones'], $x_start, $this->y);
+        }
+        $this->agregarTimbreContinuo($timbre, -10, $x_start, $y+2, 70, 6);
+        // si el alto no se pasó, entonces es con autocálculo, se elimina esta página y se pasa el alto
+        // que se logró determinar para crear la página con el alto correcto
+        if (!$height) {
+            $this->deletePage($this->PageNo());
+            $this->agregar_papel_70($dte, $timbre, $width, $this->getY()+30);
+        }
+    }
+
     /**
      * Método que agrega una página con el documento tributario en papel
      * contínuo de 75mm
@@ -666,5 +740,92 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
                 $this->Texto($this->web_verificacion, $x, null, 'C', $this->w);
             }
         }
+    }
+
+    /**
+     * Método que agrega los datos del receptor
+     * @param receptor Arreglo con los datos del receptor (tag Receptor del XML)
+     * @param x Posición horizontal de inicio en el PDF
+     * @author Esteban De La Fuente Rubio, DeLaF (esteban[at]sasco.cl)
+     * @version 2019-10-06
+     */
+    protected function agregarReceptor_70(array $Encabezado, $x = 10, $offset = 22)
+    {
+        echo $w = $this->w-($x+$offset+13);
+        $receptor = $Encabezado['Receptor'];
+        if (!empty($receptor['RUTRecep']) and $receptor['RUTRecep']!='66666666-6') {
+            list($rut, $dv) = explode('-', $receptor['RUTRecep']);
+            $this->setFont('', 'B', null);
+            $this->Texto(in_array($this->dte, [39, 41]) ? 'R.U.N.' : 'R.U.T.', $x);
+            $this->Texto(':', $x+$offset);
+            $this->setFont('', '', null);
+            $this->MultiTexto($this->num($rut).'-'.$dv, $x+$offset+2, null, '', $w);
+        }
+        if (!empty($receptor['RznSocRecep'])) {
+            $this->setFont('', 'B', null);
+            $this->Texto(in_array($this->dte, [39, 41]) ? 'Nombre' : ($x==10?'Razón social':'Razón soc.'), $x);
+            $this->Texto(':', $x+$offset);
+            $this->setFont('', '', null);
+            $this->MultiTexto($receptor['RznSocRecep'], $x+$offset+2, null, '', $w);
+        }
+        if (!empty($receptor['GiroRecep'])) {
+            $this->setFont('', 'B', null);
+            $this->Texto('Giro', $x);
+            $this->Texto(':', $x+$offset);
+            $this->setFont('', '', null);
+            $this->MultiTexto($receptor['GiroRecep'], $x+$offset+2, null, '', $w);
+        }
+        if (!empty($receptor['DirRecep'])) {
+            $this->setFont('', 'B', null);
+            $this->Texto('Dirección', $x);
+            $this->Texto(':', $x+$offset);
+            $this->setFont('', '', null);
+            $ciudad = !empty($receptor['CiudadRecep']) ? $receptor['CiudadRecep'] : (
+            !empty($receptor['CmnaRecep']) ? \sasco\LibreDTE\Chile::getCiudad($receptor['CmnaRecep']) : ''
+            );
+            $this->MultiTexto($receptor['DirRecep'].(!empty($receptor['CmnaRecep'])?(', '.$receptor['CmnaRecep']):'').($ciudad?(', '.$ciudad):''), $x+$offset+2, null, '', $w);
+        }
+        if (!empty($receptor['Extranjero']['Nacionalidad'])) {
+            $this->setFont('', 'B', null);
+            $this->Texto('Nacionalidad', $x);
+            $this->Texto(':', $x+$offset);
+            $this->setFont('', '', null);
+            $this->MultiTexto(\sasco\LibreDTE\Sii\Aduana::getNacionalidad($receptor['Extranjero']['Nacionalidad']), $x+$offset+2, null, '', $w);
+        }
+        if (!empty($receptor['Extranjero']['NumId'])) {
+            $this->setFont('', 'B', null);
+            $this->Texto('N° ID extranj.', $x);
+            $this->Texto(':', $x+$offset);
+            $this->setFont('', '', null);
+            $this->MultiTexto($receptor['Extranjero']['NumId'], $x+$offset+2, null, '', $w);
+        }
+        $contacto = [];
+        if (!empty($receptor['Contacto']))
+            $contacto[] = $receptor['Contacto'];
+        if (!empty($receptor['CorreoRecep']))
+            $contacto[] = $receptor['CorreoRecep'];
+        if (!empty($contacto)) {
+            $this->setFont('', 'B', null);
+            $this->Texto('Contacto', $x);
+            $this->Texto(':', $x+$offset);
+            $this->setFont('', '', null);
+            $this->MultiTexto(implode(' / ', $contacto), $x+$offset+2, null, '', 40);
+        }
+        if (!empty($Encabezado['RUTSolicita'])) {
+            list($rut, $dv) = explode('-', $Encabezado['RUTSolicita']);
+            $this->setFont('', 'B', null);
+            $this->Texto('RUT solicita', $x);
+            $this->Texto(':', $x+$offset);
+            $this->setFont('', '', null);
+            $this->MultiTexto($this->num($rut).'-'.$dv, $x+$offset+2, null, '', $w);
+        }
+        if (!empty($receptor['CdgIntRecep'])) {
+            $this->setFont('', 'B', null);
+            $this->Texto('Cód. recep.', $x);
+            $this->Texto(':', $x+$offset);
+            $this->setFont('', '', null);
+            $this->MultiTexto($receptor['CdgIntRecep'], $x+$offset+2, null, '', $w);
+        }
+        return $this->GetY();
     }
 }
