@@ -657,9 +657,12 @@ class PasarelaController extends DteController
                     $pdf->agregar($dte, $DTE->getTED());
                 }
             }
-            if($tickets && $continuo)
-                $pdf->agregarTickets($tickets);
-
+            if($tickets && $continuo) {
+                if(in_array($continuo, array(0, 57, 70, 75, 77, 80, 110)))
+                    $pdf->agregarTickets($tickets, ($continuo-58)/2, 190, $continuo);
+                else
+                    $pdf->agregarTickets($tickets);
+            }
             $pdfb64_arr[$nombre] = chunk_split(base64_encode($pdf->getPDFData()));
         }
 
