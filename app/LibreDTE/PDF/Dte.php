@@ -255,7 +255,7 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
         $this->agregarTotales($dte['Encabezado']['Totales'], $OtraMoneda, $this->y+6, 21, 17);
         // agregar acuse de recibo y leyenda cedible
         if ($this->cedible and !in_array($dte['Encabezado']['IdDoc']['TipoDTE'], $this->sinAcuseRecibo)) {
-            $this->agregarAcuseReciboContinuo(3, $this->y+6, $width-6, 34);
+            $this->agregarAcuseReciboContinuo_70(3, $this->y+6, $width-6, 34);
             $this->agregarLeyendaDestinoContinuo($dte['Encabezado']['IdDoc']['TipoDTE']);
         }
         // agregar timbre
@@ -827,5 +827,38 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
             $this->MultiTexto($receptor['CdgIntRecep'], $x+$offset+2, null, '', $w);
         }
         return $this->GetY();
+    }
+
+    /**
+     * Método que agrega el acuse de rebido
+     * @param x Posición horizontal de inicio en el PDF
+     * @param y Posición vertical de inicio en el PDF
+     * @param w Ancho del acuse de recibo
+     * @param h Alto del acuse de recibo
+     * @author Pablo Reyes (https://github.com/pabloxp)
+     * @version 2015-11-17
+     */
+    protected function agregarAcuseReciboContinuo_70($x = 3, $y = null, $w = 68, $h = 40)
+    {
+        $this->SetTextColorArray([0,0,0]);
+        $this->Rect($x, $y, $w, $h, 'D', ['all' => ['width' => 0.1, 'color' => [0, 0, 0]]]);
+        $style = array('width' => 0.2,'color' => array(0, 0, 0));
+        $this->Line($x, $y+22, $w+3, $y+22, $style);
+        //$this->setFont('', 'B', 10);
+        //$this->Texto('Acuse de recibo', $x, $y+1, 'C', $w);
+        $this->setFont('', 'B', 6);
+        $this->Texto('Nombre', $x+2, $this->y+8);
+        $this->Texto('__________________________________________', $x+12);
+        $this->Texto('RUN', $x+2, $this->y+6);
+        $this->Texto('________________', $x+12);
+        $this->Texto('Firma', $x+32, $this->y+0.5);
+        $this->Texto('________________', $x+42.5);
+        $this->Texto('Fecha', $x+2, $this->y+6);
+        $this->Texto('________________', $x+12);
+        $this->Texto('Recinto', $x+32, $this->y+0.5);
+        $this->Texto('________________', $x+42.5);
+
+        $this->setFont('', 'B', 5);
+        $this->MultiTexto('El acuse de recibo que se declara en este acto, de acuerdo a lo dispuesto en la letra b) del Art. 4°, y la letra c) del Art. 5° de la Ley 19.983, acredita que la entrega de mercaderías o servicio (s) prestado (s) ha (n) sido recibido (s).'."\n", $x+2, $this->y+8, 'J', $w-3);
     }
 }
