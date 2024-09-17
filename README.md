@@ -19,6 +19,8 @@ ApiDTELogiciel permite para comunicarse con el Servicio de Impuestos Internos (S
 - php-soap
 - php-bcmath
 - php-imagick
+- libgdk-pixbuf-2.0-0
+- libmagickwand-dev (Necesario para Logo SVG)
 - Openssl (con Legacy:Opcional)
 
 ## Instalación
