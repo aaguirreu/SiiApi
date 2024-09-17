@@ -452,121 +452,131 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
         // logo del documento
         if (isset($this->logo)) {
             // logo centrado (papel continuo)
-            $imagick = new \Imagick($this->logo['uri']);
-            if (!empty($this->logo['posicion']) and $this->logo['posicion'] == 'C') {
-                // Se setean en 0 para que $this->Image haga el ajuste.
-                $logo_y = 0;
-                $logo_w = 0;
-                $logo_position = 'C';
-                $logo_next_pointer = 'N';
+            try {
+                $imagick = new \Imagick($this->logo['uri']);
+            } catch (\Exception $e) {
+                $imagick = false;
+                //echo $this->logo['uri']. "\n";
+                //echo $e->getMessage(). "\n";
+            }
+            if ($imagick) {
+                if (!empty($this->logo['posicion']) and $this->logo['posicion'] == 'C') {
+                    // Se setean en 0 para que $this->Image haga el ajuste.
+                    $logo_y = 0;
+                    $logo_w = 0;
+                    $logo_position = 'C';
+                    $logo_next_pointer = 'N';
 
-                // ver si es svg o png
-                if ($imagick->getImageFormat() != 'SVG') {
-                    // Se hace el resize con imagick antes de asignar la imagen
-                    // para evitar que la librería haga el resize
-                    $imagick = new \Imagick($this->logo['uri']);
-                    // Tamaño imagen
-                    $logo_size = getimagesize($this->logo['uri']);
-                    //echo var_dump($logo_size)."\n"; // quitar
-                    if ($logo_size[0] > 200) {
-                        $imagick->scaleImage(200, 0); // original 200, 0
-                        $imagick->writeImage($this->logo['uri']);
+                    // ver si es svg o png
+                    if ($imagick->getImageFormat() != 'SVG') {
+                        // Se hace el resize con imagick antes de asignar la imagen
+                        // para evitar que la librería haga el resize
+                        $imagick = new \Imagick($this->logo['uri']);
+                        // Tamaño imagen
+                        $logo_size = getimagesize($this->logo['uri']);
+                        //echo var_dump($logo_size)."\n"; // quitar
+                        if ($logo_size[0] > 200) {
+                            $imagick->scaleImage(200, 0); // original 200, 0
+                            $imagick->writeImage($this->logo['uri']);
+                        }
                     }
+                } // logo a la derecha (posicion=0) o arriba (posicion=1)
+                else if (empty($this->logo['posicion']) or $this->logo['posicion'] == 1) {
+                    $logo_w = !$this->logo['posicion'] ? $w_img : null;
+                    $logo_y = $this->logo['posicion'] ? $w_img / 2 : null;
+                    $logo_position = '';
+                    $logo_next_pointer = 'T';
+                } // logo completo, reemplazando datos del emisor (posicion=2)
+                else {
+                    $logo_w = null;
+                    $logo_y = $w_img;
+                    $logo_position = '';
+                    $logo_next_pointer = 'T';
+                    $agregarDatosEmisor = false;
                 }
-            } // logo a la derecha (posicion=0) o arriba (posicion=1)
-            else if (empty($this->logo['posicion']) or $this->logo['posicion'] == 1) {
-                $logo_w = !$this->logo['posicion'] ? $w_img : null;
-                $logo_y = $this->logo['posicion'] ? $w_img / 2 : null;
-                $logo_position = '';
-                $logo_next_pointer = 'T';
-            } // logo completo, reemplazando datos del emisor (posicion=2)
-            else {
-                $logo_w = null;
-                $logo_y = $w_img;
-                $logo_position = '';
-                $logo_next_pointer = 'T';
-                $agregarDatosEmisor = false;
-            }
 
-            if ($imagick->getImageFormat() != 'SVG') { // png
-                $this->Image(
-                    $this->logo['uri'],
-                    $x,
-                    $y,
-                    $w_img,
-                    '',
-                    'PNG',
-                    '',
-                    $logo_next_pointer,
-                    false,
-                    300,
-                    $logo_position,
-                );
-            }
-            else if (!empty($this->logo['posicion']) and $this->logo['posicion'] == 'C'){ // SVG papel continuo
-                $y -= 15;
-                $this->ImageSVG(
-                    $this->logo['uri'],
-                    $x,
-                    $y,
-                    $w_img,
-                    '',
-                    '',
-                    $logo_next_pointer,
-                    $logo_position,
-                );
-                $this->y -= 15;
-            } else if ((int)$this->papelContinuo == 110) { // SVG Tamaño carta (papel_110)
-                $y -= 19;
-                $this->ImageSVG(
-                    $this->logo['uri'],
-                    $x,
-                    $y,
-                    $w_img,
-                    '',
-                    '',
-                    $logo_next_pointer,
-                    $logo_position,
-                );
-                $this->y += 19;
-            } else if (!empty($this->logo['posicion']) and $this->logo['posicion'] == 1) { // SVG papel continuo
-                $y -= 18;
-                $this->ImageSVG(
-                    $this->logo['uri'],
-                    $x+1,
-                    $y,
-                    56,
-                    '',
-                    '',
-                    $logo_next_pointer,
-                    $logo_position,
-                );
-                $this->y += 28;
-            }  else { // SVG Tamaño carta (papel_0)
-                $y -= 10;
-                $this->ImageSVG(
-                    $this->logo['uri'],
-                    $x,
-                    $y,
-                    $w_img,
-                    '',
-                    '',
-                    $logo_next_pointer,
-                    $logo_position,
-                );
-                $this->y += 10;
-            }
+                if ($imagick->getImageFormat() != 'SVG') { // png
+                    $this->Image(
+                        $this->logo['uri'],
+                        $x,
+                        $y,
+                        $w_img,
+                        '',
+                        'PNG',
+                        '',
+                        $logo_next_pointer,
+                        false,
+                        300,
+                        $logo_position,
+                    );
+                }
+                else if (!empty($this->logo['posicion']) and $this->logo['posicion'] == 'C'){ // SVG papel continuo
+                    $y -= 15;
+                    $this->ImageSVG(
+                        $this->logo['uri'],
+                        $x,
+                        $y,
+                        $w_img,
+                        '',
+                        '',
+                        $logo_next_pointer,
+                        $logo_position,
+                    );
+                    $this->y -= 15;
+                } else if ((int)$this->papelContinuo == 110) { // SVG Tamaño carta (papel_110)
+                    $y -= 19;
+                    $this->ImageSVG(
+                        $this->logo['uri'],
+                        $x,
+                        $y,
+                        $w_img,
+                        '',
+                        '',
+                        $logo_next_pointer,
+                        $logo_position,
+                    );
+                    $this->y += 19;
+                } else if (!empty($this->logo['posicion']) and $this->logo['posicion'] == 1) { // SVG papel continuo
+                    $y -= 18;
+                    $this->ImageSVG(
+                        $this->logo['uri'],
+                        $x+1,
+                        $y,
+                        56,
+                        '',
+                        '',
+                        $logo_next_pointer,
+                        $logo_position,
+                    );
+                    $this->y += 28;
+                }  else { // SVG Tamaño carta (papel_0)
+                    $y -= 10;
+                    $this->ImageSVG(
+                        $this->logo['uri'],
+                        $x,
+                        $y,
+                        $w_img,
+                        '',
+                        '',
+                        $logo_next_pointer,
+                        $logo_position,
+                    );
+                    $this->y += 10;
+                }
 
-            if (!empty($this->logo['posicion']) and $this->logo['posicion'] == 'C') {
-                $w += 40;
-            } else {
-                if ($this->logo['posicion']) {
-                    $this->SetY($this->y + ($w_img/2));
+                if (!empty($this->logo['posicion']) and $this->logo['posicion'] == 'C') {
                     $w += 40;
                 } else {
-                    $x = $this->x+3;
+                    if ($this->logo['posicion']) {
+                        $this->SetY($this->y + ($w_img/2));
+                        $w += 40;
+                    } else {
+                        $x = $this->x+3;
+                    }
                 }
             }
+            $this->y = $y-2;
+            $w += 40;
         } else {
             $this->y = $y-2;
             $w += 40;
