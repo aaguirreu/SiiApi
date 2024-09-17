@@ -574,9 +574,10 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
                         $x = $this->x+3;
                     }
                 }
+            } else {
+                $this->y = $y-2;
+                $w += 40;
             }
-            $this->y = $y-2;
-            $w += 40;
         } else {
             $this->y = $y-2;
             $w += 40;
