@@ -658,6 +658,7 @@ class PasarelaController extends DteController
                 }
             }
             if($tickets && $continuo) {
+                $continuo = $continuo === true ? 80 : $continuo;
                 if(in_array($continuo, array(0, 57, 70, 75, 77, 80, 110)))
                     $pdf->agregarTickets($tickets, ($continuo-58)/2, 190, $continuo);
                 else
