@@ -616,15 +616,19 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
                 $contacto[] = $emisor['CorreoEmisor'];
             }
             if ($contacto) {
-                if ((int)$this->papelContinuo == 0) // Si es papel_0
+                if ((int)$this->papelContinuo == 0) { // Si es papel_0
                     $contacto = implode(" / ", $contacto);
-                else
-                    $contacto = implode("\n", $contacto);
-                $this->MultiTexto($contacto, $x, $this->y, 'L', ($h_folio and $h_folio < $this->getY()) ? $w_all : $w);
+                    $this->MultiTexto($contacto, $x, $this->y, 'L', ($h_folio and $h_folio < $this->getY()) ? $w_all : $w);
+                } else {
+                    foreach ($contacto as $c)
+                        $this->MultiTexto($c, $x, $this->y, 'L', ($h_folio and $h_folio < $this->getY()) ? $w_all : $w);
+                }
+                    //$contacto = implode("\n", $contacto);
+                //$this->MultiTexto($contacto, $x, $this->y, 'L', ($h_folio and $h_folio < $this->getY()) ? $w_all : $w);
             }
             $this->setFont('', 'B', $font_size ? $font_size : 9);
         }
-        return $this->y-6;
+        return $this->y;
     }
 
     protected function agregarObservacionAdicional(array $observaciones, $x = 10, $y = 190): float
