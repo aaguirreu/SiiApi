@@ -699,7 +699,10 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
         foreach($detalle as  &$d) {
             // sku del item
             $item = $d['NmbItem'];
-            $this->MultiTexto($item, $x+$offsets[0], $this->y+4, ucfirst($this->detalle_cols['NmbItem']['align'][0]), $this->detalle_cols['NmbItem']['width']);
+            if (strlen($item) <= 15)
+                $this->Texto($item, $x+$offsets[0], $this->y+4, ucfirst($this->detalle_cols['NmbItem']['align'][0]), $this->detalle_cols['NmbItem']['width']);
+            else
+                $this->MultiTexto($item, $x+$offsets[0], $this->y+4, ucfirst($this->detalle_cols['NmbItem']['align'][0]), $this->detalle_cols['NmbItem']['width']);
             // descuento
             if (!empty($d['DescuentoPct']) or !empty($d['DescuentoMonto'])) {
                 if (!empty($d['DescuentoPct'])) {
