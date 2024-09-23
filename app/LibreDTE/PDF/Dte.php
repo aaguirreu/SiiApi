@@ -600,7 +600,8 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
                 $this->MultiTexto('Sucursal: '.$emisor['Sucursal'], $x, $this->y, 'L', ($h_folio and $h_folio < $this->getY()) ? $w_all : $w);
             }
             if (!empty($this->casa_matriz)) {
-                $this->MultiTexto("CASA MATRIZ\n".$direccion.($comuna?(', '.$comuna):'').($ciudad?(', '.$ciudad):''), $x, $this->y, 'L', ($h_folio and $h_folio < $this->getY()) ? $w_all : $w);
+                $this->MultiTexto("CASA MATRIZ", $x, $this->y, 'L', ($h_folio and $h_folio < $this->getY()) ? $w_all : $w);
+                $this->MultiTexto($direccion.($comuna?(', '.$comuna):'').($ciudad?(', '.$ciudad):''), $x, $this->y, 'L', ($h_folio and $h_folio < $this->getY()) ? $w_all : $w);
                 //$this->MultiTexto('Casa matriz: '.$this->casa_matriz, $x, $this->y, 'L', ($h_folio and $h_folio < $this->getY()) ? $w_all : $w);
             }
             $contacto = [];
@@ -625,7 +626,8 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
                 }
                     //$contacto = implode("\n", $contacto);
                 //$this->MultiTexto($contacto, $x, $this->y, 'L', ($h_folio and $h_folio < $this->getY()) ? $w_all : $w);
-            }
+            } else
+                $this->y -= 2;
             $this->setFont('', 'B', $font_size ? $font_size : 9);
         }
         return $this->y;
