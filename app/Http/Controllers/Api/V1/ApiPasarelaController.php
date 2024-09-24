@@ -115,7 +115,7 @@ class ApiPasarelaController extends PasarelaController
 
         // verificar Token SII
         $rut_envia = $Firma->getID();
-        $this->isToken($rut_envia, $Firma);
+        //$this->isToken($rut_envia, $Firma);
 
         // Set ambiente
         $this->setAmbiente($ambiente, $rut_envia);
