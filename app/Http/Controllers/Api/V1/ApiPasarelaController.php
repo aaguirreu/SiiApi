@@ -113,14 +113,12 @@ class ApiPasarelaController extends PasarelaController
             ], 400);
         }
 
-        // Obtener Firma
+        // verificar Token SII
         $rut_envia = $Firma->getID();
+        //$this->isToken($rut_envia, $Firma);
 
         // Set ambiente
         $this->setAmbiente($ambiente, $rut_envia);
-
-        // verificar Token SII
-        $this->isToken($rut_envia, $Firma);
 
         // Extraer los valores de TipoDTE de cada documento
         $tipos_dte = array_map(function($documento) {
