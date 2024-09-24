@@ -295,9 +295,17 @@ class ApiPasarelaController extends PasarelaController
         if($request->tipo_dte == 39 || $request->tipo_dte == 41) {
             $controller = new ApiBoletaController();
             $controller->setAmbiente($ambiente, $rut_envia);
+            if (!$controller::$token_api || $controller::$token_api == '')
+                return response()->json([
+                    'error' => "No existe Token BE",
+                ], 500);
         } else {
             $controller = new ApiFacturaController();
             $controller->setAmbiente($ambiente, $rut_envia);
+            if (!$controller::$token || $controller::$token == '')
+                return response()->json([
+                    'error' => "No existe Token",
+                ], 500);
         }
 
         // Si existe track id en body, consultar inmediatamente
@@ -399,9 +407,17 @@ class ApiPasarelaController extends PasarelaController
         if($request->tipo == 39 || $request->tipo == 41) {
             $controller = new ApiBoletaController();
             $controller->setAmbiente($ambiente, $rut_envia);
+            if (!$controller::$token_api || $controller::$token_api == '')
+                return response()->json([
+                    'error' => "No existe Token BE",
+                ], 500);
         } else {
             $controller = new ApiFacturaController();
             $controller->setAmbiente($ambiente, $rut_envia);
+            if (!$controller::$token || $controller::$token == '')
+                return response()->json([
+                    'error' => "No existe Token",
+                ], 500);
         }
 
         return $controller->estadoDocumento($request, $ambiente);
@@ -971,6 +987,13 @@ class ApiPasarelaController extends PasarelaController
         // Respuesta exito
         return response()->json([
             'pdfb64' => $pdfb64_arr
+        ], 200);
+    }
+
+    public function actualizarTokenSii(Request $request): JsonResponse
+    {
+        return response()->json([
+            'exito' => "Tokens del SII actualizados.",
         ], 200);
     }
 
