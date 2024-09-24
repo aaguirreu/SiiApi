@@ -285,7 +285,13 @@ class ApiPasarelaController extends PasarelaController
 
         // verificar Token SII
         $rut_envia = $Firma->getID();
-        $this->isToken($rut_envia, $Firma);
+        try {
+            $this->isToken($rut_envia, $Firma);
+        } catch (Exception $e) {
+            return response()->json([
+                'error' => "No se pudo obtener Token SII. ". $e->getMessage(),
+            ], 500);
+        }
 
         // Si es boleta o DTE
         if($request->tipo_dte == 39 || $request->tipo_dte == 41) {
@@ -383,7 +389,13 @@ class ApiPasarelaController extends PasarelaController
 
         // verificar Token SII
         $rut_envia = $Firma->getID();
-        $this->isToken($rut_envia, $Firma);
+        try {
+            $this->isToken($rut_envia, $Firma);
+        } catch (Exception $e) {
+            return response()->json([
+                'error' => "No se pudo obtener Token SII. ". $e->getMessage(),
+            ], 500);
+        }
 
         // Si es boleta o DTE
         if($request->tipo == 39 || $request->tipo == 41) {
@@ -573,7 +585,13 @@ class ApiPasarelaController extends PasarelaController
 
         // verificar Token SII
         $rut_envia = $Firma->getID();
-        $this->isToken($rut_envia, $Firma);
+        try {
+            $this->isToken($rut_envia, $Firma);
+        } catch (Exception $e) {
+            return response()->json([
+                'error' => "No se pudo obtener Token SII. ". $e->getMessage(),
+            ], 500);
+        }
 
         // Set ambiente
         $this->setAmbiente($ambiente, $rut_envia);
@@ -687,7 +705,13 @@ class ApiPasarelaController extends PasarelaController
 
         // verificar Token SII
         $rut_envia = $Firma->getID();
-        $this->isToken($rut_envia, $Firma);
+        try {
+            $this->isToken($rut_envia, $Firma);
+        } catch (Exception $e) {
+            return response()->json([
+                'error' => "No se pudo obtener Token SII. ". $e->getMessage(),
+            ], 500);
+        }
 
         // Set ambiente
         $this->setAmbiente($ambiente, $rut_envia);
@@ -767,7 +791,13 @@ class ApiPasarelaController extends PasarelaController
 
         // verificar Token SII
         $rut_envia = $Firma->getID();
-        $this->isToken($rut_envia, $Firma);
+        try {
+            $this->isToken($rut_envia, $Firma);
+        } catch (Exception $e) {
+            return response()->json([
+                'error' => "No se pudo obtener Token SII. ". $e->getMessage(),
+            ], 500);
+        }
 
         // Set ambiente
         $this->setAmbiente($ambiente, $rut_envia);
