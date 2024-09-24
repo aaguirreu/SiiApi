@@ -668,6 +668,12 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
         $this->setFont('', '', 8);
         //$this->SetXY($x, $y);
         $this->setMargins(5,0,5);
+        if ($width == 110)
+            $height = 110;
+        else if ($width == 57) {
+            $this->setFont('', '', 7);
+            $height = 60;
+        }
         foreach ($tickets as $ticket) {
             $this->AddPage('P', [$height ? $height : 80, $width]);
             $this->MultiTexto(base64_decode($ticket), $x, null, 'L');
