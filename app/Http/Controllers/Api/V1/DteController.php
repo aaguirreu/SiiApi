@@ -312,7 +312,11 @@ class DteController extends Controller
         // Solicitar seed
         $url_seed = $url.'.semilla';
         $seed = file_get_contents($url_seed);
-        $seed = simplexml_load_string($seed);
+        try {
+            $seed = simplexml_load_string($seed);
+        } catch (Exception $e) {
+            throw new Exception("Error al obtener la semilla.");
+        }
         $seed = (string)$seed->xpath('//SII:RESP_BODY/SEMILLA')[0];
         //echo "Seed = ".$seed."\n";
 
@@ -350,18 +354,31 @@ class DteController extends Controller
         $responseXml = simplexml_load_string($response);
 
         // Guardar Token con su timestamp en config.json
-        $token = (string)$responseXml->xpath('//TOKEN')[0];
-        $config_file = json_decode(file_get_contents(base_path('config.json')));
-        $rut = $Firma->getID();
-        if ($url == 'https://apicert.sii.cl/recursos/v1/boleta.electronica') {
-            $config_file->$rut->be->cert->token = $token;
-            $config_file->$rut->be->cert->token_timestamp = Carbon::now('America/Santiago')->timestamp;
+        try {
+            $rut = $Firma->getID();
+            $token = (string)$responseXml->xpath('//TOKEN')[0];
+            $config_file = json_decode(file_get_contents(base_path('config.json')));
+            if ($url == 'https://apicert.sii.cl/recursos/v1/boleta.electronica') {
+                $config_file->$rut->be->cert->token = $token;
+                $config_file->$rut->be->cert->token_timestamp = Carbon::now('America/Santiago')->timestamp;
+            }
+            else if ($url == 'https://api.sii.cl/recursos/v1/boleta.electronica') {
+                $config_file->$rut->be->prod->token = $token;
+                $config_file->$rut->be->prod->token_timestamp = Carbon::now('America/Santiago')->timestamp;
+            }
+            $this->guardarConfigFile($config_file);
+        } catch (Exception $e) {
+            $config_file = json_decode(file_get_contents(base_path('config.json')));
+            if ($url == 'https://apicert.sii.cl/recursos/v1/boleta.electronica') {
+                $config_file->$rut->be->cert->token = false;
+                $config_file->$rut->be->cert->token_timestamp = Carbon::now('America/Santiago')->timestamp;
+            }
+            else if ($url == 'https://api.sii.cl/recursos/v1/boleta.electronica') {
+                $config_file->$rut->be->prod->token = false;
+                $config_file->$rut->be->prod->token_timestamp = Carbon::now('America/Santiago')->timestamp;
+            }
+            $this->guardarConfigFile($config_file);
         }
-        else if ($url == 'https://api.sii.cl/recursos/v1/boleta.electronica') {
-            $config_file->$rut->be->prod->token = $token;
-            $config_file->$rut->be->prod->token_timestamp = Carbon::now('America/Santiago')->timestamp;
-        }
-        $this->guardarConfigFile($config_file);
     }
 
     protected function getToken($ambiente, FirmaElectronica $Firma): void
