@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\V1\ApiPasarelaController;
 use App\Models\Envio;
 use App\Http\Controllers\Api\V1\ApiBoletaController;
 use Carbon\Carbon;
+use Exception;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -39,13 +40,34 @@ class ProcessEnvioDteSii implements ShouldQueue
         $xml = base64_decode($this->arr['xml']);
         $caratula = $this->arr['caratula'];
 
-        // Set ambiente y obtener token
         if ($this->envio->tipo_dte == 39 || $this->envio->tipo_dte == 41) {
             $controller = new ApiBoletaController();
         } else {
             $controller = new ApiFacturaController();
         }
+
+        // Obtener Firma
+        list($cert_path, $Firma) = $controller->importarFirma($tmp_dir, base64_decode($this->arr['request']['firmab64']), base64_decode($this->arr['request']['pswb64']));
+        if (is_array($Firma)) {
+            throw new Exception($Firma['error']);
+        }
+
+        //  Obtener token y setear ambiente
+        try {
+            $controller->isToken($Firma->getID(), $Firma);
+        } catch (Exception $e) {
+            throw new Exception("No se pudo obtener Token SII. ". $e->getMessage());
+        }
         $controller->setAmbiente($this->envio->ambiente, $caratula['RutEnvia']);
+
+        // Verificar Token
+        if ($this->envio->tipo_dte == 39 || $this->envio->tipo_dte == 41) {
+            if (!$controller::$token_api || $controller::$token_api == '')
+                throw new Exception( "No existe Token BE");
+        } else {
+            if (!$controller::$token || $controller::$token == '')
+                throw new Exception("No existe Token");
+        }
 
         // enviar al SII
         list($envio_response, $filename) = $controller->enviar($xml, $caratula['RutEnvia'], $caratula['RutEmisor'], $this->envio->rut_receptor);

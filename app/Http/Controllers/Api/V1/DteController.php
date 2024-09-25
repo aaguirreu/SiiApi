@@ -35,8 +35,8 @@ class DteController extends Controller
     protected static string $url = '';
     protected static string $url_api = ''; // se utiliza solo en boleta electronica para consultas de estado
     protected static int $ambiente = 0; // 0 Producción, 1 Certificación
-    protected static string $token = '';
-    protected static string $token_api; // se utiliza solo en boleta electronica para consultas de estado
+    public static string $token = '';
+    public static string $token_api = ''; // se utiliza solo en boleta electronica para consultas de estado
 
     protected function actualizarFolios($id): void
     {
@@ -398,7 +398,7 @@ class DteController extends Controller
         $this->guardarConfigFile($config_file);
     }
 
-    protected function isToken($rut_envia, $Firma): void
+    public function isToken($rut_envia, $Firma): void
     {
         $rut_tokens = TokenSii::where('rut', $rut_envia)->first();
         if ($rut_tokens == null) {
