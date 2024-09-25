@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Response;
 use Illuminate\Support\Facades\Validator;
 use sasco\LibreDTE\Log;
+use sasco\LibreDTE\Sii;
 use sasco\LibreDTE\Sii\ConsumoFolio;
 use sasco\LibreDTE\Sii\Folios;
 use SimpleXMLElement;
@@ -118,7 +119,14 @@ class ApiPasarelaController extends PasarelaController
         //$this->isToken($rut_envia, $Firma);
 
         // Set ambiente
-        $this->setAmbiente($ambiente, $rut_envia);
+        //$this->setAmbiente($ambiente, $rut_envia);
+        if ($ambiente == "certificacion" || $ambiente == 1) {
+            Sii::setAmbiente(1);
+            self::$ambiente = 1;
+        } else if ($ambiente == "produccion" || $ambiente == 0) {
+            Sii::setAmbiente(0);
+            self::$ambiente = 0;
+        }
 
         // Extraer los valores de TipoDTE de cada documento
         $tipos_dte = array_map(function($documento) {
@@ -224,11 +232,11 @@ class ApiPasarelaController extends PasarelaController
         $envio_arr = [
             'caratula' => $caratula,
             'xml' => $base64_xml,
+            'request' => $dte
         ];
 
         // Agregar todos los datos si existe receptor
         if ($request->correo_receptor) {
-            $envio_arr['request'] = $dte;
             $envio_arr['request']['pdfb64'] = $pdfb64_arr;
 
             // Dispatch jobs en cadena para enviar a SII de manera asincrónica
