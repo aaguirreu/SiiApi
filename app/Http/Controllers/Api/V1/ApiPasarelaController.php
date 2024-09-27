@@ -1105,6 +1105,6 @@ class ApiPasarelaController extends PasarelaController
 
         return response()->json([
             'csv' => $csv,
-        ], 400);
+        ], 200);
     }
 }
