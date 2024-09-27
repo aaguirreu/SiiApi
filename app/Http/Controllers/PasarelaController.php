@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Mail;
 use sasco\LibreDTE\FirmaElectronica;
 use sasco\LibreDTE\Log;
 use sasco\LibreDTE\Sii\EnvioDte;
+use SebastianBergmann\Diff\Exception;
 use SimpleXMLElement;
 use Spatie\TemporaryDirectory\TemporaryDirectory;
 use Symfony\Component\DomCrawler\Crawler;
@@ -779,10 +780,14 @@ class PasarelaController extends DteController
             'allow_redirects' => true,
         ]);
 
-        $csv_data = $get_resumen->getBody()->getContents();
-        $csv_data = json_decode($csv_data);
-        if (!$csv_data->data || $csv_data == null)
+        try {
+            $csv_data = $get_resumen->getBody()->getContents();
+            $csv_data = json_decode($csv_data);
+            if (!$csv_data->data || $csv_data == null)
+                return false;
+        } catch (Exception $e) {
             return false;
+        }
         return $csv_data->data;
     }
 
@@ -837,10 +842,14 @@ class PasarelaController extends DteController
             'allow_redirects' => true,
         ]);
 
-        $csv_data = $get_detalle_export->getBody()->getContents();
-        $csv_data = json_decode($csv_data);
-        if (!$csv_data->data || $csv_data == null)
+        try {
+            $csv_data = $get_detalle_export->getBody()->getContents();
+            $csv_data = json_decode($csv_data);
+            if (!$csv_data->data || $csv_data == null)
+                return false;
+        } catch (Exception $e) {
             return false;
+        }
         return $csv_data->data;
     }
 

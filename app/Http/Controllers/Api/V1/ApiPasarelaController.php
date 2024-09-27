@@ -1038,7 +1038,7 @@ class ApiPasarelaController extends PasarelaController
             'categoria' => 'required|string|in:detalle,resumen,DETALLE,RESUMEN',
             'operacion' => 'required|string',
             'estado' => "nullable|in:registro,pendiente,no_incluir,reclamado,REGISTRO,PENDIENTE,NO_INCLUIR,RECLAMADO|string",
-            'periodo' => 'required|string',
+            'periodo' => 'required|regex:/^[0-9]{6}$/|string',
             'firmab64' => 'required|string',
             'pswb64' => 'required|string',
         ], [
@@ -1051,6 +1051,7 @@ class ApiPasarelaController extends PasarelaController
             'estado.in' => "No existe el estado '$request->estado'. Se espera 'registro', 'pendiente', 'no_incluir', 'reclamado'.",
             'estado.required' => 'Estado es requerido',
             'periodo.required' => 'Periodo es requerido',
+            'periodo.regex' => "El formato de 'periodo' es incorrecto. Se espera en formato AAAAMM.",
             'firmab64.required' => 'firmab64 es requerida',
             'pswb64.required' => 'pswb64 es requerida',
         ]);
