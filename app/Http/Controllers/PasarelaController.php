@@ -13,7 +13,6 @@ use Illuminate\Support\Facades\Mail;
 use sasco\LibreDTE\FirmaElectronica;
 use sasco\LibreDTE\Log;
 use sasco\LibreDTE\Sii\EnvioDte;
-use SebastianBergmann\Diff\Exception;
 use SimpleXMLElement;
 use Spatie\TemporaryDirectory\TemporaryDirectory;
 use Symfony\Component\DomCrawler\Crawler;
@@ -785,7 +784,7 @@ class PasarelaController extends DteController
             $csv_data = json_decode($csv_data);
             if (!$csv_data->data || $csv_data == null)
                 return false;
-        } catch (Exception $e) {
+        } catch (\Exception $e) {
             return false;
         }
         return $csv_data->data;
@@ -847,7 +846,7 @@ class PasarelaController extends DteController
             $csv_data = json_decode($csv_data);
             if (!$csv_data->data || $csv_data == null)
                 return false;
-        } catch (Exception $e) {
+        } catch (\Exception $e) {
             return false;
         }
         return $csv_data->data;
