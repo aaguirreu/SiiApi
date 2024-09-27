@@ -1029,12 +1029,81 @@ class ApiPasarelaController extends PasarelaController
         ], 200);
     }
 
-    public function base64(Request $request)
+    public function obtenerRegistroCompraVenta(Request $request)//: JsonResponse
     {
-        return base64_decode($request->getContent());
+        $validator = Validator::make($request->all(), [
+            'rut' => 'required|string',
+            'dv' => 'required|string',
+            //'tipo_dte' => 'required|integer',
+            'categoria' => 'required|string|in:detalle,resumen,DETALLE,RESUMEN',
+            'operacion' => 'required|string',
+            'estado' => "nullable|in:registro,pendiente,no_incluir,reclamado,REGISTRO,PENDIENTE,NO_INCLUIR,RECLAMADO|string",
+            'periodo' => 'required|string',
+            'firmab64' => 'required|string',
+            'pswb64' => 'required|string',
+        ], [
+            'rut.required' => 'Rut Emisor es requerido',
+            'dv.required' => 'Dv Emisor es requerido',
+            //'tipo_dte.required' => 'Tipo de Folio es requerido',
+            'categoria.required' => 'Categoria es requerido',
+            'categoria.in' => "No existe la categoría '$request->categoria'. Se espera 'resumen' o 'detalle'",
+            'operacion.required' => 'Operacion es requerido',
+            'estado.in' => "No existe el estado '$request->estado'. Se espera 'registro', 'pendiente', 'no_incluir', 'reclamado'.",
+            'estado.required' => 'Estado es requerido',
+            'periodo.required' => 'Periodo es requerido',
+            'firmab64.required' => 'firmab64 es requerida',
+            'pswb64.required' => 'pswb64 es requerida',
+        ]);
+        if ($validator->fails()) {
+            return response()->json([
+                'error' => $validator->errors()->all(),
+            ], 400);
+        }
 
-        /*return response()->json([
-            'base64' => base64_encode($request->getContent())
-        ], 200);*/
+        if (strtoupper($request->operacion) == 'COMPRA') {
+            $validator = Validator::make($request->all(), [
+                'estado' => "required|in:registro,pendiente,no_incluir,reclamado,REGISTRO,PENDIENTE,NO_INCLUIR,RECLAMADO|string",
+            ], [
+                'estado.required' => "Estado es requerido para operación 'compra'. Se espera 'registro', 'pendiente', 'no_incluir', 'reclamado'.",
+            ]);
+            if ($validator->fails()) {
+                return response()->json([
+                    'error' => $validator->errors()->all(),
+                ], 400);
+            }
+        } else if (strtoupper($request->operacion) == 'VENTA') {
+            $validator = Validator::make($request->all(), [
+                'estado' => "required|in:registro,REGISTRO|string",
+            ], [
+                'estado.required' => "Estado es requerido para operación 'venta'. Se espera 'registro'.",
+                'estado.in' => "No existe el estado '$request->estado para operación 'venta'. Se espera 'registro'.",
+            ]);
+            if ($validator->fails()) {
+                return response()->json([
+                    'error' => $validator->errors()->all(),
+                ], 400);
+            }
+        }
+
+        // Obtener firma
+        list($cert_path, $Firma) = $this->importarFirma($tmp_dir, base64_decode($request->firmab64), base64_decode($request->pswb64));
+        if (is_array($Firma)) {
+            return response()->json([
+                'error' => $Firma['error'],
+            ], 400);
+        }
+
+        // Llamar a función obtenerResumenCompraVenta o obtenerDetalleCompraVenta
+        $metodo = "obtener".ucfirst(strtolower($request->categoria))."CompraVenta";
+        $csv = $this->$metodo($cert_path, base64_decode($request->pswb64), $request->rut, $request->dv, $request->tipo_dte, strtoupper($request->estado), strtoupper($request->operacion), $request->periodo);
+        if (!$csv) {
+            return response()->json([
+                'error' => 'No se pudo obtener csv',
+            ], 400);
+        }
+
+        return response()->json([
+            'csv' => $csv,
+        ], 400);
     }
 }

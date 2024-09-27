@@ -452,8 +452,8 @@ class DteController extends Controller
                 return $item['tipo_dte'] === self::$tipo_dte && $item['ambiente'] === self::$ambiente;
             });
 
-            var_dump($token_arr);
-            /*
+            var_dump($tokens);
+
             foreach ($tokens as &$token) {
                 if ($token['token'] === '' || !$token['token'] || !$token['token_timestamp']) {
                     if ($token['tipo_dte'] === 'dte' && $token['ambiente'] === 'cert') {
@@ -479,7 +479,7 @@ class DteController extends Controller
                         }
                     }
                 }
-            }*/
+            }
 
             $rut_tokens->tokens = $tokens;
             $rut_tokens->save();
