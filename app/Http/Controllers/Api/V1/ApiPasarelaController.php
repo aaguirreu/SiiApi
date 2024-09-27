@@ -1035,7 +1035,7 @@ class ApiPasarelaController extends PasarelaController
             'rut' => 'required|string',
             'dv' => 'required|string',
             //'tipo_dte' => 'required|integer',
-            'categoria' => 'required|string|in:detalle,resumen,DETALLE,RESUMEN',
+            'tipo' => 'required|string|in:detalle,resumen,DETALLE,RESUMEN',
             'operacion' => 'required|string',
             'estado' => "nullable|in:registro,pendiente,no_incluir,reclamado,REGISTRO,PENDIENTE,NO_INCLUIR,RECLAMADO|string",
             'periodo' => 'required|regex:/^[0-9]{6}$/|string',
@@ -1045,8 +1045,8 @@ class ApiPasarelaController extends PasarelaController
             'rut.required' => 'Rut Emisor es requerido',
             'dv.required' => 'Dv Emisor es requerido',
             //'tipo_dte.required' => 'Tipo de Folio es requerido',
-            'categoria.required' => 'Categoria es requerido',
-            'categoria.in' => "No existe la categoría '$request->categoria'. Se espera 'resumen' o 'detalle'",
+            'tipo.required' => 'Tipo es requerido',
+            'tipo.in' => "No existe el tipo '$request->tipo'. Se espera 'resumen' o 'detalle'",
             'operacion.required' => 'Operacion es requerido',
             'estado.in' => "No existe el estado '$request->estado'. Se espera 'registro', 'pendiente', 'no_incluir', 'reclamado'.",
             'estado.required' => 'Estado es requerido',
@@ -1095,7 +1095,7 @@ class ApiPasarelaController extends PasarelaController
         }
 
         // Llamar a función obtenerResumenCompraVenta o obtenerDetalleCompraVenta
-        $metodo = "obtener".ucfirst(strtolower($request->categoria))."CompraVenta";
+        $metodo = "obtener".ucfirst(strtolower($request->tipo))."CompraVenta";
         $csv = $this->$metodo($cert_path, base64_decode($request->pswb64), $request->rut, $request->dv, $request->tipo_dte, strtoupper($request->estado), strtoupper($request->operacion), $request->periodo);
         if (!$csv) {
             return response()->json([
