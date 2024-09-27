@@ -511,9 +511,9 @@ class ApiPasarelaController extends PasarelaController
                  * @var Attachment $dte
                  */
                 foreach ($dte_arr as $key => $dte) {
-                    if (isset($pdf_arr[0]))
+                    if (isset($pdf_arr[0])){
                         $pdfb64 = base64_encode($pdf_arr[0]->getContent());
-                    else {
+                    } else {
                         $pdfb64_arr = $this->xmlPdf($dte->getContent());
                     }
                     // Quitar firmas a adjuntos
@@ -527,6 +527,7 @@ class ApiPasarelaController extends PasarelaController
                         "pdfb64" => array_shift($pdfb64_arr),
                         "content" => $attachments[$key]['content'],
                     ];
+                    //file_put_contents(base_path()."/pdf_$message->uid.pdf", base64_decode($pdfb64));
                 }
 
                 try {
@@ -535,6 +536,7 @@ class ApiPasarelaController extends PasarelaController
                     $copy->setFlag('Seen');
                     $message->delete(false);
                 } catch (Exception $e) {
+                    //$copy->delete();
                     return response()->json([
                         'error' => $e->getMessage()
                     ], 401);
