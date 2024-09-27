@@ -643,7 +643,6 @@ class PasarelaController extends DteController
             if($observaciones)
                 $dte['Observaciones'] = $observaciones;
             $pdf->agregar($dte, $DTE->getTED());
-            //file_put_contents(base_path()."/pdf.pdf", $pdf->getPDFData());
             $nombre = "{$Caratula['RutEmisor']}.{$dte['Encabezado']['IdDoc']['TipoDTE']}.{$dte['Encabezado']['IdDoc']['Folio']}";
             if($copia_cedible) {
                 for ($i = 0; $i < $copia_cedible; $i++){
@@ -664,6 +663,7 @@ class PasarelaController extends DteController
                 else if($continuo == 57)
                     $pdf->agregarTickets($tickets, 2, 190, $continuo);
             }
+            //file_put_contents(base_path()."/pdf.pdf", $pdf->getPDFData());
             $pdfb64_arr[$nombre] = chunk_split(base64_encode($pdf->getPDFData()));
         }
 

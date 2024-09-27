@@ -512,24 +512,23 @@ class ApiPasarelaController extends PasarelaController
                  */
                 foreach ($dte_arr as $key => $dte) {
                     // Quitar firmas a adjuntos
-
                     $correos[] = [
                         "uid" => $message->uid,
                         "from" => $message->from[0]->mail,
                         "subject" => mb_decode_mimeheader($message->subject),
                         "date" => $message->date->get(),
                         "xmlb64" => base64_encode($dte->getContent()),
-                        "pdfb64" => isset($pdf_arr[0]) ? base64_encode($pdf_arr[0]->getContent()) : "",
+                        "pdfb64" => isset($pdf_arr[0]) ? base64_encode($pdf_arr[0]->getContent()) : $this->xmlPdf($dte->getContent()),
                         "content" => $attachments[$key]['content'],
                     ];
                 }
 
                 try {
                     // Mover correos a dte_IN_procesados
-                    $message->setFlag('Seen');
-                    $message->copy($procesados_folder->path);
+                    $copy = $message->copy($procesados_folder->path);
                     $message->delete(false);
-                } catch (Exception $e){
+                    $copy->setFlag('Seen');
+                } catch (Exception $e) {
                     return response()->json([
                         'error' => $e->getMessage()
                     ], 401);
