@@ -730,4 +730,128 @@ class PasarelaController extends DteController
 
         return $arr;
     }
+
+    protected function obtenerResumenCompraVenta($pfx_path, $password, $rut_emp, $dv_emp, $tipo_folio, $estado, $operacion, $periodo)
+    {
+        $jar = new \GuzzleHttp\Cookie\CookieJar;
+        $client = new Client(array(
+            'cookies' => $jar,
+            'debug' => fopen('php://stderr', 'w'),
+        ));
+
+        try {
+            $r = $client->request('POST', 'https://herculesr.sii.cl/cgi_AUT2000/CAutInicio.cgi?https://misiir.sii.cl/cgi_misii/siihome.cgi', [
+                //'headers' => $header,
+                'form_params' => [
+                    'referencia' => urlencode('https://misiir.sii.cl/cgi_misii/siihome.cgi'),
+                ],
+                'curl' => [
+                    CURLOPT_SSLCERTTYPE => 'P12',
+                    CURLOPT_SSLCERT => $pfx_path,
+                    CURLOPT_SSLCERTPASSWD => $password,
+                ],
+                'allow_redirects' => true,
+            ]);
+        } catch (GuzzleException $e) {
+            Log::write(401, ["Error al autenticarse con el SII.", $e->getMessage(), $e->getTraceAsString()]);
+            return false;
+        }
+
+        $cookie = $jar->getCookieByName('CSESSIONID');
+        $get_resumen = $client->request('POST', "https://www4.sii.cl/consdcvinternetui/services/data/facadeService/getResumenExport", [
+            'json' => [
+                'data' => [
+                    'busquedaInicial' => true,
+                    'dvEmisor' => $dv_emp,
+                    'estadoContab' => $estado,
+                    'operacion' => $operacion,
+                    'ptributario' => $periodo,
+                    'rutEmisor' => $rut_emp,
+                    ],
+                'metaData' => [
+                    'conversationId' => $cookie->getValue(),
+                    'namespace' => 'cl.sii.sdi.lob.diii.consdcv.data.api.interfaces.FacadeService/getResumenExport',
+                    'page' => null,
+                    'transactionId' => $this->generate_uuid_v4()
+                ]
+            ],
+            'verify' => false,
+            'allow_redirects' => true,
+        ]);
+
+        $csv_data = $get_resumen->getBody()->getContents();
+        $csv_data = json_decode($csv_data);
+        if (!$csv_data->data || $csv_data == null)
+            return false;
+        return $csv_data->data;
+    }
+
+    protected function obtenerDetalleCompraVenta($pfx_path, $password, $rut_emp, $dv_emp, $tipo_folio, $estado, $operacion, $periodo)
+    {
+        $jar = new \GuzzleHttp\Cookie\CookieJar;
+        $client = new Client(array(
+            'cookies' => $jar,
+            'debug' => fopen('php://stderr', 'w'),
+        ));
+
+        try {
+            $r = $client->request('POST', 'https://herculesr.sii.cl/cgi_AUT2000/CAutInicio.cgi?https://misiir.sii.cl/cgi_misii/siihome.cgi', [
+                //'headers' => $header,
+                'form_params' => [
+                    'referencia' => urlencode('https://misiir.sii.cl/cgi_misii/siihome.cgi'),
+                ],
+                'curl' => [
+                    CURLOPT_SSLCERTTYPE => 'P12',
+                    CURLOPT_SSLCERT => $pfx_path,
+                    CURLOPT_SSLCERTPASSWD => $password,
+                ],
+                'allow_redirects' => true,
+            ]);
+        } catch (GuzzleException $e) {
+            Log::write(401, ["Error al autenticarse con el SII.", $e->getMessage(), $e->getTraceAsString()]);
+            return false;
+        }
+
+        $cookie = $jar->getCookieByName('CSESSIONID');
+        $tipo_folio ?: $tipo_folio = 0;
+        if (strtoupper($operacion) == 'VENTA')
+            $estado = '';
+        $get_detalle_export = $client->request('POST', "https://www4.sii.cl/consdcvinternetui/services/data/facadeService/getDetalle".ucfirst(strtolower($operacion))."Export", [
+            'json' => [
+                'data' => [
+                    'codTipoDoc' => $tipo_folio,
+                    'dvEmisor' => $dv_emp,
+                    'estadoContab' => $estado,
+                    'operacion' => $operacion,
+                    'ptributario' => $periodo,
+                    'rutEmisor' => $rut_emp,
+                ],
+                'metaData' => [
+                    'conversationId' => $cookie->getValue(),
+                    'namespace' => "cl.sii.sdi.lob.diii.consdcv.data.api.interfaces.FacadeService/getDetalle".ucfirst(strtolower($operacion))."Export",
+                    'page' => null,
+                    'transactionId' => $this->generate_uuid_v4()
+                ]
+            ],
+            'verify' => false,
+            'allow_redirects' => true,
+        ]);
+
+        $csv_data = $get_detalle_export->getBody()->getContents();
+        $csv_data = json_decode($csv_data);
+        if (!$csv_data->data || $csv_data == null)
+            return false;
+        return $csv_data->data;
+    }
+
+    function generate_uuid_v4() {
+        $data = openssl_random_pseudo_bytes(16);
+        // Establece los bits de la versión a 0100 (versión 4)
+        $data[6] = chr(ord($data[6]) & 0x0f | 0x40);
+        // Establece los bits más significativos a 10
+        $data[8] = chr(ord($data[8]) & 0x3f | 0x80);
+
+        // Devuelve el UUID en el formato estándar
+        return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
+    }
 }
