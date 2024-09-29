@@ -516,6 +516,7 @@ class ApiPasarelaController extends PasarelaController
                     } else {
                         $pdfb64_arr = $this->xmlPdf($dte->getContent());
                         $pdfb64 = array_shift($pdfb64_arr);
+                        $pdfb64 = str_replace(array("\r", "\n"), '', $pdfb64);
                     }
                     // Quitar firmas a adjuntos
                     $correos[] = [
