@@ -515,6 +515,8 @@ class ApiPasarelaController extends PasarelaController
                         $pdfb64 = base64_encode($pdf_arr[0]->getContent());
                     } else {
                         $pdfb64_arr = $this->xmlPdf($dte->getContent());
+                        $pdfb64 = array_shift($pdfb64_arr);
+                        $pdfb64 = str_replace(array("\r", "\n"), '', $pdfb64);
                     }
                     // Quitar firmas a adjuntos
                     $correos[] = [
@@ -524,7 +526,7 @@ class ApiPasarelaController extends PasarelaController
                         "date" => $message->date->get(),
                         "xmlb64" => base64_encode($dte->getContent()),
                         //"pdfb64" => isset($pdf_arr[0]) ? base64_encode($pdf_arr[0]->getContent()) : '',
-                        "pdfb64" => array_shift($pdfb64_arr),
+                        "pdfb64" => $pdfb64,
                         "content" => $attachments[$key]['content'],
                     ];
                     //file_put_contents(base_path()."/pdf_$message->uid.pdf", base64_decode($pdfb64));
