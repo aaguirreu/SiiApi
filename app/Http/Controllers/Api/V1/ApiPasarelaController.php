@@ -20,6 +20,8 @@ use Illuminate\Support\Facades\Validator;
 use sasco\LibreDTE\Log;
 use sasco\LibreDTE\Sii;
 use sasco\LibreDTE\Sii\ConsumoFolio;
+use sasco\LibreDTE\Sii\Dte;
+use sasco\LibreDTE\Sii\EnvioDte;
 use sasco\LibreDTE\Sii\Folios;
 use SimpleXMLElement;
 use Webklex\PHPIMAP\Attachment;
@@ -1114,6 +1116,151 @@ class ApiPasarelaController extends PasarelaController
 
         return response()->json([
             'csv' => $csv,
+        ], 200);
+    }
+
+    public function generarXmlPdf(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'Caratula' => 'required',
+            'Documentos' => 'required|array',
+            'Documentos.*.Encabezado.IdDoc.TipoDTE' => 'required|integer',
+            'Documentos.*.Encabezado.IdDoc.Folio' => 'required|integer',
+            'Cafs' => 'required|array',
+            'firmab64' => 'required|string',
+            'pswb64' => 'required|string',
+        ], [
+            'Caratula.required' => 'Caratula es requerida',
+            'Documentos.required' => 'Documentos es requerido',
+            'Documentos.*.Encabezado.IdDoc.TipoDTE.required' => 'TipoDTE es requerido',
+            'Documentos.*.Encabezado.IdDoc.TipoDTE.integer' => 'TipoDTE debe ser un número entero',
+            'Documentos.*.Encabezado.IdDoc.Folio.integer' => 'Folio debe ser un número entero',
+            'Documentos.*.Encabezado.IdDoc.Folio.required' => 'Folio es requerido',
+            'Cafs.required' => 'Cafs es requerido',
+            'Cafs.array' => 'Cafs debe ser un arreglo',
+            'firmab64.required' => 'firmab64 es requerida',
+            'pswb64.required' => 'pswb64 es requerida',
+        ]);
+
+        // Si falla la validación, retorna una respuesta Json con el error
+        if ($validator->fails()) {
+            return response()->json([
+                'error' => $validator->errors()->all(),
+            ], 400);
+        }
+
+        // Obtener json
+        $dte = $request->json()->all();
+
+        // Obtener firma
+        list($cert_path, $Firma) = $this->importarFirma($tmp_dir, base64_decode($request->firmab64), base64_decode($request->pswb64));
+        if (is_array($Firma)) {
+            return response()->json([
+                'error' => $Firma['error'],
+            ], 400);
+        }
+
+        /*
+        $tipo_dte = $dte['Documentos'][0]['Encabezado']['IdDoc']['TipoDTE'];
+        $folio = $dte['Documentos'][0]['Encabezado']['IdDoc']['Folio'];
+
+        // Crear fake Caf a partir de Folios
+        $rut = $dte['Documentos'][0]['Encabezado']['Emisor']['RUTEmisor'];
+        $razon_social = $dte['Documentos'][0]['Encabezado']['Emisor']['RUTEmisor'];
+        $fecha_emision = $dte['Documentos'][0]['Encabezado']['IdDoc']['FchEmis'];
+
+        // Generar fake caf (por arreglar)
+        $caf = $this->generarFakeCaf($rut, $razon_social, $tipo_dte, $folio, $fecha_emision, $dte['Cafs'][0], $Firma, $cert_path);
+        if (!$caf)
+            return response()->json([
+                'error' => "No se pudo generar Fake Caf",
+            ], 400);
+
+        $caf_arr = [
+            base64_encode($caf)
+        ];*/
+
+        // Extraer los valores de TipoDTE de cada documento
+        $tipos_dte = array_map(function($documento) {
+            return $documento['Encabezado']['IdDoc']['TipoDTE'];
+        }, $dte['Documentos']);
+
+        // Extraer los Caf como Objetos Folios
+        $Folios = array_reduce($dte['Cafs'], function ($carry, $caf) {
+            $caf = base64_decode($caf);
+            $folio = new Folios($caf);
+            $carry[$folio->getTipo()] = $folio;
+            return $carry;
+        }, []);
+
+        // Verificar que los CAFs sean válidos
+        foreach ($Folios as $Folio) {
+            /** @var Folios $Folio */
+            if (!$Folio->check()) {
+                return response()->json([
+                    'error' => ["Error al leer CAF", Log::read()],
+                ], 400);
+            }
+        }
+
+        // Extraer los valores de TD cada elemento en Cafs
+        $tipos_cafs = array_map(function($caf) {
+            return $caf->getTipo();
+        }, $Folios);
+
+        // Encontrar los tipoDTE que no traen su CAF correspondiente
+        $tipos_dte_diff = array_diff($tipos_dte, $tipos_cafs);
+
+        // Si un documento no tiene CAF, retorna error
+        foreach ($tipos_dte_diff as $tipo_dte) {
+            return response()->json([
+                'error' => "No hay coincidencia para TipoDTE = $tipo_dte en los CAFs obtenidos"
+            ], 400);
+        }
+
+        // generar cada DTE, timbrar, firmar y agregar al envío
+
+        $caratula = $this->obtenerCaratula(json_decode(json_encode($dte)), $dte['Documentos'], $Firma);
+
+        //Obtener folio utilizable según CAF y reemplazarlo en json
+        $folio = $dte['Documentos'][0]['Encabezado']['IdDoc']['Folio'];
+        $dte['Documentos'][0]['Encabezado']['IdDoc']['Folio'] = $Folios[$dte['Documentos'][0]['Encabezado']['IdDoc']['TipoDTE']]->getDesde();
+
+        $documentos = $dte['Documentos'];
+        $dte_xml = $this->generarEnvioDteXml($documentos, $Firma, $Folios, $caratula);
+        if(is_array($dte_xml) || !$dte_xml) {
+            return response()->json([
+                'error' => "Error al generar el XML",
+                'message' => $dte_xml,
+            ], 400);
+        }
+
+        // Reemplazar por nro folio dado
+        $dte_xml = new SimpleXMLElement($dte_xml);
+        $dte_xml->children()->SetDTE->DTE->Documento[0]->Encabezado->IdDoc->Folio = $folio;
+        $dte_xml = $dte_xml->asXML();
+        // Generar PDF
+        $base64_xml = base64_encode($dte_xml);
+
+        // Asigna true si es 'H' False caso contrario
+        $continuo = $request->formato_impresion == 'T';
+        if(in_array($request->formato_impresion, array(0, 57, 70, 75, 77, 80, 110)))
+            $continuo = $request->formato_impresion;
+
+        // Llama a la función xmlPdf con los argumentos claros
+        $pdfb64_arr = $this->xmlPdf($dte_xml, $continuo, $request->logob64, $request->observaciones, $request->cedible, $request->copia_cedible, $request->footer, $request->tickets);
+
+        // Si hubo un error retornar error
+        if (!$pdfb64_arr) {
+            Log::write("No se pudo generar PDF");
+            return response()->json([
+                'error' => Log::read(),
+            ], 400);
+        }
+
+        return response()->json([
+            'dte_xml' => $base64_xml,
+            'pdfb64' => $pdfb64_arr,
         ], 200);
     }
 }

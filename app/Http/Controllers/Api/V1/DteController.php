@@ -995,4 +995,60 @@ class DteController extends Controller
 
         return [$cert_path, $Firma];
     }
+
+    /**
+     * @param $rut
+     * @param $razon_social
+     * @param $tipo_dte
+     * @param $folio
+     * @param $fecha_emision
+     * @param FirmaElectronica $Firma
+     * @return bool|string
+     */
+    public function generarFakeCaf($rut, $razon_social, $tipo_dte, $folio, $fecha_emision, $cafb64, FirmaElectronica $Firma, $cert_path)
+    {
+        // Generar CAF XML
+        try {
+            $caf_content = base64_decode($cafb64);
+            $xml = new SimpleXMLElement($caf_content);
+
+            // Modificar RUT, RznSocial, Tipo, Folio y FchEmis
+            //$xml->CAF->DA->RE = $rut;
+            //$xml->CAF->DA->RS = $razon_social;
+            $xml->CAF->DA->TD = $tipo_dte;
+            $xml->CAF->DA->RNG->D = $folio-1;
+            $xml->CAF->DA->RNG->H = $folio+1;
+            //$xml->CAF->DA->FA = $fecha_emision;
+        } catch (Exception $e) {
+            return false;
+        }
+
+        // Regenerar la firma con los nuevos datos
+        $this->regenerarFirma($xml, $Firma, $cert_path);
+
+        // Retornar el XML como respuesta
+        return $xml->asXML();
+    }
+
+    public function regenerarFirma($caf_xml, FirmaElectronica $Firma, $cert_path)
+    {
+        // Obtener los datos a firmar (el contenido bajo /AUTORIZACION/CAF/DA)
+        //$datos_a_firmar = $caf_xml->CAF->DA->asXML();
+        $xml = new XML();
+        $xml->loadXML($caf_xml);
+        $datos_a_firmar = $xml->getFlattened('/AUTORIZACION/CAF/DA');
+
+        // Cargar la clave privada
+        $private_key = $Firma->getPrivateKey();
+
+        if (!$private_key) {
+            throw new \Exception("Error al cargar la clave privada.");
+        }
+
+        // Firmar los datos
+        openssl_sign($datos_a_firmar, $firma, $private_key, OPENSSL_ALGO_SHA1);
+
+        // Convertir la firma en Base64 y asignarla al XML
+        $caf_xml->CAF->FRMA = base64_encode($firma);
+    }
 }
