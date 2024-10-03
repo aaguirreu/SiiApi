@@ -1235,9 +1235,25 @@ class ApiPasarelaController extends PasarelaController
             ], 400);
         }
 
-        // Reemplazar por nro folio dado
+        // Reemplazar por nro folio y totales dados
         $dte_xml = new SimpleXMLElement($dte_xml);
         $dte_xml->children()->SetDTE->DTE->Documento[0]->Encabezado->IdDoc->Folio = $folio;
+        if (isset($dte['Documentos'][0]['Encabezado']['Totales']['MntNeto'])) {
+            $dte_xml->children()->SetDTE->DTE->Documento[0]->Encabezado->Totales->MntNeto = $dte['Documentos'][0]['Encabezado']['Totales']['MntNeto'];
+        }
+        if (isset($dte['Documentos'][0]['Encabezado']['Totales']['MntExe'])) {
+            $dte_xml->children()->SetDTE->DTE->Documento[0]->Encabezado->Totales->MntExe = $dte['Documentos'][0]['Encabezado']['Totales']['MntExe'];
+        }
+        if (isset($dte['Documentos'][0]['Encabezado']['Totales']['IVA'])) {
+            $dte_xml->children()->SetDTE->DTE->Documento[0]->Encabezado->Totales->IVA = $dte['Documentos'][0]['Encabezado']['Totales']['IVA'];
+        }
+        if (isset($dte['Documentos'][0]['Encabezado']['Totales']['TasaIVA'])) {
+            $dte_xml->children()->SetDTE->DTE->Documento[0]->Encabezado->Totales->TasaIVA = $dte['Documentos'][0]['Encabezado']['Totales']['TasaIVA'];
+        }
+        if (isset($dte['Documentos'][0]['Encabezado']['Totales']['MntTotal'])) {
+            $dte_xml->children()->SetDTE->DTE->Documento[0]->Encabezado->Totales->MntTotal = $dte['Documentos'][0]['Encabezado']['Totales']['MntTotal'];
+        }
+
         $dte_xml = $dte_xml->asXML();
         // Generar PDF
         $base64_xml = base64_encode($dte_xml);
