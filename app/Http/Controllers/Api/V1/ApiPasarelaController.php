@@ -1257,10 +1257,12 @@ class ApiPasarelaController extends PasarelaController
                 'error' => Log::read(),
             ], 400);
         }
+        $pdfb64 = array_shift($pdfb64_arr);
+        $pdfb64 = str_replace(array("\r", "\n"), '', $pdfb64);
 
         return response()->json([
-            'dte_xml' => $base64_xml,
-            'pdfb64' => $pdfb64_arr,
+            'xmlb64' => $base64_xml,
+            'pdfb64' => $pdfb64,
         ], 200);
     }
 }
