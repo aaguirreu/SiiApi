@@ -503,24 +503,15 @@ class PasarelaController extends DteController
     /**
      * Generar DTE de respuesta sobre la aceptación o rechazo de un dte
      */
-    protected function generarRespuestaDocumento($estado, $glosa, $dte_xml, $rut_receptor_esperado, $Firma)
+    protected function generarRespuestaDocumento($estado, $glosa, $request, $Firma)
     {
         $this->timestamp = Carbon::now('America/Santiago');
-
-        // Cargar EnvioDTE y extraer arreglo con datos de carátula y DTEs
-        $EnvioDte = new \sasco\LibreDTE\Sii\EnvioDte();
-        $EnvioDte->loadXML($dte_xml);
-        $caratula = $EnvioDte->getCaratula();
-        $Documentos = $EnvioDte->getDocumentos();
-
         $id_respuesta = 1; // se debe administrar
         $cod_envio = 1; // Secuencia de envío, se debe administrar
 
-        // caratula
-        $rut_emisor_esperado = $EnvioDte->getEmisor();
         $caratula_respuesta = [
-            'RutResponde' => $rut_receptor_esperado,
-            'RutRecibe' => $rut_emisor_esperado,
+            'RutResponde' => $request->rut_receptor,
+            'RutRecibe' => $request->rut_emisor,
             'IdRespuesta' => $id_respuesta,
             //'NmbContacto' => '',
             //'MailContacto' => '',
@@ -530,19 +521,17 @@ class PasarelaController extends DteController
         $RespuestaEnvio = new \sasco\LibreDTE\Sii\RespuestaEnvio();
 
         // procesar cada DTE
-        foreach ($Documentos as $DTE) {
-            $RespuestaEnvio->agregarRespuestaDocumento([
-                'TipoDTE' => $DTE->getTipo(),
-                'Folio' => $DTE->getFolio(),
-                'FchEmis' => $DTE->getFechaEmision(),
-                'RUTEmisor' => $DTE->getEmisor(),
-                'RUTRecep' => $DTE->getReceptor(),
-                'MntTotal' => $DTE->getMontoTotal(),
-                'CodEnvio' => $cod_envio, // Secuencia de envío
-                'EstadoDTE' => $estado,
-                'EstadoDTEGlosa' => \sasco\LibreDTE\Sii\RespuestaEnvio::$estados['respuesta_documento'][$estado].$glosa,
-            ]);
-        }
+        $RespuestaEnvio->agregarRespuestaDocumento([
+            'TipoDTE' => $request->tipo_dte,
+            'Folio' => $request->folio,
+            'FchEmis' => $request->fecha_emision,
+            'RUTEmisor' => $request->rut_emisor,
+            'RUTRecep' => $request->rut_receptor,
+            'MntTotal' => $request->monto_total,
+            'CodEnvio' => $cod_envio, // Secuencia de envío
+            'EstadoDTE' => $estado,
+            'EstadoDTEGlosa' => \sasco\LibreDTE\Sii\RespuestaEnvio::$estados['respuesta_documento'][$estado].$glosa,
+        ]);
 
         // asignar carátula y Firma
         $RespuestaEnvio->setCaratula($caratula_respuesta);
