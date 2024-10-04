@@ -565,11 +565,13 @@ class ApiPasarelaController extends PasarelaController
     {
         $validator = Validator::make($request->all(), [
             'rut_receptor' => 'required|string',
-            'dte_xml' => 'required|string',
+            'rut_emisor' => 'required|string',
             'estado' => 'required|integer',
             'accion_doc' => 'required|string',
-            'firmab64' => 'required|string',
-            'pswb64' => 'required|string',
+            'tipo_dte' => 'required|integer',
+            'folio' => 'required|integer',
+            'fecha_emision' => 'required|string',
+            'monto_total' => 'required|string',
         ], [
             'rut_receptor.required' => 'rut_receptor es requerido',
             'dte_xml.required' => 'dte_xml es requerido',
@@ -643,16 +645,6 @@ class ApiPasarelaController extends PasarelaController
             ], 400);
         }
 
-        try {
-            $xml = new SimpleXMLElement(base64_decode($request->dte_xml));
-            $tipo_dte =$xml->children()->SetDTE->DTE->Documento[0]->Encabezado->IdDoc->TipoDTE;
-            $folio = $xml->children()->SetDTE->DTE->Documento[0]->Encabezado->IdDoc->Folio;
-        } catch (Exception $e) {
-            return response()->json([
-                'error' => $e->getMessage(),
-            ], 400);
-        }
-
         // Envío de respuesta de documento a SII
         list($rut_emisor, $dv_emisor) = explode('-', str_replace('.', '', $request->rut_receptor));
         try {
@@ -662,7 +654,7 @@ class ApiPasarelaController extends PasarelaController
                 'error' => $e->getMessage(),
             ], 400);
         }
-        $response = $respuesta_doc->ingresarAceptacionReclamoDoc($rut_emisor, $dv_emisor, $tipo_dte, $folio, $request->accion_doc);
+        $response = $respuesta_doc->ingresarAceptacionReclamoDoc($rut_emisor, $dv_emisor, $request->tipo_dte, $request->folio, $request->accion_doc);
         if($response['codigo'] != 0) {
             return response()->json([
                 'codigo' => $response['codigo'],
@@ -673,7 +665,7 @@ class ApiPasarelaController extends PasarelaController
         // Envío de respuesta de documento a emisor
         // Obtener respuesta de documento
         if($request->correo_receptor) {
-            $xml_respuesta = $this->generarRespuestaDocumento((int)$request->estado, $glosa, base64_decode($request->dte_xml), $request->rut_receptor, $Firma);
+            $xml_respuesta = $this->generarRespuestaDocumento((int)$request->estado, $glosa, $request, $Firma);
             if (!$xml_respuesta) {
                 return response()->json([
                     'error' => Log::read()->msg,
@@ -682,7 +674,7 @@ class ApiPasarelaController extends PasarelaController
 
             // Enviar respuesta por correo
             $respuesta = [
-                'filename' => "RespuestaDTE_{$request->rut_receptor}_T{$tipo_dte}F{$folio}.xml",
+                'filename' => "RespuestaDTE_{$request->rut_receptor}_T{$request->tipo_dte}F{$request->folio}.xml",
                 'data' => $xml_respuesta
             ];
 
@@ -695,8 +687,7 @@ class ApiPasarelaController extends PasarelaController
                 Config::set('mail.mailers.smtp.password', base64_decode($request['password']));
                 Config::set('mail.from.address', $request['mail']);
                 Config::set('mail.from.name', env('APP_NAME', 'Logiciel ApiFact'));
-
-                Mail::to($request->correo_receptor)->send(new DteResponse($xml->children()->SetDTE->DTE->Documento[0]->Encabezado->Receptor->RznSocRecep, $respuesta));
+                Mail::to($request->correo_receptor)->send(new DteResponse("Receptor: $request->rut_receptor Tipo DTE: $request->tipo_dte Folio: $request->folio", $respuesta));
             } catch (\Exception $e) {
                 return response()->json([
                     'error' => $e->getMessage()
