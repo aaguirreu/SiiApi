@@ -639,7 +639,7 @@ class ApiPasarelaController extends PasarelaController
             default => false,
         };
 
-        if (!$glosa){
+        if (!$glosa) {
             return response()->json([
                 'error' => "estado no válido",
             ], 400);
@@ -1110,7 +1110,7 @@ class ApiPasarelaController extends PasarelaController
         ], 200);
     }
 
-    public function generarXmlPdf(Request $request): JsonResponse
+    public function generarFakePDF(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'Caratula' => 'required',
@@ -1255,7 +1255,7 @@ class ApiPasarelaController extends PasarelaController
             $continuo = $request->formato_impresion;
 
         // Llama a la función xmlPdf con los argumentos claros
-        $pdfb64_arr = $this->xmlPdf($dte_xml, $continuo, $request->logob64, $request->observaciones, $request->cedible, $request->copia_cedible, $request->footer, $request->tickets);
+        $pdfb64_arr = $this->xmlFakePdf($dte_xml, $continuo, $request->logob64, $request->observaciones, $request->cedible, $request->copia_cedible, $request->footer, $request->tickets);
 
         // Si hubo un error retornar error
         if (!$pdfb64_arr) {
@@ -1268,7 +1268,7 @@ class ApiPasarelaController extends PasarelaController
         $pdfb64 = str_replace(array("\r", "\n"), '', $pdfb64);
 
         return response()->json([
-            'xmlb64' => $base64_xml,
+            //'xmlb64' => $base64_xml,
             'pdfb64' => $pdfb64,
         ], 200);
     }
