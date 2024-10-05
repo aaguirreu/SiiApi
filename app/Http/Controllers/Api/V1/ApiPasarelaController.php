@@ -1031,7 +1031,7 @@ class ApiPasarelaController extends PasarelaController
         ], 200);
     }
 
-    public function obtenerRegistroCompraVenta(Request $request)//: JsonResponse
+    public function obtenerRegistroCompraVenta(Request $request, $ambiente)//: JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'rut' => 'required|string',
@@ -1088,6 +1088,14 @@ class ApiPasarelaController extends PasarelaController
             }
         }
 
+        if ($ambiente == "certificacion")
+            $ambiente = 'c';
+        else if ($ambiente == "produccion")
+            $ambiente = '';
+        else return response()->json([
+            'error' => "Ambiente inválido. Se espera 'certificacion' o 'produccion'.",
+        ], 400);
+
         // Obtener firma
         list($cert_path, $Firma) = $this->importarFirma($tmp_dir, base64_decode($request->firmab64), base64_decode($request->pswb64));
         if (is_array($Firma)) {
@@ -1098,7 +1106,7 @@ class ApiPasarelaController extends PasarelaController
 
         // Llamar a función obtenerResumenCompraVenta o obtenerDetalleCompraVenta
         $metodo = "obtener".ucfirst(strtolower($request->tipo))."CompraVenta";
-        $csv = $this->$metodo($cert_path, base64_decode($request->pswb64), $request->rut, $request->dv, $request->tipo_dte, strtoupper($request->estado), strtoupper($request->operacion), $request->periodo);
+        $csv = $this->$metodo($ambiente, $cert_path, base64_decode($request->pswb64), $request->rut, $request->dv, $request->tipo_dte, strtoupper($request->estado), strtoupper($request->operacion), $request->periodo);
         if (!$csv) {
             return response()->json([
                 'error' => 'No se pudo obtener csv',

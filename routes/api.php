@@ -38,7 +38,7 @@ Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1', 'm
     // Resumen Ventas Diarias
     Route::post('pasarela/{ambiente}/resumenVentas', 'ApiPasarelaController@resumenVentas');
     // Obtener Resumen Compra Venta
-    Route::post('pasarela/registroCompraVenta', 'ApiPasarelaController@obtenerRegistroCompraVenta');
+    Route::post('pasarela/{ambiente}/registroCompraVenta', 'ApiPasarelaController@obtenerRegistroCompraVenta');
     // Generar PDF a partir de un XML
     Route::post('pasarela/dtes/pdf', 'ApiPasarelaController@generarPdf');
     // Generar XML & PDF
