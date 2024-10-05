@@ -794,7 +794,7 @@ class PasarelaController extends DteController
         return $arr;
     }
 
-    protected function obtenerResumenCompraVenta($pfx_path, $password, $rut_emp, $dv_emp, $tipo_folio, $estado, $operacion, $periodo)
+    protected function obtenerResumenCompraVenta($ambiente, $pfx_path, $password, $rut_emp, $dv_emp, $tipo_folio, $estado, $operacion, $periodo)
     {
         $jar = new \GuzzleHttp\Cookie\CookieJar;
         $client = new Client(array(
@@ -821,7 +821,7 @@ class PasarelaController extends DteController
         }
 
         $cookie = $jar->getCookieByName('CSESSIONID');
-        $get_resumen = $client->request('POST', "https://www4.sii.cl/consdcvinternetui/services/data/facadeService/getResumenExport", [
+        $get_resumen = $client->request('POST', "https://www4$ambiente.sii.cl/consdcvinternetui/services/data/facadeService/getResumenExport", [
             'json' => [
                 'data' => [
                     'busquedaInicial' => true,
@@ -853,7 +853,7 @@ class PasarelaController extends DteController
         return $csv_data->data;
     }
 
-    protected function obtenerDetalleCompraVenta($pfx_path, $password, $rut_emp, $dv_emp, $tipo_folio, $estado, $operacion, $periodo)
+    protected function obtenerDetalleCompraVenta($ambiente, $pfx_path, $password, $rut_emp, $dv_emp, $tipo_folio, $estado, $operacion, $periodo)
     {
         $jar = new \GuzzleHttp\Cookie\CookieJar;
         $client = new Client(array(
@@ -883,7 +883,7 @@ class PasarelaController extends DteController
         $tipo_folio ?: $tipo_folio = 0;
         if (strtoupper($operacion) == 'VENTA')
             $estado = '';
-        $get_detalle_export = $client->request('POST', "https://www4.sii.cl/consdcvinternetui/services/data/facadeService/getDetalle".ucfirst(strtolower($operacion))."Export", [
+        $get_detalle_export = $client->request('POST', "https://www4$ambiente.sii.cl/consdcvinternetui/services/data/facadeService/getDetalle".ucfirst(strtolower($operacion))."Export", [
             'json' => [
                 'data' => [
                     'codTipoDoc' => $tipo_folio,
@@ -891,8 +891,11 @@ class PasarelaController extends DteController
                     'estadoContab' => $estado,
                     'operacion' => $operacion,
                     'ptributario' => $periodo,
-                    'rutEmisor' => $rut_emp,
-                ],
+                    'rutEmisor' => $rut_emp
+                ]+ ($ambiente == 'c' ? [
+                    'accionRecaptcha' => 'RCV_DDETC',
+                        'tokenRecaptcha' => 'tokenRecaptcha'
+                    ] : []) ,
                 'metaData' => [
                     'conversationId' => $cookie->getValue(),
                     'namespace' => "cl.sii.sdi.lob.diii.consdcv.data.api.interfaces.FacadeService/getDetalle".ucfirst(strtolower($operacion))."Export",
