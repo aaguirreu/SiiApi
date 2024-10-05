@@ -446,6 +446,59 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
         }
     }
 
+    public function agregar_papel_0_sin_timbre(array $dte)
+    {
+        // agregar página para la factura
+        $this->AddPage();
+        // agregar cabecera del documento
+        $y[] = $this->agregarEmisor($dte['Encabezado']['Emisor']);
+        $y[] = $this->agregarFolio(
+            $dte['Encabezado']['Emisor']['RUTEmisor'],
+            $dte['Encabezado']['IdDoc']['TipoDTE'],
+            $dte['Encabezado']['IdDoc']['Folio'],
+            null
+            //!empty($dte['Encabezado']['Emisor']['CmnaOrigen']) ? $dte['Encabezado']['Emisor']['CmnaOrigen'] : null
+        );
+        $this->setY(max($y));
+        $this->Ln();
+        // datos del documento
+        $y = [];
+        $y[] = $this->agregarDatosEmision($dte['Encabezado']['IdDoc'], !empty($dte['Encabezado']['Emisor']['CdgVendedor'])?$dte['Encabezado']['Emisor']['CdgVendedor']:null);
+        $y[] = $this->agregarReceptor($dte['Encabezado']);
+        $this->setY(max($y));
+        $this->agregarTraslado(
+            !empty($dte['Encabezado']['IdDoc']['IndTraslado']) ? $dte['Encabezado']['IdDoc']['IndTraslado'] : null,
+            !empty($dte['Encabezado']['Transporte']) ? $dte['Encabezado']['Transporte'] : null
+        );
+        if (!empty($dte['Referencia'])) {
+            $this->agregarReferencia($dte['Referencia']);
+        }
+        $this->agregarDetalle($dte['Detalle']);
+        if (!empty($dte['DscRcgGlobal'])) {
+            $this->agregarSubTotal($dte['Detalle']);
+            $this->agregarDescuentosRecargos($dte['DscRcgGlobal']);
+        }
+        if (!empty($dte['Encabezado']['IdDoc']['MntPagos'])) {
+            $this->agregarPagos($dte['Encabezado']['IdDoc']['MntPagos']);
+        }
+        // agregar observaciones
+        $this->x_fin_datos = $this->getY();
+        $this->agregarObservacion($dte['Encabezado']['IdDoc']);
+        // Observaciones adicionales sobre el timbre
+        if(isset($dte['Observaciones']))
+            $this->agregarObservacionAdicional($dte['Observaciones']);
+        if (!$this->timbre_pie) {
+            $this->Ln();
+        }
+        $this->x_fin_datos = $this->getY();
+        $this->agregarTotales($dte['Encabezado']['Totales'], !empty($dte['Encabezado']['OtraMoneda']) ? $dte['Encabezado']['OtraMoneda'] : null);
+        // agregar acuse de recibo y leyenda cedible
+        if ($this->cedible and !in_array($dte['Encabezado']['IdDoc']['TipoDTE'], $this->sinAcuseRecibo)) {
+            $this->agregarAcuseRecibo();
+            $this->agregarLeyendaDestino($dte['Encabezado']['IdDoc']['TipoDTE']);
+        }
+    }
+
     protected function agregarEmisor(array $emisor, $x = 10, $y = 15, $w = 75, $w_img = 30, $font_size = null, array $color = null, $h_folio = null, $w_all = null)
     {
         $agregarDatosEmisor = true;
@@ -594,8 +647,8 @@ class Dte extends \sasco\LibreDTE\Sii\Dte\PDF\Dte
             $comuna = !empty($emisor['CmnaOrigen']) ? $emisor['CmnaOrigen'] : null;
             $ciudad = !empty($emisor['CiudadOrigen']) ? $emisor['CiudadOrigen'] : \sasco\LibreDTE\Chile::getCiudad($comuna);
             $this->setFont('', 'B', $font_size ? $font_size-1 : 8);
-            if (empty($this->casa_matriz))
-                $this->MultiTexto($direccion.($comuna?(', '.$comuna):'').($ciudad?(', '.$ciudad):''), $x, $this->y, 'L', ($h_folio and $h_folio < $this->getY()) ? $w_all : $w);
+            //if (empty($this->casa_matriz))
+                //$this->MultiTexto($direccion.($comuna?(', '.$comuna):'').($ciudad?(', '.$ciudad):''), $x, $this->y, 'L', ($h_folio and $h_folio < $this->getY()) ? $w_all : $w);
             if (!empty($emisor['Sucursal'])) {
                 $this->MultiTexto('Sucursal: '.$emisor['Sucursal'], $x, $this->y, 'L', ($h_folio and $h_folio < $this->getY()) ? $w_all : $w);
             }

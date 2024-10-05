@@ -42,5 +42,5 @@ Route::group(['prefix' => 'v1', 'namespace' => 'App\Http\Controllers\Api\V1', 'm
     // Generar PDF a partir de un XML
     Route::post('pasarela/dtes/pdf', 'ApiPasarelaController@generarPdf');
     // Generar XML & PDF
-    Route::post('pasarela/dtes/xml&pdf', 'ApiPasarelaController@generarXmlPDF');
+    Route::post('pasarela/dtes/fakepdf', 'ApiPasarelaController@generarFakePDF');
 });

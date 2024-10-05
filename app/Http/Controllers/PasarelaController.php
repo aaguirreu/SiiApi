@@ -659,6 +659,80 @@ class PasarelaController extends DteController
         return $pdfb64_arr;
     }
 
+    public function xmlFakePdf($xml, $continuo = false, $logob64 = false, $observaciones = false, $cedible = false, $copia_cedible = false, $footer = false, $tickets = false): array|false
+    {
+        if ($logob64){
+            try {
+                $tmp_dir = TemporaryDirectory::make()->deleteWhenDestroyed();
+                $logo_path = $tmp_dir->path("logo.png");
+                file_put_contents($logo_path, base64_decode($logob64));
+                file_get_contents($logo_path);
+            } catch (\Exception $e) {
+                $logob64 = false;
+            }
+        }
+
+        // Cargar EnvioDTE y extraer arreglo con datos de carátula y DTEs
+        $EnvioDte = new EnvioDte();
+        //$EnvioDte->loadXML(base64_decode($request->xmlb64));
+        $EnvioDte->loadXML($xml);
+        $Caratula = $EnvioDte->getCaratula();
+        $Documentos = $EnvioDte->getDocumentos();
+
+        // procesar cada DTEs e ir agregándolo al PDF
+        $pdfb64_arr = [];
+        /**
+         * @var \sasco\LibreDTE\Sii\Dte $DTE
+         */
+        foreach ($Documentos as $DTE) {
+            $filename = 'dte_' . $Caratula['RutEmisor'] . '_' . $DTE->getID();
+            if (!$DTE->getDatos()) {
+                Log::write("No se pudieron obtener los datos del DTE");
+                return false;
+            }
+            $dte = $DTE->getDatos();
+            // Utilizar librería editada \App\LibreDTE\PDF\Dte
+            $pdf = new Dte($continuo); // =false hoja carta, =true papel contínuo (false por defecto si no se pasa)
+            // Utilizar librería original
+            //$pdf = new \sasco\LibreDTE\Sii\Dte\PDF\Dte($continuo);
+            // Set casa matriz
+            //$pdf->setCasaMatriz('CASA MATRIZ');
+            if ($footer)
+                $pdf->setFooterText();
+            if ($logob64)
+                $pdf->setLogo($logo_path); // debe ser PNG!
+            //$pdf->setResolucion(['FchResol' => $Caratula['FchResol'], 'NroResol' => $Caratula['NroResol']]);
+            $pdf->setCedible($cedible);
+            // Si existen observaciones
+            if($observaciones)
+                $dte['Observaciones'] = $observaciones;
+            $pdf->agregar_papel_0_sin_timbre($dte);
+            $nombre = "{$Caratula['RutEmisor']}.{$dte['Encabezado']['IdDoc']['TipoDTE']}.{$dte['Encabezado']['IdDoc']['Folio']}";
+            if($copia_cedible) {
+                for ($i = 0; $i < $copia_cedible; $i++){
+                    if ($logob64)
+                        $pdf->setLogo($logo_path); // debe ser PNG!
+                    $pdf->setResolucion(['FchResol' => $Caratula['FchResol'], 'NroResol' => $Caratula['NroResol']]);
+                    $pdf->setCedible(true); // siempre true
+                    // Si existen observaciones
+                    if($observaciones)
+                        $dte['Observaciones'] = $observaciones;
+                    $pdf->agregar_papel_0_sin_timbre($dte);                }
+            }
+            if($tickets && $continuo) {
+                $continuo = $continuo === true ? 80 : $continuo;
+                if(in_array($continuo, array(0, 70, 75, 77, 80, 110)))
+                    $pdf->agregarTickets($tickets, ($continuo-58)/2, 190, $continuo);
+                else if($continuo == 57)
+                    $pdf->agregarTickets($tickets, 2, 190, $continuo);
+            }
+            //file_put_contents(base_path()."/pdf.pdf", $pdf->getPDFData());
+            $pdfb64_arr[$nombre] = chunk_split(base64_encode($pdf->getPDFData()));
+        }
+
+        return $pdfb64_arr;
+    }
+
     public function enviarDteReceptor($envio_dte_xml, $message, $envio_arr, $pdfb64_arr = false, $formato_impresion = false, $observaciones = false, $logob64 = false, $cedible = false, $copia_cedible = false, $footer = false, $tickets = false): bool|array
     {
         // Preparar datos
