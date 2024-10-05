@@ -881,8 +881,11 @@ class PasarelaController extends DteController
 
         $cookie = $jar->getCookieByName('CSESSIONID');
         $tipo_folio ?: $tipo_folio = 0;
-        if (strtoupper($operacion) == 'VENTA')
+        $accion_recaptcha = 'RCV_DDETC';
+        if (strtoupper($operacion) == 'VENTA'){
             $estado = '';
+            $accion_recaptcha = 'RCV_DDETV';
+        }
         $get_detalle_export = $client->request('POST', "https://www4$ambiente.sii.cl/consdcvinternetui/services/data/facadeService/getDetalle".ucfirst(strtolower($operacion))."Export", [
             'json' => [
                 'data' => [
@@ -893,7 +896,8 @@ class PasarelaController extends DteController
                     'ptributario' => $periodo,
                     'rutEmisor' => $rut_emp
                 ]+ ($ambiente == 'c' ? [
-                    'accionRecaptcha' => 'RCV_DDETC',
+                    //'accionRecaptcha' => $operacion = 'COMPRA' ? 'RCV_DDETC': 'RCV_DDETV',
+                        'accionRecaptcha' => $accion_recaptcha,
                         'tokenRecaptcha' => 'tokenRecaptcha'
                     ] : []) ,
                 'metaData' => [
