@@ -889,17 +889,15 @@ class PasarelaController extends DteController
         $get_detalle_export = $client->request('POST', "https://www4$ambiente.sii.cl/consdcvinternetui/services/data/facadeService/getDetalle".ucfirst(strtolower($operacion))."Export", [
             'json' => [
                 'data' => [
+                    'accionRecaptcha' => $accion_recaptcha,
                     'codTipoDoc' => $tipo_folio,
                     'dvEmisor' => $dv_emp,
                     'estadoContab' => $estado,
                     'operacion' => $operacion,
                     'ptributario' => $periodo,
-                    'rutEmisor' => $rut_emp
-                ]+ ($ambiente == 'c' ? [
-                    //'accionRecaptcha' => $operacion = 'COMPRA' ? 'RCV_DDETC': 'RCV_DDETV',
-                        'accionRecaptcha' => $accion_recaptcha,
-                        'tokenRecaptcha' => 'tokenRecaptcha'
-                    ] : []) ,
+                    'rutEmisor' => $rut_emp,
+                    'tokenRecaptcha' => 'tokenRecaptcha'
+                ],
                 'metaData' => [
                     'conversationId' => $cookie->getValue(),
                     'namespace' => "cl.sii.sdi.lob.diii.consdcv.data.api.interfaces.FacadeService/getDetalle".ucfirst(strtolower($operacion))."Export",
