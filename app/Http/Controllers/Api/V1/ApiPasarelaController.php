@@ -1118,6 +1118,82 @@ class ApiPasarelaController extends PasarelaController
         ], 200);
     }
 
+    public function consultaRegistroCompraVenta(Request $request, $ambiente): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'operacion' => 'required|in:recepcion,cedible,eventos,RECEPCION,CEDIBLE,EVENTOS,|string',
+            'rut' => 'required|string',
+            'dv' => 'required|string',
+            'tipo_dte' => 'required|integer',
+            'folio' => 'required|integer',
+            'firmab64' => 'required|string',
+            'pswb64' => 'required|string'
+        ], [
+            'rut' => 'rut es requerido',
+            'dv' => 'dv es requerido',
+            'tipo_dte' => 'tipo_dte es requerido',
+            'folio' => 'folio es requerido',
+            'firmab64.required' => 'firmab64 es requerida',
+            'pswb64.required' => 'pswb64 es requerida',
+        ]);
+        if ($validator->fails()) {
+            return response()->json([
+                'error' => $validator->errors()->all(),
+            ], 400);
+        }
+
+        // Obtener firma
+        list($cert_path, $Firma) = $this->importarFirma($tmp_dir, base64_decode($request->firmab64), base64_decode($request->pswb64));
+        if (is_array($Firma)) {
+            return response()->json([
+                'error' => $Firma['error'],
+            ], 400);
+        }
+
+        // verificar Token SII
+        $rut_envia = $Firma->getID();
+        try {
+            $this->isToken($rut_envia, $Firma);
+        } catch (Exception $e) {
+            return response()->json([
+                'error' => "No se pudo obtener Token SII. ". $e->getMessage(),
+            ], 500);
+        }
+
+        // Set ambiente
+        $this->setAmbiente($ambiente, $rut_envia);
+
+        // Envío de respuesta de documento a SII
+        try {
+            $respuesta_doc = new \sasco\LibreDTE\Sii\RegistroCompraVenta($Firma);
+        } catch (Exception $e) {
+            return response()->json([
+                'error' => $e->getMessage(),
+            ], 400);
+        }
+
+        if (strtoupper($request->operacion) == 'RECEPCION'){
+            $response = $respuesta_doc->consultarFechaRecepcionSii($request->rut, $request->dv, $request->tipo_dte, $request->folio);
+        } else if (strtoupper($request->operacion) == 'CEDIBLE'){
+            $response = $respuesta_doc->consultarDocDteCedible($request->rut, $request->dv, $request->tipo_dte, $request->folio);
+        } else if (strtoupper($request->operacion) == 'EVENTOS') {
+            try {
+                $response = $respuesta_doc->listarEventosHistDoc($request->rut, $request->dv, $request->tipo_dte, $request->folio);
+            } catch (Exception $e){
+                $response = $e->getMessage();
+            }
+        }
+        if(!$response) {
+            return response()->json([
+                'error' => "No se pudo realizar la solicitud"
+            ], 400);
+        }
+
+        return response()->json([
+            'exito' => $response
+        ], 200);
+    }
+
     public function generarFakePDF(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
