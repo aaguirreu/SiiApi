@@ -1172,13 +1172,36 @@ class ApiPasarelaController extends PasarelaController
             ], 400);
         }
 
-        if (strtoupper($request->operacion) == 'RECEPCION'){
+        if (strtoupper($request->operacion) == 'RECEPCION') {
             $response = $respuesta_doc->consultarFechaRecepcionSii($request->rut, $request->dv, $request->tipo_dte, $request->folio);
-        } else if (strtoupper($request->operacion) == 'CEDIBLE'){
+            if(!$response) {
+                return response()->json([
+                    'error' => "No se pudo realizar la solicitud"
+                ], 400);
+            }
+            return response()->json([
+                'exito' => [[
+                    'fecha' => $response
+                ]]
+            ], 200);
+        } else if (strtoupper($request->operacion) == 'CEDIBLE') {
             $response = $respuesta_doc->consultarDocDteCedible($request->rut, $request->dv, $request->tipo_dte, $request->folio);
+            if(!$response) {
+                return response()->json([
+                    'error' => "No se pudo realizar la solicitud"
+                ], 400);
+            }
+            return response()->json([
+                'exito' => [$response]
+            ], 200);
         } else if (strtoupper($request->operacion) == 'EVENTOS') {
             try {
                 $response = $respuesta_doc->listarEventosHistDoc($request->rut, $request->dv, $request->tipo_dte, $request->folio);
+                if(!$response) {
+                    return response()->json([
+                        'error' => "No se pudo realizar la solicitud"
+                    ], 400);
+                }
             } catch (Exception $e){
                 $response = $e->getMessage();
             }
